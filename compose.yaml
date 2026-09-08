@@ -9,13 +9,16 @@ services:
         ports:
             - '${FORWARD_DB_PORT:-43432}:5432'
         environment:
-            PGPASSWORD: '${DB_PASSWORD:-password}'
+            PGPASSWORD: '${DB_OWNER_PASSWORD:-password}'
             POSTGRES_DB: '${DB_DATABASE:-khronoz}'
-            POSTGRES_USER: '${DB_USERNAME:-sail}'
-            POSTGRES_PASSWORD: '${DB_PASSWORD:-password}'
+            POSTGRES_USER: '${DB_OWNER_USERNAME:-sail}'
+            POSTGRES_PASSWORD: '${DB_OWNER_PASSWORD:-password}'
+            APP_DB_USERNAME: '${DB_USERNAME:-khronoz_app}'
+            APP_DB_PASSWORD: '${DB_PASSWORD:-password}'
         volumes:
             - 'khronoz-pgsql:/var/lib/postgresql'
             - './docker/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
+            - './docker/pgsql/20-create-app-role.sh:/docker-entrypoint-initdb.d/20-create-app-role.sh'
         networks:
             - khronoz
         healthcheck:
@@ -26,7 +29,7 @@ services:
                 - '-d'
                 - '${DB_DATABASE:-khronoz}'
                 - '-U'
-                - '${DB_USERNAME:-sail}'
+                - '${DB_OWNER_USERNAME:-sail}'
             retries: 3
             timeout: 5s
     valkey:
