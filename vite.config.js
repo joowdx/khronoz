@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url';
+import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import { defineConfig } from 'vite';
 import inertia from '@inertiajs/vite';
 import laravel from 'laravel-vite-plugin';
@@ -18,8 +19,8 @@ export default defineConfig({
             ssr: 'resources/js/ssr.tsx',
             refresh: true,
             fonts: [
-                bunny('Instrument Sans', {
-                    weights: [400, 500, 600],
+                bunny('Public Sans', {
+                    weights: [400, 500, 600, 700],
                 }),
             ],
         }),
@@ -28,6 +29,9 @@ export default defineConfig({
         // Serves /__inertia_ssr from the dev server, so `artisan dev` renders
         // server side through live modules instead of a stale bundle.
         inertia(),
+        // Generates typed resources/js/{actions,routes} wrappers from the
+        // Laravel route list; enforce: 'pre' makes its position here safe.
+        wayfinder({ formVariants: true }),
     ],
     server: {
         port: Number(process.env.VITE_PORT ?? 43173),

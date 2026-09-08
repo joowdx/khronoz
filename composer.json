@@ -17,6 +17,7 @@
         "laravel/scout": "^11.6",
         "laravel/socialite": "^5.31",
         "laravel/tinker": "^3.0",
+        "laravel/wayfinder": "^0.1.21",
         "league/flysystem-aws-s3-v3": "^3.35",
         "socialiteproviders/apple": "^5.12"
     },
@@ -57,6 +58,9 @@
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "@php artisan dev"
+        ],
+        "migrate": [
+            "@php artisan migrate --database=owner"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

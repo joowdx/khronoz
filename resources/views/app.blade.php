@@ -14,7 +14,7 @@
 
         <x-inertia::head />
     </head>
-    <body class="bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+    <body class="min-h-svh bg-background text-foreground">
         <x-inertia::app />
     </body>
 </html>
