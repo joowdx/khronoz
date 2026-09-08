@@ -1,6 +1,8 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Fragment, useEffect, type ReactNode } from 'react';
-import { Toaster, toast } from 'sonner';
+import { toast } from 'sonner';
+// Toaster comes from the shadcn wrapper so its custom properties (--popover, --border, --radius) are set to khronoz tokens.
+import { Toaster } from '@/components/ui/sonner';
 import { AppSidebar } from '@/components/app-sidebar';
 import {
     Breadcrumb,
