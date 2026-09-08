@@ -23,7 +23,7 @@ Vocabulary: a **timelog** is what the device recorded; a **punch** is one matche
 
 1. Decided 2026-09-08: punches are a table. The FKs in 07-constraints.md need rows, json cannot carry them.
 2. Decided 2026-09-08: Inertia React for the web. Mobile comes later as a token API over the same action classes; Inertia controllers stay thin.
-3. Decided 2026-09-08: `Terminal`.
+3. Decided 2026-09-08: `Device`.
 4. Decided 2026-09-08: `Template` is phase 2; v1 needs `Enrollment` only. The device user id column is `uid`, the value the attlog carries.
 5. Decided 2026-09-08: `Turn` rows.
 6. Decided 2026-09-08: `Exemption`.
