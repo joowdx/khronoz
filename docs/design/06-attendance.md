@@ -66,7 +66,7 @@ erDiagram
         ulid id PK "see 05-calendar"
     }
     TIMELOGS {
-        ulid id PK "see 03-devices"
+        ulid id PK "see 03-terminals"
     }
 ```
 
@@ -81,7 +81,7 @@ erDiagram
 | Workday | employee E on date D: the shift snapshot plus the derived minutes and status | the DTR line |
 | Ledger | employee E in month M: the DTR page with its lock and signatures | the DTR form |
 
-Employee E, Standard shift, 8 Sep 2026. Device holds five timelogs for uid 42 that day: 07:58, 07:58 (double tap), 12:03, 17:05, 19:31.
+Employee E, Standard shift, 8 Sep 2026. Terminal holds five timelogs for uid 42 that day: 07:58, 07:58 (double tap), 12:03, 17:05, 19:31.
 
 | Punch | slot | kind | expected | timelog | actual | deviation |
 |---|---|---|---|---|---|---|
@@ -199,7 +199,7 @@ CS Form 48 is certified by the employee and verified by the in-charge. Agencies 
 
 1. `attestations`: `ledger_id`, `role`, `user_id`, `at`. One row per role per ledger.
 2. The agency setting `attestations` lists the required roles in order. Default `[employee, supervisor]`. `[employee, supervisor, head]` or `[supervisor, head, hr]` are settings, not code.
-3. Who may sign a role comes from the org tree. `employee`: the ledger's own employee through their user. `supervisor`: `Unit.head_id` of the employee's deployment in that month. `head`: the head of the nearest ancestor unit of the kind the setting names, department for instance. `hr`: any user with the HR role. The row records who actually signed.
+3. Who may sign a role comes from the org tree. `employee`: the ledger's own employee through their user. `supervisor`: `Unit.head_id` of the employee's deployment in that month. `head`: the head of the nearest ancestor unit of the kind the setting names, department for instance. `hr`: any user of the agency holding `ledgers.attest`. The row records who actually signed.
 4. A ledger is complete when every listed role has a row.
 5. Attestations are only possible on a locked ledger, and a ledger with attestations cannot be unlocked until they are removed. You certify frozen numbers, never moving ones. Triggers in 07-constraints.md.
 6. Timestamps and user ids only. No signature images, no certificates.

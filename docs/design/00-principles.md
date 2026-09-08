@@ -10,7 +10,7 @@ One rule: **variation between agencies is data, invariants are code.** Onboardin
 | Work patterns: 8–5, flexi, CWW, rotation, 24/7, remote day, Ramadan | `Shift` + `Schedule` + `Turn` + `Roster` rows | an arrangement enum with branches in the compute code |
 | Who follows what | one `Roster` per employee; `Group` only to select many at once | schedules attached to groups or units |
 | Calendar | `Holiday` (national when owned by the platform agency, local otherwise), `Suspension` scoped by unit, `Exemption` per employee | a hardcoded holiday list |
-| Devices and vendors | `Device.protocol` with one driver per protocol, `Timelog` normalised to `(uid, time, state, mode)` | vendor-specific tables or columns |
+| Terminals and vendors | `Terminal.protocol` with one driver per protocol, `Timelog` normalised to `(uid, time, state, mode)` | vendor-specific tables or columns |
 | Sensible starting points | rows owned by the platform agency, copied into every new agency at onboarding, `origin_id` keeps the link | seeders per agency |
 | Preferences: grace, trust device state, off day, remote day | typed `settings` json on `Agency`, defaults in code, bounded by law | an EAV `Setting` table |
 | Reports and cutoffs | `Ledger` views with `period` and `work` parameters | 1–15 and 16–31 baked into columns |
@@ -24,7 +24,7 @@ One rule: **variation between agencies is data, invariants are code.** Onboardin
 4. **Two scopes only: global and agency.** Ownership stops at the agency. Finer granularity comes from assignment (`Roster`, `Deployment`, `Suspension.unit_id`), not from unit-owned configuration.
 5. **A type column when the shape is the same, a table when it differs.** `Holiday.type`, `Exemption.type`, `Unit.kind` are columns. `Suspension` is its own table because it has a time range and a unit scope that holidays do not.
 6. **Bounded flexibility.** Agencies choose within the law. They cannot define new workday statuses, new formulas, or new fields in v1. Extra inert data goes in a `meta` json that no rule reads.
-7. **Single database, `agency_id` on every table with paired foreign keys, a global scope keyed to the user's agency.** Superusers bypass it. Row-level security is available later without a schema change.
+7. **Single database, `agency_id` on every table with paired foreign keys, a global scope keyed to the user's agency.** Platform users act inside a chosen agency, so the scope has one code path (02-access.md rule 3). Row-level security is available later without a schema change.
 8. **Constants change by deploy with a date.** When CSC changes a threshold, the rules module gets a new value with an effectivity date, and workdays before that date keep computing under the old one.
 
 ## Three tiers of configuration
@@ -48,4 +48,4 @@ Every design change must keep these five agencies onboardable without a code cha
 | D | LGU on a Tuesday–Friday CWW with local holidays | 10-hour shift, CWW schedule with fallback (D2), local `Holiday` rows |
 | E | national agency under OP MC 114 with a remote Friday | schedule whose Friday turn is a `remote` shift (D1) |
 
-Timezone is Asia/Manila throughout. Device times arrive as naive local time and are stored that way. Serving another jurisdiction would mean another rules module, which is a different product, not a setting.
+Timezone is Asia/Manila throughout. Terminal times arrive as naive local time and are stored that way. Serving another jurisdiction would mean another rules module, which is a different product, not a setting.

@@ -9,7 +9,7 @@ Read 00-principles.md first, then one file per concern. Each concern file has a 
 | 00-principles.md | how it stays generic | |
 | 01-organization.md | who and where | Agency, Unit, Deployment, Employee, Group, Member |
 | 02-access.md | who logs in | User |
-| 03-devices.md | raw timelogs in | Device, Enrollment, Template, Sync, Timelog |
+| 03-terminals.md | raw timelogs in | Terminal, Enrollment, Template, Sync, Timelog |
 | 04-scheduling.md | what was expected | Shift, Schedule, Turn, Roster |
 | 05-calendar.md | what changed the expectation | Holiday, Suspension, Exemption, Overtime |
 | 06-attendance.md | what happened | Workday, Punch, Ledger, Attestation |
@@ -23,7 +23,7 @@ Vocabulary: a **timelog** is what the device recorded; a **punch** is one matche
 
 1. Decided 2026-09-08: punches are a table. The FKs in 07-constraints.md need rows, json cannot carry them.
 2. Decided 2026-09-08: Inertia React for the web. Mobile comes later as a token API over the same action classes; Inertia controllers stay thin.
-3. Decided 2026-09-08: `Device`.
+3. Decided 2026-09-08: `Terminal`.
 4. Decided 2026-09-08: `Template` is phase 2; v1 needs `Enrollment` only. The device user id column is `uid`, the value the attlog carries.
 5. Decided 2026-09-08: `Turn` rows.
 6. Decided 2026-09-08: `Exemption`.
@@ -35,9 +35,13 @@ Vocabulary: a **timelog** is what the device recorded; a **punch** is one matche
 
 12. Decided 2026-09-08: D8 is an `attestations` table, one row per role per ledger, roles listed per agency in settings, signers resolved from `Unit.head_id`. Attestations require a locked ledger; unlocking requires removing them first.
 13. Decided 2026-09-08: cross-midnight punches belong to the workday the shift started on, in that month; a timelog at T can only serve dates T − 3 to T; a ledger cannot lock while an out is still pending. CS Form 48 prints later-day punches with a day marker.
-14. Decided 2026-09-08: the shared-row owner is the **platform** agency, found by a `platform` boolean with a partial unique index, not by a magic code. Its rough edges are handled: an Eloquent global scope hides it from every agency list; superusers act inside a chosen agency so scoping has one code path; defaults are copied into each new agency at onboarding and copies carry `origin_id`, so drift is visible and refreshable; employees, units, devices and groups refuse the platform row by trigger. Say if not.
+14. Decided 2026-09-08: the shared-row owner is the **platform** agency, found by a `platform` boolean with a partial unique index, not by a magic code. Its rough edges are handled: an Eloquent global scope hides it from every agency list; superusers act inside a chosen agency so scoping has one code path; defaults are copied into each new agency at onboarding and copies carry `origin_id`, so drift is visible and refreshable; employees, units, terminals and groups refuse the platform row by trigger. Say if not.
 
 15. Decided 2026-09-08: tier 3 agency settings are one `settings` jsonb column on `agencies`, shape checked by a Postgres function, read through one typed PHP class; an `audits` table filled by a generic row-level trigger on rosters, exemptions, overtimes, enrollments, timelog voids, ledger locks, attestations, shifts and schedules is in v1, with `user_id` from a session variable the app sets per request; employee logins are created by HR invite only, and an agency whose staff never log in drops `employee` from its attestation chain.
+
+16. Decided 2026-09-09: the biometric device model is `Terminal` (`terminals`, `terminal_id`). Passport's device-authorization model keeps `Device`/`devices`, installed in 4d067d4. Decision 3 is superseded.
+17. Decided 2026-09-09: permissions instead of a role enum. `users.permissions` is a jsonb array of strings from one PHP enum with a Postgres shape check; presets are code, not rows. Decision in 02-access.md rule 4 supersedes "roles are a single enum".
+18. Decided 2026-09-09: auth is hand-rolled on framework primitives (Fortify's stable line stops at Laravel 12); invite-only logins; Google and Apple sign-in through Socialite only for already-invited emails.
 
 ## Deltas from the CSC review, applied 2026-09-08
 

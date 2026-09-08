@@ -17,7 +17,7 @@ Three uses in khronoz:
 |---|---|---|
 | `agency_id` on every table | `(x_id, agency_id) → parent (id, agency_id)` | no row ever points across agencies |
 | `employee_id` on punches and workdays | `(timelog_id, employee_id) → timelogs (id, employee_id)` | a punch only uses a timelog of the same employee |
-| `uid`, `device_id`, `employee_id` on timelogs | `(enrollment_id, employee_id, device_id, uid) → enrollments (id, employee_id, device_id, uid)` | the resolved employee is the one enrolled under that UID on that device |
+| `uid`, `terminal_id`, `employee_id` on timelogs | `(enrollment_id, employee_id, terminal_id, uid) → enrollments (id, employee_id, terminal_id, uid)` | the resolved employee is the one enrolled under that UID on that device |
 
 FKs use `MATCH SIMPLE`, the default: when any referencing column is null the check is skipped. That is what makes nullable links (unresolved timelogs, missed punches) work without special cases, and it is why global rows must not be null-owned, next section.
 
@@ -28,7 +28,7 @@ FKs use `MATCH SIMPLE`, the default: when any referencing column is null the che
 - National holidays, default shifts and schedules, superusers: `agency_id = platform`.
 - An agency roster cannot reference a platform schedule, because `(schedule_id, agency_id)` would not match. **Copy on use is enforced by the FK**, not by discipline. The copy keeps `origin_id` pointing at the platform row it came from, the one deliberate cross-agency pointer, reference only.
 - Scoping is `agency_id IN (own, platform)` for holidays and `agency_id = own` for everything else.
-- Nothing operational hangs under the platform row: employees, units, devices and groups refuse it by trigger, and everything else needs one of those.
+- Nothing operational hangs under the platform row: employees, units, terminals and groups refuse it by trigger, and everything else needs one of those.
 - The application never lists it: an Eloquent global scope on `Agency` excludes it, `Agency::platform()` reaches it.
 
 ## Extensions
@@ -51,7 +51,7 @@ UNIQUE (code)
 platform boolean NOT NULL DEFAULT false
 CREATE UNIQUE INDEX agencies_platform ON agencies (platform) WHERE platform     -- at most one platform row
 -- trigger agencies_platform_row: the platform row cannot be deleted; `platform` cannot change after insert
--- trigger agency_not_platform on employees, units, devices, groups, BEFORE INSERT OR UPDATE OF agency_id:
+-- trigger agency_not_platform on employees, units, terminals, groups, BEFORE INSERT OR UPDATE OF agency_id:
 --   raise if the agency is the platform row
 ```
 
@@ -101,16 +101,29 @@ EXCLUDE USING gist (group_id WITH =, employee_id WITH =, daterange(starts, ends,
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
 UNIQUE (employee_id)
 CREATE UNIQUE INDEX users_email ON users (lower(email))
+permissions jsonb NOT NULL DEFAULT '[]'
+CHECK (permissions_valid(permissions))                               -- array of distinct strings; the allowed set is the PHP enum
+UNIQUE (id, agency_id)                                               -- target for the attestation FK
 ```
 
 A superuser is `agency_id = platform` with no employee. The platform agency has no employees, so the FK already forbids linking a superuser to a person.
 
-### devices
+Permissions shape is a database check too: array, every element a string, no duplicate values. Which strings are allowed is the PHP enum, enforced by the application, not by this function.
+
+```sql
+CREATE FUNCTION permissions_valid(permissions jsonb) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
+    SELECT jsonb_typeof(permissions) = 'array'
+       AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(permissions) e WHERE jsonb_typeof(e) <> 'string')
+       AND jsonb_array_length(permissions) = (SELECT count(DISTINCT e) FROM jsonb_array_elements_text(permissions) e);
+$$;
+```
+
+### terminals
 
 ```sql
 FOREIGN KEY (unit_id, agency_id) REFERENCES units (id, agency_id)
 UNIQUE (agency_id, code)
-CREATE UNIQUE INDEX devices_serial ON devices (serial) WHERE serial IS NOT NULL
+CREATE UNIQUE INDEX terminals_serial ON terminals (serial) WHERE serial IS NOT NULL
 CHECK (kind IN ('terminal', 'usb'))
 CHECK (protocol IN ('push', 'pull', 'file'))
 ```
@@ -119,21 +132,21 @@ CHECK (protocol IN ('push', 'pull', 'file'))
 
 ```sql
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
-FOREIGN KEY (device_id, agency_id)   REFERENCES devices (id, agency_id)
+FOREIGN KEY (terminal_id, agency_id) REFERENCES terminals (id, agency_id)
 CHECK (ends IS NULL OR ends >= starts)
-EXCLUDE USING gist (device_id WITH =, uid WITH =, daterange(starts, ends, '[]') WITH &&)          -- a UID on a device is one person at a time
-EXCLUDE USING gist (employee_id WITH =, device_id WITH =, daterange(starts, ends, '[]') WITH &&)  -- one UID per person per device at a time
-UNIQUE (id, employee_id, device_id, uid)                                                          -- target for the timelog FK below
--- trigger enrollments_reresolve, AFTER INSERT OR UPDATE OF starts, ends, employee_id, uid, device_id:
---   re-run timelog resolution for the (device_id, uid) pair; see "Resolution is the database's job"
+EXCLUDE USING gist (terminal_id WITH =, uid WITH =, daterange(starts, ends, '[]') WITH &&)          -- a UID on a device is one person at a time
+EXCLUDE USING gist (employee_id WITH =, terminal_id WITH =, daterange(starts, ends, '[]') WITH &&)  -- one UID per person per device at a time
+UNIQUE (id, employee_id, terminal_id, uid)                                                          -- target for the timelog FK below
+-- trigger enrollments_reresolve, AFTER INSERT OR UPDATE OF starts, ends, employee_id, uid, terminal_id:
+--   re-run timelog resolution for the (terminal_id, uid) pair; see "Resolution is the database's job"
 ```
 
-The first exclusion constraint's gist index also serves the resolution lookup `device_id = ? AND uid = ? AND range @> date`, so no extra index.
+The first exclusion constraint's gist index also serves the resolution lookup `terminal_id = ? AND uid = ? AND range @> date`, so no extra index.
 
 ### syncs
 
 ```sql
-FOREIGN KEY (device_id, agency_id) REFERENCES devices (id, agency_id)
+FOREIGN KEY (terminal_id, agency_id) REFERENCES terminals (id, agency_id)
 CHECK (trigger IN ('scheduled', 'manual', 'push', 'import'))
 CHECK (finished_at IS NULL OR finished_at >= started_at)
 CHECK (received = accepted + duplicates + rejected)
@@ -142,12 +155,12 @@ CHECK (received = accepted + duplicates + rejected)
 ### timelogs
 
 ```sql
-FOREIGN KEY (device_id, agency_id) REFERENCES devices (id, agency_id)
-FOREIGN KEY (sync_id)              REFERENCES syncs (id)
-FOREIGN KEY (user_id)              REFERENCES users (id)
-FOREIGN KEY (enrollment_id, employee_id, device_id, uid)
-    REFERENCES enrollments (id, employee_id, device_id, uid)
-UNIQUE (device_id, uid, time, state, mode)                        -- the attlog natural key; the upsert target
+FOREIGN KEY (terminal_id, agency_id) REFERENCES terminals (id, agency_id)
+FOREIGN KEY (sync_id)                REFERENCES syncs (id)
+FOREIGN KEY (user_id)                REFERENCES users (id)
+FOREIGN KEY (enrollment_id, employee_id, terminal_id, uid)
+    REFERENCES enrollments (id, employee_id, terminal_id, uid)
+UNIQUE (terminal_id, uid, time, state, mode)                      -- the attlog natural key; the upsert target
 UNIQUE (id, employee_id)                                          -- target for the punch FK
 CHECK ((enrollment_id IS NULL) = (employee_id IS NULL))           -- resolved means both, unresolved means neither
 CHECK ((source = 'device') = (sync_id IS NOT NULL))
@@ -155,7 +168,7 @@ CHECK (source <> 'manual' OR user_id IS NOT NULL)                 -- MC 21 s. 19
 CHECK (voided_at IS NULL OR reason IS NOT NULL)
 CHECK (state BETWEEN 0 AND 255) CHECK (mode BETWEEN 0 AND 255)    -- raw ints, unknown values allowed
 -- trigger timelogs_resolve, BEFORE INSERT: sets enrollment_id and employee_id from the enrollment covering
---   (device_id, uid, time::date), or leaves both null; see "Resolution is the database's job"
+--   (terminal_id, uid, time::date), or leaves both null; see "Resolution is the database's job"
 ```
 
 Immutability is a privilege, not a trigger:
@@ -179,7 +192,7 @@ BEGIN
     SELECT e.id, e.employee_id
       INTO NEW.enrollment_id, NEW.employee_id
       FROM enrollments e
-     WHERE e.device_id = NEW.device_id
+     WHERE e.terminal_id = NEW.terminal_id
        AND e.uid = NEW.uid
        AND daterange(e.starts, e.ends, '[]') @> NEW.time::date;
     RETURN NEW;     -- nothing found: both stay null, the timelog is unresolved and visible
@@ -200,29 +213,29 @@ BEGIN
     UPDATE timelogs t
        SET enrollment_id = e.id, employee_id = e.employee_id
       FROM enrollments e
-     WHERE t.device_id = NEW.device_id AND t.uid = NEW.uid
-       AND e.device_id = t.device_id AND e.uid = t.uid
+     WHERE t.terminal_id = NEW.terminal_id AND t.uid = NEW.uid
+       AND e.terminal_id = t.terminal_id AND e.uid = t.uid
        AND daterange(e.starts, e.ends, '[]') @> t.time::date
        AND (t.enrollment_id IS DISTINCT FROM e.id OR t.employee_id IS DISTINCT FROM e.employee_id);
 
     UPDATE timelogs t
        SET enrollment_id = NULL, employee_id = NULL
-     WHERE t.device_id = NEW.device_id AND t.uid = NEW.uid
+     WHERE t.terminal_id = NEW.terminal_id AND t.uid = NEW.uid
        AND t.enrollment_id IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM enrollments e
-                        WHERE e.device_id = t.device_id AND e.uid = t.uid
+                        WHERE e.terminal_id = t.terminal_id AND e.uid = t.uid
                           AND daterange(e.starts, e.ends, '[]') @> t.time::date);
     RETURN NULL;
 END $$;
 
 CREATE TRIGGER enrollments_reresolve
-    AFTER INSERT OR UPDATE OF starts, ends, employee_id, uid, device_id ON enrollments
+    AFTER INSERT OR UPDATE OF starts, ends, employee_id, uid, terminal_id ON enrollments
     FOR EACH ROW EXECUTE FUNCTION enrollments_reresolve();
 ```
 
-When `uid` or `device_id` themselves change, the function runs once more for the `OLD` pair. Deleting an enrollment that timelogs reference is blocked by the FK; end it with `ends` instead.
+When `uid` or `terminal_id` themselves change, the function runs once more for the `OLD` pair. Deleting an enrollment that timelogs reference is blocked by the FK; end it with `ends` instead.
 
-Both functions are `SECURITY DEFINER`, owned by the migration role, which is why the app role can lose `UPDATE` on those columns entirely. The paired FK on `(enrollment_id, employee_id, device_id, uid)` stays as a second lock: satisfied by construction, it catches a future bug in the function.
+Both functions are `SECURITY DEFINER`, owned by the migration role, which is why the app role can lose `UPDATE` on those columns entirely. The paired FK on `(enrollment_id, employee_id, terminal_id, uid)` stays as a second lock: satisfied by construction, it catches a future bug in the function.
 
 What the database does not do is queue the workday recompute. The application does that from `INSERT ... RETURNING id, employee_id, time` on ingest, and from the affected `(employee_id, time::date)` pairs after an enrollment change.
 
@@ -388,7 +401,7 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 
 | Question | Enforced by |
 |---|---|
-| Is this timelog's employee the one enrolled under that UID on that device? | composite FK on `(enrollment_id, employee_id, device_id, uid)` |
+| Is this timelog's employee the one enrolled under that UID on that device? | composite FK on `(enrollment_id, employee_id, terminal_id, uid)` |
 | On that date? | the database sets it: `timelogs_resolve` picks the enrollment covering `time::date`, `enrollments_reresolve` redoes it when enrollments change |
 | Can a UID be two people at once, or a person hold two UIDs on one device at once? | two exclusion constraints on enrollments |
 | Does this punch use a timelog of the same employee, resolved, unused elsewhere, not voided? | composite FK, composite FK, partial unique index, trigger |
