@@ -41,4 +41,18 @@ class AppRoleTest extends TestCase
 
         (new EnsureMigrationsRunAsOwner)->handle(new MigrationsStarted('up'));
     }
+
+    public function test_migrations_guard_strips_connection_suffix_before_comparing(): void
+    {
+        DB::setDefaultConnection('owner::direct');
+
+        (new EnsureMigrationsRunAsOwner)->handle(new MigrationsStarted('up'));
+
+        DB::setDefaultConnection('pgsql::direct');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('composer migrate');
+
+        (new EnsureMigrationsRunAsOwner)->handle(new MigrationsStarted('up'));
+    }
 }
