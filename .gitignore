@@ -13,6 +13,10 @@
 /.vscode
 /.zed
 /auth.json
+/bootstrap/ssr
+/database/telescope.sqlite
+/database/telescope.sqlite-shm
+/database/telescope.sqlite-wal
 /node_modules
 /public/build
 /public/fonts-manifest.dev.json
@@ -21,7 +25,7 @@
 /storage/*.key
 /storage/pail
 /vendor
-_ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+_ide_helper.php

@@ -42,6 +42,14 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Two token guards, deliberately. Sanctum issues the first-party
+        // tokens the mobile client will use (auth:sanctum); Passport is the
+        // OAuth2 server for anything third party (auth:api).
+        'api' => [
+            'driver' => 'passport',
+            'provider' => 'users',
+        ],
     ],
 
     /*
@@ -95,7 +103,7 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
-            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
+            'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'resets'),
             'expire' => 60,
             'throttle' => 60,
         ],

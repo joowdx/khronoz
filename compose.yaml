@@ -1,0 +1,100 @@
+# Dependencies only. The application itself runs on the host, so `php artisan`
+# talks to these over the forwarded ports and there is no bind-mount uid to
+# fight with. Nothing here mounts anything out of vendor/, so `docker compose
+# up` works on a fresh clone before `composer install` has run.
+services:
+    pgsql:
+        image: 'postgres:18-alpine'
+        container_name: khronoz-pgsql
+        ports:
+            - '${FORWARD_DB_PORT:-43432}:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-password}'
+            POSTGRES_DB: '${DB_DATABASE:-khronoz}'
+            POSTGRES_USER: '${DB_USERNAME:-sail}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-password}'
+        volumes:
+            - 'khronoz-pgsql:/var/lib/postgresql'
+            - './docker/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
+        networks:
+            - khronoz
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - '-q'
+                - '-d'
+                - '${DB_DATABASE:-khronoz}'
+                - '-U'
+                - '${DB_USERNAME:-sail}'
+            retries: 3
+            timeout: 5s
+    valkey:
+        image: 'valkey/valkey:alpine'
+        container_name: khronoz-valkey
+        ports:
+            - '${FORWARD_VALKEY_PORT:-43379}:6379'
+        volumes:
+            - 'khronoz-valkey:/data'
+        networks:
+            - khronoz
+        healthcheck:
+            test:
+                - CMD
+                - valkey-cli
+                - ping
+            retries: 3
+            timeout: 5s
+    rustfs:
+        image: 'rustfs/rustfs:latest'
+        container_name: khronoz-rustfs
+        ports:
+            - '${FORWARD_RUSTFS_PORT:-43900}:9000'
+            - '${FORWARD_RUSTFS_CONSOLE_PORT:-43901}:9001'
+        environment:
+            RUSTFS_VOLUMES: /data
+            RUSTFS_ADDRESS: '0.0.0.0:9000'
+            RUSTFS_CONSOLE_ADDRESS: '0.0.0.0:9001'
+            RUSTFS_CONSOLE_ENABLE: 'true'
+            RUSTFS_EXTERNAL_ADDRESS: ':9000'
+            RUSTFS_CORS_ALLOWED_ORIGINS: '*'
+            RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS: '*'
+            RUSTFS_ACCESS_KEY: '${AWS_ACCESS_KEY_ID:-sail}'
+            RUSTFS_SECRET_KEY: '${AWS_SECRET_ACCESS_KEY:-password}'
+            RUSTFS_LOG_LEVEL: info
+        volumes:
+            - 'khronoz-rustfs:/data'
+        networks:
+            - khronoz
+        healthcheck:
+            test:
+                - CMD
+                - sh
+                - '-c'
+                - 'curl -f http://127.0.0.1:9000/health && curl -f http://127.0.0.1:9001/health'
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+    mailpit:
+        image: 'axllent/mailpit:latest'
+        container_name: khronoz-mailpit
+        ports:
+            - '${FORWARD_MAILPIT_PORT:-43025}:1025'
+            - '${FORWARD_MAILPIT_DASHBOARD_PORT:-43825}:8025'
+        networks:
+            - khronoz
+networks:
+    khronoz:
+        name: khronoz-network
+        driver: bridge
+volumes:
+    khronoz-pgsql:
+        name: khronoz-pgsql
+        driver: local
+    khronoz-valkey:
+        name: khronoz-valkey
+        driver: local
+    khronoz-rustfs:
+        name: khronoz-rustfs
+        driver: local
