@@ -1,15 +1,14 @@
 'use client';
 
 import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react';
-import { useTheme } from 'next-themes';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 
+// Theming is managed by design tokens in resources/css/app.css (--popover, --border, --radius custom properties)
+// which automatically respond to the .dark class on the root element. The Sonner component uses these tokens
+// via the inline style block below; no theme provider is needed.
 const Toaster = ({ ...props }: ToasterProps) => {
-    const { theme = 'system' } = useTheme();
-
     return (
         <Sonner
-            theme={theme as ToasterProps['theme']}
             className="toaster group"
             icons={{
                 success: <CircleCheckIcon className="size-4" />,
