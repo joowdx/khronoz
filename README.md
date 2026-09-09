@@ -1,58 +1,53 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# khronoz
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Scheduling and Daily Time Record system for Philippine government HR offices — Laravel 13, Inertia 3, React 19, Postgres 18.
 
-## About Laravel
+## Setup
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Dependencies (Postgres, Valkey, RustFS, Mailpit) run in Docker; the application itself runs on the host.
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+docker compose up -d   # khronoz-pgsql, khronoz-valkey, khronoz-rustfs, khronoz-mailpit
+composer setup         # install, .env, app key, composer migrate, npm install, Wayfinder, npm run build
+php artisan db:seed
+php artisan dev
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+- App: http://localhost:43080
+- Mailpit: http://localhost:43825
+- Horizon: http://localhost:43080/horizon (open to everyone locally; outside local, restricted to platform superusers — see `app/Support/Dashboard.php`)
 
-## Contributing
+Dev superuser, seeded by `db:seed` (local only): `superuser@khronoz.test` / `password`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Run the tests with `php artisan test --compact`.
 
-## Code of Conduct
+`composer setup` runs `composer install`, copies `.env.example` to `.env`, generates the app key, runs `composer migrate` (below), installs npm dependencies, generates the Wayfinder route and action modules (`php artisan wayfinder:generate --with-form` — they are gitignored, so a fresh clone has nothing to import until this runs) and builds the front end.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Database roles
 
-## Security Vulnerabilities
+Migrations run as the database owner. The application itself connects as a separate, restricted role, `khronoz_app`, which cannot alter schema and is further revoked from a handful of columns and tables the migrations lock down (`docs/design/07-constraints.md`). Never run migrations as the app role directly — a freshly created table has no grants for it yet, and later migrations REVOKE privileges a superuser connection would otherwise still have.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- Always migrate with `composer migrate` (`php artisan migrate --database=owner`), never a bare `php artisan migrate`.
+- **Fresh Docker volume:** `docker/pgsql/20-create-app-role.sh` creates the `khronoz_app` role automatically the first time the `khronoz-pgsql` volume initializes. Nothing to do.
+- **Existing volume** where the role is missing (Postgres only runs `/docker-entrypoint-initdb.d` scripts against an empty data directory): create it by hand once, then migrate as usual.
+  ```bash
+  docker compose exec pgsql psql -U sail -d khronoz -c "CREATE ROLE khronoz_app LOGIN PASSWORD 'password';"
+  ```
+- **Production**, with no Docker Postgres: create the role directly on the real database, then run `composer migrate` once against it — the first migration grants `khronoz_app` row-level privileges on every present and future table.
+  ```sql
+  CREATE ROLE khronoz_app LOGIN PASSWORD '…';
+  ```
 
-## License
+`DB_OWNER_USERNAME` / `DB_OWNER_PASSWORD` exist only in dev `.env` and the deploy/migrate step. **Leave them unset wherever Octane and Horizon actually run** — if a running app process has them set, `DB::connection('owner')` bypasses every REVOKE the migrations put in place.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Known gap: `npm run lint`
+
+`npm run lint` does not currently work: `typescript-eslint@8.70.0` and its parser both refuse to load under this project's TypeScript 7 (their peer range is `>=4.8.4 <6.1.0`). See the comment at the top of `eslint.config.js`; upstream tracking is [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940). Until that lands, the front-end verification gate is:
+
+```bash
+npm run format && npm run types && npm run build
+```
+
+## Documentation
+
+Design docs live under `docs/design/` (start with `00-principles.md`), reference material the design answers to under `docs/reference/`, and durable coding conventions under `.ai/rules/` (start with `index.md`).
