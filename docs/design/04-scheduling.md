@@ -19,6 +19,7 @@ erDiagram
         smallint flex "arrival band in minutes, 0 = fixed"
         boolean remote "no punches expected, credited on attestation, no overtime"
         boolean trust "device state: truth or hint"
+        smallint color "roster grid ramp index, 1 to 8"
         ulid origin_id FK "nullable, the platform row this was copied from"
     }
     SCHEDULES {
@@ -152,3 +153,4 @@ Schedule `24/48`, length 3: Duty24, Off, Off. Three guards per post, anchors 1 d
 5. `fallback_shift_id`: when a holiday or suspension lands on an Off turn, the other turns of that ISO week resolve to the fallback shift, prospectively from `declared_at` (Res. 2600838 §2.3 and §2.5). Recompute for such rosters widens from the date to the week.
 6. A `remote` shift expects no punches. The day is credited on attestation and never yields overtime (Flexiplace, OP MC 114).
 7. Platform-owned shifts and schedules are readable by every agency, copied into each new agency at onboarding and on demand later. `origin_id` points at the platform row, so the UI shows when a copy has diverged and can refresh it on request. A roster can only reference a schedule of its own agency, which the paired FK enforces.
+8. `color smallint NOT NULL` is the shift's slot in the roster grid's fixed eight-colour ramp, stored on the row and never derived from the name or the id. A new shift takes the lowest index its agency is not already using and wraps at 8; HR may change it; a copy from the platform agency carries the origin row's index. `Off` and `Remote` are drawn from empty `slots` and the `remote` flag, so their index is never read. Range 1 to 8 is a database check with the other shift constraints (07-constraints.md); the ramp itself is in 08-interface.md (decision 21).

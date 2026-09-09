@@ -119,33 +119,38 @@ The form is one renderer of the ledger view, not the storage. Its fixed columns 
 
 | Slots in the shift | Printed as |
 |---|---|
-| 2 pairs | slot 1 in the AM columns, slot 2 in the PM columns, whatever the clock says |
-| 1 pair | arrival in the first column, departure in the last, middle blank |
-| 3 or more | first in and last out on the form, the rest in the slot-labelled layout |
+| any number | each punch in the column its own clock time falls in, AM before 12:00 and PM from 12:00; the side comes from the punch `kind`, an `in` is an arrival and an `out` a departure. The two sides of one pair may land in different halves of the form |
+| 2 pairs | the ordinary daytime case: slot 1 fills the AM pair, slot 2 the PM pair. A pair whose clock times say otherwise follows the clock, not the slot number |
+| 1 pair | 08:00–17:00 prints an AM arrival and a PM departure; 22:00–06:00 prints a PM arrival and an AM departure `06:00⁺¹`; the two unused columns stay blank |
+| 3 or more | first in and last out on the form, placed by the same rule, the rest in the slot-labelled layout |
 | a punch dated after the workday | the time with a day marker, `06:00⁺¹`, `08:00⁺²` |
+| whole-day exemption | the exemption `type`, or its `reference` when the exemption carries an order number, across the four time columns |
+| partial exemption | the punches as usual, with the excused side marked |
 | missed punch | blank |
 | punch whose `expected_at` is still in the future | `…`, pending, never missed |
 | Off day inside a duty that started earlier | blank, status `off`; the hours are on the start day |
 | undertime column | tardy plus undertime minutes of the workday |
 
+Placement by clock time (decision 23) supersedes the earlier rule that a one-pair shift printed its arrival in the first column and its departure in the last, which put a 22:00 arrival in the AM column. The paper form asks for a time under a heading, not for slot 1 and slot 2, so the heading is read literally.
+
 September of a night-shift nurse, last rows:
 
 ```
 Day   AM arr   AM dep   PM arr   PM dep    Undertime
- 29                     22:00    06:00⁺¹
- 30                     22:03    06:00⁺¹   0:03
+ 29            06:00⁺¹  22:00
+ 30            06:00⁺¹  22:03              0:03
 ```
 
-The 1 October DTR starts at its own row 1 with its own shift. The 06:00 of 1 October appears once, on 30 September, in September.
+The 1 October DTR starts at its own row 1 with its own shift. The 06:00 of 1 October appears once, on 30 September, in that row's AM departure column, in September.
 
 48-hour duty, in 30 September 08:00, out 2 October 08:00, schedule Duty48, Off, Off, Off:
 
 ```
 September                                        October
 Day   AM arr   AM dep   PM arr   PM dep           Day   AM arr   AM dep   PM arr   PM dep
- 30   08:00                      08:00⁺²            1
+ 30   08:00    08:00⁺²                              1
                                                     2
-                                                    3   08:00                      08:00⁺²
+                                                    3   08:00    08:00⁺²
 ```
 
 All 48 hours are credited to 30 September, so September's totals carry 40 hours that happened in October. That is the convention: credit follows the day the duty started, which is how the paper form is filled for duty rotations. Because every punch keeps its full timestamp, a payroll export that wants calendar-day hours, night hours on 1 October for instance, derives them from `actual_at`; the DTR view does not.
@@ -166,13 +171,13 @@ One row per expected slot side. `timelog_id` null means missed. Matching uses th
 
 The computation, from csc-rules.md sections C and E. Minutes everywhere; days come from the constants lookup at report time.
 
-1. **Status.** Off turn: `off`. Non-working holiday or whole-day suspension with no punches: `holiday` or `suspended`. Whole-day exemption: `exempt`. Remote shift: `remote`, worked = required, nothing else. Shift with no punch at all: `absent`. Otherwise `present`.
+1. **Status.** Off turn: `off`. Non-working holiday or whole-day suspension with no punches: `holiday` or `suspended`. Whole-day exemption of a type that excuses: `exempt`. Remote shift: `remote`, worked = required, nothing else. Shift with no punch at all: `absent`. Otherwise `present`.
 2. **Tardy** = per slot, `actual in − expected in − grace` when positive, summed. One tardy occurrence for the day when the sum is positive. A morning with no punches and an afternoon present is one tardy occurrence with the morning's minutes (MC 17 s. 2010).
 3. **Undertime** = per slot, `expected out − actual out` when positive, summed. One undertime occurrence when positive. An afternoon with no punches and a morning present is one undertime occurrence with the afternoon's minutes (MC 17 s. 2010).
 4. **Missing one side of a slot.** Agency setting: `void` treats the slot as not worked, its minutes become tardy or undertime as above; `assume` credits the slot to its expected time and flags the punch for review. Default `void`. A manual timelog or an exemption is the correction path.
 5. **Worked** = per slot, overlap of `[actual in, actual out]` with `[expected in, expected out]`, summed. **Excess** = minutes worked outside the expected slots, raw. **Night** = minutes of actual presence inside 18:00–06:00 (RA 11701).
 6. **No offsetting.** Excess never reduces tardy or undertime (Rule XVII §9, JC 2 s. 2015 §10.4). Compensable overtime is not a workday number; the ledger's overtime view is excess ∩ Overtime authority, gated per 05-calendar.md rule 6.
-7. **Holiday, suspension, exemption** apply as in 05-calendar.md. Suspension truncates expected slots at `starts`; the absent part before `declared_at` is charged as in Omnibus Rules on Leave §32. An exemption's covered minutes are excused from tardy, undertime and absence; `travel` also zeroes excess.
+7. **Holiday, suspension, exemption** apply as in 05-calendar.md. Suspension truncates expected slots at `starts`; the absent part before `declared_at` is charged as in Omnibus Rules on Leave §32. An exemption's covered minutes are excused from tardy, undertime and absence; `travel` also zeroes excess. The deriver asks `Exemption::excused()` before it excuses anything, so a `personal` slip changes no minute: the day's tardiness, undertime and absence stand as the punches make them and the minutes are charged to leave, while the slip is still recorded and printed (05-calendar.md rule 7, decision 19).
 8. **Compressed week.** Holiday on a Long turn: `holiday`, worked = required. Holiday on an Off turn: the rest of that ISO week resolves to the fallback shift for dates after `declared_at`; minutes already rendered stand.
 9. **Monthly occurrences** for MC 04 s. 1991 and MC 16 s. 2010 are counted on the ledger: workdays with a tardy occurrence, with an undertime occurrence, and `absent` days without an exemption. Derived, never stored.
 
