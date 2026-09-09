@@ -21,7 +21,11 @@ final class MoveEmployee
      * ranges collide; a hand-written check here would be a second source of
      * truth that can drift from it. So this method lets the INSERT below
      * fail with SQLSTATE 23P01 when it would overlap, rather than guessing
-     * first — see MoveEmployeeTest for what that looks like from a caller.
+     * first — see MoveEmployeeTest for what that looks like from a direct
+     * caller. EmployeeDeploymentController, the HTTP entry point, catches
+     * that same QueryException and translates it into a ValidationException
+     * on `starts` for its own caller; that is a translation of this
+     * method's own refusal, not a second check, so it changes nothing here.
      *
      * The hire-window check (starts inside [hired_at, separated_at]) is
      * deliberately NOT here either — see MoveEmployeeRequest, the only place

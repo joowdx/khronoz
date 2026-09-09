@@ -83,6 +83,41 @@ class EmployeeDeploymentControllerTest extends TestCase
         ])->assertSessionHasErrors('unit_id');
     }
 
+    /**
+     * The exclusion constraint, not this test, decides the overlap — see
+     * MoveEmployee's docblock and MoveEmployeeTest::test_refuses_an_overlap
+     * for why a *closed*, historical deployment lying in the new range is
+     * the only shape that reaches deployments_no_overlap through this
+     * action. This test proves the controller translates that constraint's
+     * 23P01 refusal into a normal `starts` validation error instead of
+     * letting it bubble up as an uncaught 500.
+     */
+    public function test_refuses_a_move_that_overlaps_an_existing_deployment(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
+        $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'unit_id' => $unitA->id,
+            'starts' => '2025-06-01',
+            'ends' => '2025-09-01',
+        ]);
+
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'unit_id' => $unitB->id,
+            'starts' => '2025-07-01',
+        ])->assertSessionHasErrors(['starts' => 'Overlaps an existing deployment.']);
+
+        // Neither the failed insert nor the historical row it collided with left a trace of the attempt.
+        $this->assertDatabaseMissing('deployments', ['unit_id' => $unitB->id]);
+        $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'starts' => '2025-06-01', 'ends' => '2025-09-01']);
+    }
+
     public function test_view_only_is_forbidden(): void
     {
         $agency = Agency::factory()->create();

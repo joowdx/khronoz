@@ -1,7 +1,6 @@
 ---
 paths:
   - 'resources/js/components/**'
-  - resources/js/components/permission-matrix.tsx
 ---
 
 # Components
