@@ -96,18 +96,6 @@ class TableColumnFloorContractTest extends TestCase
             $source,
             "resources/js/pages/{$file}: the <Table> must read its min-width from TABLE_MIN_WIDTH, not a hard-coded min-w-[…px] className.",
         );
-
-        // The invariant the review asked for, checked on the numbers this
-        // file actually declares: the floor (declared columns + the
-        // flexible column's own allowance) always covers at least what the
-        // fixed-width columns alone ask for.
-        $declared = array_sum($columns);
-
-        $this->assertGreaterThanOrEqual(
-            $declared,
-            $declared + $flexMin,
-            "resources/js/pages/{$file}: the min-width floor must be at least the sum of the declared column widths ({$declared}px).",
-        );
     }
 
     /**

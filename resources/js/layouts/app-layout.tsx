@@ -19,23 +19,41 @@ import type { BreadcrumbItem as Crumb, SharedProps } from '@/types';
  *
  * **The page's horizontal padding (`px-8 pb-12`) lives on `#main-content`
  * itself, not on a wrapper `<div>` around `{children}`.** It used to be the
- * wrapper's (fix round 2: this is what made `PageHeader`'s `sticky left-0`
- * a no-op). A `position: sticky; left: 0` element only re-pins against its
- * nearest ancestor that IS the scroll container — nest it inside even one
- * plain `<div>` between it and `#main-content`, and the browser never
- * applies the horizontal correction at all, no matter the div's own width:
- * MEASURED (reproduced in an isolated static page with no app CSS at all)
- * that a sticky-left element inside such a wrapper travels the *entire*
- * scroll distance, as if `left` were never set, while the identical element
- * one level up — a direct child of the scrolling element — pins correctly.
- * Vertical (`top`) stickiness does not have this problem, which is why it
- * went unnoticed until the shell started scrolling sideways (I7, fix round
- * 1). `<header>` (`page-header.tsx`) must stay a direct child of this div,
+ * wrapper's (fix round 2: this is what made `PageHeader`'s `sticky left`
+ * a no-op). The reason is narrower than fix round 2 first wrote it, and the
+ * first version was wrong: a sticky offset is clamped to the element's own
+ * *containing block*, not to the scroll container as such, and a block-level
+ * `width: auto` box exactly fills its containing block — zero slack, nothing
+ * for `left` to shift within — so when that containing block is itself an
+ * ordinary wrapper `<div>` that just rides along with the scroll, the sticky
+ * element rides along with it too, indistinguishable from `position: static`.
+ * DISPROVED the "any intervening div, any width, disqualifies" version of
+ * this rule by probe: a header nested one wrapper deep inside a 1600px-wide
+ * wrapper, given an explicit `width: 500px`, pinned perfectly — nesting alone
+ * is not disqualifying. And a 200px header inside a 500px auto-width wrapper
+ * shifted exactly 300px, its slack, before it started travelling with the
+ * scroll — partial stickiness, not the all-or-nothing the old text claimed.
+ * A **direct child of `#main-content` works because `#main-content` *is* the
+ * scroll container**: its own content box is what the sticky calculation
+ * measures against, so the child has the full `scrollWidth − clientWidth` of
+ * slack rather than whatever a wrapper's own sizing happens to leave it.
+ * Staying a direct child is still the rule — it is the one arrangement
+ * guaranteed to carry all the slack the scroll ever needs, without having to
+ * reason about each wrapper's own width — but the reason is slack, not
+ * depth. `<header>` (`page-header.tsx`) must stay a direct child of this div,
  * and this div is therefore what carries the padding a wrapper used to.
- * Trailing padding (`pb-12`, and `px-8` on the far side of a horizontal
- * scroll) is still honoured correctly by the browser on the scrolling
- * element itself — verified in the same isolated page — so nothing here
- * trades one defect for another.
+ *
+ * One more failure mode this shape does not save you from, which fix round 3
+ * had to add a second offset for: a direct child's sticky `left` resolves
+ * against the scroll container's *padding* box, so once the padding above
+ * moved onto `#main-content` itself, `left: 0` started pinning 32px inside
+ * `#main-content`'s own edge rather than flush with it — correct only at the
+ * one scroll position where the far-edge clamp happens to land there anyway.
+ * `page-header.tsx` now uses `-left-8` to cancel that padding; see its
+ * docblock for the measurements. Trailing padding (`pb-12`, and `px-8` on the
+ * far side of a horizontal scroll) is still honoured correctly by the browser
+ * on the scrolling element itself — verified in the same isolated page — so
+ * nothing here trades one defect for another.
  *
  * Overlays are not parented here: Radix portals every menu, sheet and dialog
  * out of the scroller, which is the only reason they do not scroll away from

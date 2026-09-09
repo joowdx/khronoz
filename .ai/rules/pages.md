@@ -30,10 +30,12 @@ Draw the hairlines in **`border-input`** (the design's `--edge`, exposed under t
 
 | Token | Light on `--card` | Light on `--row-hover` | Dark on `--card` | Dark on `--row-hover` | 1.4.11 |
 | --- | --- | --- | --- | --- | --- |
-| `--rule` | 1.14 : 1 | 1.05 : 1 | 1.20 : 1 | 1.09 : 1 | fails |
-| `--edge-soft` | 1.48 : 1 | 1.36 : 1 | 1.57 : 1 | 1.42 : 1 | fails |
+| `--rule` | 1.14 : 1 | 1.05 : 1 | 1.09 : 1 | **1.00 : 1** | fails |
+| `--edge-soft` | 1.48 : 1 | 1.36 : 1 | 1.42 : 1 | 1.30 : 1 | fails |
 | `--tick` (previous) | 3.28 : 1 | 3.01 : 1 | 3.12 : 1 | **2.87 : 1** | fails on a hovered row, dark |
 | `--edge` / `border-input` (now) | 3.45 : 1 | 3.17 : 1 | 3.78 : 1 | 3.48 : 1 | passes everywhere |
+
+Fix round 3 corrected the dark column above for `--rule` and `--edge-soft`: the previous figures (1.20/1.09 and 1.57/1.42) were computed against `--canvas`/`--side`, not against the `--card`/`--row-hover` grounds the header names, and were mislabelled onto this table when it was written — recomputed from the hex values in `docs/design/mockups/tokens.css` they are 1.09/1.00 and 1.42/1.30. Worth stating on its own: dark `--rule` (`#1F1F1F`) and dark `--row-hover` (`#1F1F1F`) are the identical hex value, so that ratio is exactly 1.00 — on a hovered row in dark mode the guides were not merely low-contrast, they were painted in the exact colour of their own background and could not have been seen at all. That is the sharpest justification this rule can carry for why `--rule` was never a candidate.
 
 `--rule` is invisible at one pixel and the tree collapsed to bare indentation. `--edge-soft` reads as a "non-essential inner divider" and is a third of the way to legible — the earlier version of this rule justified it by that role while justifying the change by the guides being structure the reader must see, which cannot both be true. §11's own `--tick` ruling chose its values precisely because they clear 3:1 "for an axis tick" — true, but only measured at rest against `--card`; nobody had checked it against `--row-hover`, where dark mode measures 2.87:1, the *same figure* §11 check 5 rejected `--acc` at on the dark meter trough, "because the bar is a graphical object under 1.4.11." The hover ground is the binding one — it is the worse of the two — so a token has to clear 3:1 there, not just at rest. `--edge` does, worst case 3.17:1 (light, hovered), and is the next-lightest token after `--tick` that does; `--muted` clears both grounds by a wide margin (4.89–7.11:1) but reads far heavier than a hairline needs. Not `--border` either: that is the panel's own edge and competes with it.
 

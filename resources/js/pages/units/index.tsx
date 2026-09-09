@@ -82,10 +82,16 @@ function Guides({ guides }: { guides: boolean[] }) {
  *
  * | Token          | Light on `--card` `#FFFFFF` | Light on `--row-hover` `#F5F5F5` | Dark on `--card` `#171717` | Dark on `--row-hover` `#1F1F1F` | 1.4.11 (worst case) |
  * | -------------- | ---------------------------- | --------------------------------- | ---------------------------- | ---------------------------------- | -------------------- |
- * | `--rule`       | 1.14 : 1                     | 1.05 : 1                          | 1.20 : 1                     | 1.09 : 1                           | fails                |
- * | `--edge-soft`  | 1.48 : 1                     | 1.36 : 1                          | 1.57 : 1                     | 1.42 : 1                           | fails                |
+ * | `--rule`       | 1.14 : 1                     | 1.05 : 1                          | 1.09 : 1                     | **1.00 : 1**                       | fails                |
+ * | `--edge-soft`  | 1.48 : 1                     | 1.36 : 1                          | 1.42 : 1                     | 1.30 : 1                           | fails                |
  * | `--tick`       | 3.28 : 1                     | 3.01 : 1                          | 3.12 : 1                     | **2.87 : 1**                       | fails on a hovered row, dark |
  * | `--edge` (now) | 3.45 : 1                     | 3.17 : 1                          | 3.78 : 1                     | 3.48 : 1                           | **passes everywhere** |
+ *
+ * (Fix round 3: the dark `--rule` / `--edge-soft` cells above were previously
+ * 1.20/1.09 and 1.57/1.42 — figures for `--canvas`/`--side`, mislabelled onto
+ * `--card`/`--row-hover`. Recomputed from `docs/design/mockups/tokens.css`.
+ * Dark `--rule` and dark `--row-hover` are both literally `#1F1F1F`, so that
+ * cell is not "low contrast," it is the same colour as its own background.)
  *
  * `--tick` was the previous token here (§11's own ruling: it clears 3:1 "for
  * an axis tick", and it does — at rest, against `--card`. It was never

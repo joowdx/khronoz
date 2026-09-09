@@ -48,14 +48,30 @@ function CommandDialog({
     );
 }
 
+/**
+ * The ring belongs to the row (icon, field, bottom rule), not the inner
+ * `<input>` — the same reasoning `tag-input.tsx` already documents for the
+ * same shape of control. cmdk's own input is `h-10` inside this `h-9`
+ * wrapper and carries no border of its own (`command-input-wrapper` owns the
+ * `border-b`), so the global bordered-input focus rule (app.css, which draws
+ * its ring just inside the focused element's own edge) traced a box 4px
+ * taller than the row and offset right by the icon plus its gap — the resting
+ * appearance of every opened picker, since `cmdk` autofocuses this input on
+ * open. `focus-within:` moves the same -1px inset ring onto the row that
+ * actually reads as the control, and `outline-none` suppresses the input's
+ * own.
+ */
 function CommandInput({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Input>) {
     return (
-        <div data-slot="command-input-wrapper" className="flex h-9 items-center gap-2 border-b px-3">
+        <div
+            data-slot="command-input-wrapper"
+            className="focus-within:outline-ring flex h-9 items-center gap-2 border-b px-3 focus-within:outline-2 focus-within:-outline-offset-1"
+        >
             <SearchIcon className="size-4 shrink-0 opacity-50" />
             <CommandPrimitive.Input
                 data-slot="command-input"
                 className={cn(
-                    'placeholder:text-muted-foreground flex h-10 w-full rounded-lg bg-transparent py-3 text-sm disabled:cursor-not-allowed disabled:opacity-45',
+                    'placeholder:text-muted-foreground flex h-10 w-full rounded-lg bg-transparent py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-45',
                     className,
                 )}
                 {...props}
