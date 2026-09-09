@@ -418,17 +418,43 @@
        `transition-[color,background-color,border-color]` rather than using
        `transition-colors`, because Tailwind's list includes `outline-color`:
        with it, the ring fades in from `currentColor` over 150ms, which on the
-       primary button is a white ring flashing on violet. MEASURED. */
-    :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex='-1'])):focus-visible {
+       primary button is a white ring flashing on violet. MEASURED.
+
+       `[data-slot="command-input"]` (ui/command.tsx's `CommandInput`, the
+       command palette's search field) is the one exception, on its own
+       terms rather than by copying `tag-input.tsx`'s row-ring pattern: cmdk
+       autofocuses it on open and it is the only focusable element in the
+       popover, so a ring on it never changes state and distinguishes
+       nothing — arrow keys walk the list through `aria-activedescendant`,
+       they never move DOM focus off the input. The caret is the focus
+       indicator here, the same call VS Code, Linear, GitHub's Cmd-K,
+       Raycast and Spotlight all make on their own palette fields. Excluded
+       from this rule, which is what actually paints the outline, and
+       carried onto the inset rule below too, since that one would otherwise
+       still touch this input's `outline-offset` for no visible reason. */
+    :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex='-1'])):focus-visible:not([data-slot='command-input']) {
         outline: 2px solid var(--ring);
         outline-offset: 2px;
     }
 
     /* A text box is bordered, so its ring sits just inside the border instead
        of floating outside it, and the border itself turns accent. */
-    :where(input:not([type='checkbox'], [type='radio']), textarea):focus-visible {
+    :where(input:not([type='checkbox'], [type='radio']), textarea):focus-visible:not([data-slot='command-input']) {
         border-color: var(--ring);
         outline-offset: -1px;
+    }
+
+    /* Excluding command-input from the two rules above only stops *this*
+       product's ring — MEASURED: with nothing else set, the browser's own
+       UA default (`outline: auto`, Chrome's pale blue) filled the gap on
+       focus, which is still a ring and still wrong. This is the actual
+       suppression, kept beside the rule it exempts rather than as a class on
+       the component. Higher specificity than both rules above (an attribute
+       selector plus `:focus-visible`, vs. `:focus-visible` alone inside
+       their zero-specificity `:where()`), so it wins regardless of source
+       order. */
+    [data-slot='command-input']:focus-visible {
+        outline: none;
     }
 }
 
