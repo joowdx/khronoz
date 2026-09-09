@@ -6,8 +6,9 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * The GRANT and ALTER DEFAULT PRIVILEGES statements that give khronoz_app row
- * access on every present and future table and sequence. Shared by
+ * The GRANT, REVOKE and ALTER DEFAULT PRIVILEGES statements that give
+ * khronoz_app row access on every present and future table and sequence,
+ * except the write access on `migrations` it must never hold. Shared by
  * 0000_00_00_000001_prepare_database (a fresh install) and `php artisan
  * db:grant` (GrantAppRolePrivileges): a rotated owner role's later migrations
  * create tables whose default privileges follow whichever role ran *them*,
@@ -53,6 +54,17 @@ class AppRoleGrants
         $db->statement("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {$role}");
         $db->statement("ALTER DEFAULT PRIVILEGES FOR ROLE {$owner} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {$role}");
         $db->statement("ALTER DEFAULT PRIVILEGES FOR ROLE {$owner} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {$role}");
+
+        // migrations is the one table the migrator itself must be able to
+        // write; khronoz_app never runs a migration, so it keeps SELECT (in
+        // case anything needs to read migration history) but not the write
+        // privileges the blanket grant above just gave it. REVOKE is
+        // naturally idempotent, so re-running it here on an already-restricted
+        // database is harmless — that is what lets `db:grant` restore this
+        // narrower state after an owner-role rotation, since the blanket
+        // GRANT ON ALL TABLES above re-grants khronoz_app write access to
+        // every existing table, `migrations` included, on every re-run.
+        $db->statement("REVOKE INSERT, UPDATE, DELETE ON migrations FROM {$role}");
 
         return $role;
     }

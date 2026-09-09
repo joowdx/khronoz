@@ -21,6 +21,25 @@ class AppRoleTest extends TestCase
         $this->assertDatabaseRefuses('42501', fn () => DB::statement('create table smuggled (id int)'));
     }
 
+    /**
+     * khronoz_app never runs a migration, so it keeps SELECT on `migrations`
+     * (test_app_role_can_read_and_write_migrated_tables's sibling never
+     * exercises this table) but not the write privileges the blanket grant
+     * in AppRoleGrants gives it everywhere else — see the REVOKE at the end
+     * of AppRoleGrants::apply(). This proves the refusal on a fresh
+     * migrate:fresh, which every test in this suite runs against; it does
+     * not by itself prove the REVOKE reaches a database that already ran
+     * 0000_00_00_000001_prepare_database; that is what running `db:grant`
+     * against the dev database by hand verifies.
+     */
+    public function test_app_role_cannot_write_to_migrations(): void
+    {
+        $this->assertDatabaseRefuses('42501', fn () => DB::table('migrations')->insert([
+            'migration' => 'smuggled_migration',
+            'batch' => 1,
+        ]));
+    }
+
     public function test_app_role_can_read_and_write_migrated_tables(): void
     {
         DB::table('sessions')->insert(['id' => 'probe', 'payload' => '', 'last_activity' => 0]);
@@ -63,8 +82,12 @@ class AppRoleTest extends TestCase
      * is what actually enforces it. PHPUnit itself runs as a CLI process, so
      * runningInConsole() is genuinely true for every other test in this class —
      * flipping the Application's own memoized flag is the only way to exercise
-     * the "resolved from a web request or queue worker" branch without a second
-     * process. DB::purge('owner') before and after: LazilyRefreshDatabase's
+     * the branch that refuses a non-CLI request without a second process. That
+     * branch is unreachable from Octane's or Horizon's workers even in a real
+     * deploy, not just in this test file: both run as long-lived CLI processes
+     * like PHPUnit itself, so runningInConsole() is true there too and the
+     * guard cannot single them out — see guardOwnerConnection()'s docblock.
+     * DB::purge('owner') before and after: LazilyRefreshDatabase's
      * one-time migrate:fresh --database=owner already resolved and cached this
      * connection earlier in the run, and the cached instance must not survive
      * into later tests (including AgencyScopeTest's own DB::connection('owner')

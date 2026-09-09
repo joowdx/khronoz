@@ -78,12 +78,24 @@ class AppServiceProvider extends ServiceProvider
      * `DB_OWNER_*` being unset only documents the privilege boundary; it does
      * not enforce it (config/database.php no longer defaults them, but a
      * shared DB_URL or a misconfigured deploy could still populate them). This
-     * is the actual enforcement: the owner connection — which bypasses every
-     * REVOKE the migrations put in place — may only be resolved from a real
-     * console run (composer migrate, php artisan db:grant, the test suite,
-     * which run PHPUnit as a CLI process). A web request or queued job on
-     * Octane/Horizon that somehow resolves it is refused outright, even if
-     * the credentials happen to be present.
+     * guard catches one shape of that misuse: the owner connection — which
+     * bypasses every REVOKE the migrations put in place — resolved from a
+     * request served through a non-CLI SAPI (php-fpm, apache2handler), the
+     * runtime this project's web tier does not use.
+     *
+     * It does NOT catch Octane's HTTP workers (`php artisan octane:start`) or
+     * Horizon's queue workers (`php artisan horizon`): both are long-running
+     * CLI processes, exactly like `composer migrate` itself, and neither
+     * package flips the flag per request or job. Application::runningInConsole()
+     * only checks PHP_SAPI (cli or phpdbg), memoized once for the life of the
+     * process, so inside either worker it is permanently true and the
+     * exception below can never fire — the guard cannot tell a real migration
+     * run apart from a stray owner-connection query made from application
+     * code running under Octane or Horizon. `DB_OWNER_*` having no fallback
+     * defaults is therefore the real protection in those two runtimes; a
+     * signal that can actually distinguish them — an explicit context flag
+     * set only by the migrate and grant commands, or gating on the running
+     * artisan command's name — is deferred to Milestone 9.
      */
     protected function guardOwnerConnection(): void
     {

@@ -62,9 +62,19 @@ class StoreUserRequest extends FormRequest
      * constraints.md:103), so Laravel's stock "The email has already been
      * taken." message would confirm — to whoever is filling in this form,
      * for any agency — that the address has an account somewhere in the
-     * system. Fixed at the message, not the index: this is the same oracle
-     * LoginRequest::authenticate() and PasswordResetLinkController::store()
-     * (Task 7) already close, applied here too.
+     * system. This message is deliberately neutral about *which* agency
+     * holds it.
+     *
+     * Unlike LoginRequest::authenticate() and PasswordResetLinkController::
+     * store() (Task 7), it does not close the oracle itself: those two
+     * return an identical response whether or not the address is registered,
+     * so submitting either tells the caller nothing. Here a taken address
+     * still fails validation while an untaken one succeeds, so the response
+     * shape alone still reveals existence — only the wording no longer
+     * confirms it outright. Accepted at that: this endpoint is authenticated
+     * and gated on users.manage (UserPolicy::create()), not an anonymous
+     * public form, and an admin creating an account does need to know the
+     * address is unavailable.
      *
      * @return array<string, string>
      */
