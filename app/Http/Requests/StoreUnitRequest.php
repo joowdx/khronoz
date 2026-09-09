@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Unit;
 use App\Tenancy\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class StoreUnitRequest extends FormRequest
@@ -15,6 +16,17 @@ class StoreUnitRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user()->can('create', Unit::class);
+    }
+
+    /**
+     * Upper-case the code before it is validated, so the uniqueness rule
+     * below compares like with like — mirrors StoreAgencyRequest, otherwise
+     * 'HR' and 'hr' would validate as two distinct, non-colliding codes even
+     * though the units_agency_id_code_unique index is case-sensitive too.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['code' => Str::upper((string) $this->input('code'))]);
     }
 
     /**

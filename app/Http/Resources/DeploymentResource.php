@@ -11,6 +11,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * already nested under that employee (EmployeeResource's `current_deployment`
  * and `deployments`), so re-including it would only invite a cycle.
  *
+ * `starts`/`ends` are `date`-cast columns, sent as plain `YYYY-MM-DD` strings
+ * (->toDateString()) for the same reason as EmployeeResource's `hired_at` —
+ * see that class's docblock.
+ *
  * @mixin \App\Models\Deployment
  */
 class DeploymentResource extends JsonResource
@@ -25,8 +29,8 @@ class DeploymentResource extends JsonResource
         return [
             'id' => $this->id,
             'unit' => $this->whenLoaded('unit', fn ($unit) => UnitResource::make($unit)->resolve()),
-            'starts' => $this->starts,
-            'ends' => $this->ends,
+            'starts' => $this->starts?->toDateString(),
+            'ends' => $this->ends?->toDateString(),
         ];
     }
 }

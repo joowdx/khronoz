@@ -7,6 +7,7 @@ use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Unit;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
@@ -119,7 +120,28 @@ class MoveEmployeeTest extends TestCase
             'ends' => null,
         ]);
 
-        $this->assertDatabaseRefuses('23503', fn () => app(MoveEmployee::class)->handle($employee->fresh(), $foreignUnit, Carbon::parse('2026-06-01')));
+        // Deliberately not assertDatabaseRefuses(): per its own docblock
+        // (tests/TestCase.php), it runs $statement inside its own
+        // DB::transaction(), which — nested inside the per-test transaction
+        // already open here — compiles to a SAVEPOINT and rolls back
+        // automatically once the QueryException is caught. That would undo
+        // the close by the *test harness itself*, regardless of whether
+        // MoveEmployee::handle() wraps its own work in a transaction — so an
+        // assertDatabaseRefuses version of this test would pass even with
+        // DB::transaction() deleted from handle(), proving nothing about the
+        // one thing this test exists to check. Catching by hand instead
+        // leaves the failed INSERT's damage sitting directly in the
+        // surrounding per-test transaction: with handle()'s own
+        // DB::transaction() in place, the failure rolls back only to that
+        // inner savepoint and the read below succeeds; without it, Postgres
+        // marks the whole per-test transaction aborted (25P02) and the same
+        // read errors instead of passing.
+        try {
+            app(MoveEmployee::class)->handle($employee->fresh(), $foreignUnit, Carbon::parse('2026-06-01'));
+            $this->fail('expected the paired FK to refuse a unit from another agency');
+        } catch (QueryException $e) {
+            $this->assertSame('23503', $e->getCode());
+        }
 
         $this->assertNull($current->fresh()->ends);
     }

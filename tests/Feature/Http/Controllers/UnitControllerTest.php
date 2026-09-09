@@ -77,6 +77,22 @@ class UnitControllerTest extends TestCase
                 ->where('units.1.parent_id', $parent->id));
     }
 
+    /**
+     * Minor 6: create/edit were only ever exercised for 403 (view-only) and
+     * 404 (cross-tenant), never for a manager actually reaching the form —
+     * so a wrong Inertia::render() component string here would first surface
+     * in the next task's screens, not in this suite.
+     */
+    public function test_create_renders_the_unit_create_form(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->get(route('units.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('units/create', false));
+    }
+
     public function test_store_creates_a_unit(): void
     {
         $agency = Agency::factory()->create();
@@ -99,6 +115,22 @@ class UnitControllerTest extends TestCase
             ->assertSessionHasErrors('code');
     }
 
+    /**
+     * Minor 5: StoreUnitRequest upper-cases code in prepareForValidation()
+     * before the uniqueness rule runs (mirrors StoreAgencyRequest), so a
+     * lower-case 'hr' must still collide with an existing 'HR' — the
+     * database's own unique index is case-sensitive and would not catch it.
+     */
+    public function test_store_requires_a_unique_code_per_agency_case_insensitively(): void
+    {
+        $agency = Agency::factory()->create();
+        Unit::factory()->create(['agency_id' => $agency->id, 'code' => 'HR']);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->post(route('units.store'), ['code' => 'hr', 'name' => 'Duplicate'])
+            ->assertSessionHasErrors(['code' => 'Already taken']);
+    }
+
     public function test_store_requires_the_parent_to_belong_to_the_current_agency(): void
     {
         $foreignParent = Unit::factory()->create();
@@ -107,6 +139,24 @@ class UnitControllerTest extends TestCase
 
         $this->post(route('units.store'), ['code' => 'HR', 'name' => 'Human Resources', 'parent_id' => $foreignParent->id])
             ->assertSessionHasErrors('parent_id');
+    }
+
+    /**
+     * Minor 6: also proves UnitController::edit's $unit->load('head') —
+     * entirely unexercised before, since only the 403/404 cases were tested.
+     */
+    public function test_edit_renders_the_unit_being_edited_with_its_head(): void
+    {
+        $agency = Agency::factory()->create();
+        $head = Employee::factory()->create(['agency_id' => $agency->id]);
+        $unit = Unit::factory()->create(['agency_id' => $agency->id, 'head_id' => $head->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->get(route('units.edit', $unit))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('units/edit', false)
+                ->where('unit.id', $unit->id)
+                ->where('unit.head.id', $head->id));
     }
 
     public function test_update_persists_changes(): void
@@ -119,6 +169,18 @@ class UnitControllerTest extends TestCase
             ->assertRedirect(route('units.index'))->assertSessionHas('success');
 
         $this->assertSame('New', $unit->fresh()->name);
+    }
+
+    /** Minor 5: mirrors the store-side case-insensitivity test — UpdateUnitRequest normalises the same way. */
+    public function test_update_requires_a_unique_code_per_agency_case_insensitively(): void
+    {
+        $agency = Agency::factory()->create();
+        Unit::factory()->create(['agency_id' => $agency->id, 'code' => 'HR']);
+        $unit = Unit::factory()->create(['agency_id' => $agency->id, 'code' => 'FIN']);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->put(route('units.update', $unit), ['code' => 'hr', 'name' => $unit->name])
+            ->assertSessionHasErrors(['code' => 'Already taken']);
     }
 
     public function test_destroy_removes_the_unit(): void

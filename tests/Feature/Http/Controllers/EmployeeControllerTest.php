@@ -122,13 +122,19 @@ class EmployeeControllerTest extends TestCase
     }
 
     /**
-     * R10: Employee::search() must filter agency_id explicitly, even though
-     * SCOUT_DRIVER=database happens to also carry AgencyScope. Both
-     * employees share the searched term so this genuinely exercises the
-     * ->where('agency_id', ...) filter — with it removed, this test would
-     * see both rows instead of one.
+     * R10, scope half: proves AgencyScope itself, not the explicit
+     * ->where('agency_id', ...) filter in EmployeeController::index. Both
+     * employees share the searched term, so narrowing to one row is real
+     * coverage — it would fail if AgencyScope broke — but under the shipped
+     * `database` driver it is NOT falsifiable evidence for the explicit
+     * filter specifically: DatabaseEngine::newSearchQuery() falls back to
+     * $builder->model->newQuery() (Employee::toSearchableArray()'s docblock),
+     * which already carries AgencyScope, so removing only the controller's
+     * ->where('agency_id', ...) would leave this test passing unchanged.
+     * test_search_where_clause_carries_the_current_agency below covers the
+     * explicit filter itself, driver-independently.
      */
-    public function test_search_is_scoped_to_the_current_agency_even_though_it_would_otherwise_match(): void
+    public function test_search_results_are_scoped_to_the_current_agency(): void
     {
         $this->useDatabaseSearchDriver();
         $agencyX = Agency::factory()->create();
@@ -142,6 +148,43 @@ class EmployeeControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('employees/index', false)
                 ->has('employees', 1)
                 ->where('employees.0.id', $inX->id));
+    }
+
+    /**
+     * R10, explicit-filter half: the ->where('agency_id', ...) at the
+     * EmployeeController::index call site exists for an external search
+     * engine (Meilisearch, Algolia, Typesense) that matches against its own
+     * index and never applies AgencyScope — under the shipped `database`
+     * driver, results alone can't distinguish that filter from AgencyScope
+     * (see the test above), so this inspects the built Scout query instead
+     * of running it, which is true regardless of driver.
+     */
+    public function test_search_where_clause_carries_the_current_agency(): void
+    {
+        $agency = Agency::factory()->create();
+
+        $wheres = Employee::search('x')->where('agency_id', $agency->id)->wheres;
+
+        $this->assertContains(
+            ['field' => 'agency_id', 'operator' => '=', 'value' => $agency->id],
+            $wheres,
+        );
+    }
+
+    /**
+     * Minor 6: create/edit were only ever exercised for 403 (view-only) and
+     * 404 (cross-tenant), never for a manager actually reaching the form —
+     * so a wrong Inertia::render() component string here would first surface
+     * in the next task's screens, not in this suite.
+     */
+    public function test_create_renders_the_employee_create_form(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->get(route('employees.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('employees/create', false));
     }
 
     public function test_store_creates_an_employee(): void
@@ -211,6 +254,18 @@ class EmployeeControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('employees/show', false)
                 ->where('employee.id', $employee->id)
                 ->has('employee.deployments', 1));
+    }
+
+    public function test_edit_renders_the_employee_being_edited(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->get(route('employees.edit', $employee))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('employees/edit', false)
+                ->where('employee.id', $employee->id));
     }
 
     public function test_update_persists_changes(): void

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UpdateUnitRequest extends FormRequest
@@ -13,6 +14,15 @@ class UpdateUnitRequest extends FormRequest
     public function authorize(): bool
     {
         return $this->user()->can('update', $this->route('unit'));
+    }
+
+    /**
+     * Upper-case the code before it is validated — see StoreUnitRequest for
+     * why.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['code' => Str::upper((string) $this->input('code'))]);
     }
 
     /**
