@@ -7,6 +7,7 @@ use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Unit;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -132,7 +133,8 @@ class EmployeeControllerTest extends TestCase
      * which already carries AgencyScope, so removing only the controller's
      * ->where('agency_id', ...) would leave this test passing unchanged.
      * test_search_where_clause_carries_the_current_agency below covers the
-     * explicit filter itself, driver-independently.
+     * explicit filter itself, by inspecting the SQL the database driver
+     * actually sends rather than the result set.
      */
     public function test_search_results_are_scoped_to_the_current_agency(): void
     {
@@ -156,19 +158,55 @@ class EmployeeControllerTest extends TestCase
      * engine (Meilisearch, Algolia, Typesense) that matches against its own
      * index and never applies AgencyScope — under the shipped `database`
      * driver, results alone can't distinguish that filter from AgencyScope
-     * (see the test above), so this inspects the built Scout query instead
-     * of running it, which is true regardless of driver.
+     * (see the test above), so this asserts on the SQL Postgres actually
+     * receives instead. DatabaseEngine::newSearchQuery() falls back to
+     * Model::newQuery(), so AgencyScope alone already contributes one
+     * `agency_id` condition; the controller's explicit
+     * ->where('agency_id', ...) contributes a second, independent one.
+     * Deleting the controller's filter drops every query against
+     * "employees" from two `agency_id` conditions to one, so this fails
+     * exactly when the finding says it should — unlike inspecting
+     * Laravel\Scout\Builder::$wheres directly (the previous version of this
+     * test), which only proves Builder::where() works — an unconditional
+     * array push with no branching (vendor/laravel/scout/src/Builder.php:
+     * 175-184) — and says nothing about whether the controller actually
+     * called it.
+     *
+     * No search term: EmployeeController::index() runs Employee::search('')
+     * unconditionally (its own docblock — "even for a blank term"), and a
+     * blank Scout query skips DatabaseEngine's ilike text-match group
+     * entirely (Builder::addTextSearchConstraints() returns early on
+     * blank($builder->query)). A non-blank term would ilike-match every
+     * indexed column including agency_id — the separate, deliberately
+     * deferred toSearchableArray() finding — adding a third, unrelated
+     * `agency_id` substring and breaking the count this test relies on.
      */
     public function test_search_where_clause_carries_the_current_agency(): void
     {
+        $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
+        Employee::factory()->create(['agency_id' => $agency->id]);
 
-        $wheres = Employee::search('x')->where('agency_id', $agency->id)->wheres;
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
 
-        $this->assertContains(
-            ['field' => 'agency_id', 'operator' => '=', 'value' => $agency->id],
-            $wheres,
-        );
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            if (str_contains($query->sql, '"employees"')) {
+                $queries[] = $query->sql;
+            }
+        });
+
+        $this->get(route('employees.index'))->assertOk();
+
+        $this->assertNotEmpty($queries, 'expected at least one query against "employees"');
+
+        foreach ($queries as $sql) {
+            $this->assertSame(
+                2,
+                substr_count($sql, 'agency_id'),
+                "expected both the explicit filter and AgencyScope in: {$sql}",
+            );
+        }
     }
 
     /**
