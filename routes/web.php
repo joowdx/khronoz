@@ -1,15 +1,20 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', fn () => Inertia::render('welcome'))->name('home')
-    ->withHead(title: 'Welcome')
+// The product's public face: server-rendered so crawlers and link previews
+// get the real document, and the only route in this file open to guests.
+Route::get('/', HomeController::class)->name('home')
+    ->withHead(
+        title: 'Scheduling and daily time records',
+        description: 'khronoz is scheduling, biometric timelogs and CS Form 48 for Philippine government agencies and private offices, computed under Civil Service Commission rules.',
+    )
     ->metadata(['ssr' => true]);
 
 Route::middleware(['auth', 'verified'])->group(function () {
