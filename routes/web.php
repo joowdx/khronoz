@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\EmployeeDeploymentController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
+use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +29,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // never a bare User::query() — see app/Models/Concerns/BelongsToAgency.php.
     Route::resource('users', UserController::class)->except(['show']);
     Route::post('users/{user}/invite', [UserInviteController::class, 'store'])->name('users.invite');
+
+    // The org tree and its people (docs/design/01-organization.md). UnitPolicy
+    // and EmployeePolicy gate on organization.view/organization.manage.
+    // EmployeeDeploymentController is the one place a deployment is ever
+    // written, through the MoveEmployee action (R16) — a deployment row is
+    // otherwise read-only once created, so there is no update/destroy for it.
+    Route::resource('employees', EmployeeController::class);
+    Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
+    Route::resource('units', UnitController::class)->except(['show']);
 
     // Platform users only (superusers of the one platform = true agency):
     // list, create and edit agencies, and "enter" one to adopt it as the

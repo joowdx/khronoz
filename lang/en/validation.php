@@ -68,6 +68,15 @@ return [
         'permissions' => [
             'required' => 'Choose at least one',
         ],
+
+        /*
+         * StoreEmployeeRequest/UpdateEmployeeRequest only: separated_at
+         * compared against hired_at. Revisit if a second after_or_equal
+         * field pair ever appears.
+         */
+        'separated_at' => [
+            'after_or_equal' => 'On or after the hire date',
+        ],
     ],
 
     'attributes' => [
