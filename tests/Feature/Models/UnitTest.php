@@ -60,6 +60,8 @@ class UnitTest extends TestCase
         $this->assertDatabaseRefuses('23505', fn () => DB::table('units')->insert(
             $this->unitRow($unit->agency_id, ['id' => $unit->id])
         ));
+
+        $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'units_id_agency_id_unique'"));
     }
 
     /**

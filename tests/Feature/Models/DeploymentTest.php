@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Models;
 
-use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Unit;
@@ -175,6 +174,56 @@ class DeploymentTest extends TestCase
             'employee_id' => $employee->id,
             'unit_id' => $unit->id,
             'starts' => null,
+            'ends' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
+    /**
+     * employee_id is NOT NULL. MATCH SIMPLE, the FK default, skips the check
+     * entirely when a referencing column is null, so a null employee_id
+     * would bypass deployments_employee_id_agency_id_foreign — the
+     * paired-FK tenancy guarantee (docs/design/07-constraints.md:10-22)
+     * evaporates for that row. null = null also evaluates to NULL, and an
+     * exclusion constraint needs true to conflict, so a null employee_id
+     * would escape deployments_no_overlap too, allowing unlimited
+     * overlapping open rows. One nullable column would silently defeat two
+     * constraints with the whole suite green.
+     */
+    public function test_employee_id_is_required(): void
+    {
+        $employee = Employee::factory()->create();
+        $unit = Unit::factory()->create(['agency_id' => $employee->agency_id]);
+
+        $this->assertDatabaseRefuses('23502', fn () => DB::table('deployments')->insert([
+            'id' => (string) Str::ulid(),
+            'agency_id' => $employee->agency_id,
+            'employee_id' => null,
+            'unit_id' => $unit->id,
+            'starts' => '2026-01-01',
+            'ends' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
+    /**
+     * unit_id is NOT NULL, the same FK-half of the reason above: MATCH
+     * SIMPLE would skip deployments_unit_id_agency_id_foreign entirely once
+     * unit_id itself is null, bypassing the paired-FK tenancy guarantee
+     * (docs/design/07-constraints.md:10-22) for that row.
+     */
+    public function test_unit_id_is_required(): void
+    {
+        $employee = Employee::factory()->create();
+
+        $this->assertDatabaseRefuses('23502', fn () => DB::table('deployments')->insert([
+            'id' => (string) Str::ulid(),
+            'agency_id' => $employee->agency_id,
+            'employee_id' => $employee->id,
+            'unit_id' => null,
+            'starts' => '2026-01-01',
             'ends' => null,
             'created_at' => now(),
             'updated_at' => now(),

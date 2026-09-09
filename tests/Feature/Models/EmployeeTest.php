@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class EmployeeTest extends TestCase
 {
-    /** Baseline row for a raw insert, every real column set explicitly. */
+    /** Baseline row for a raw insert, every NOT NULL column set explicitly. */
     private function employeeRow(string $agencyId, array $overrides = []): array
     {
         return array_merge([
@@ -58,6 +58,8 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseRefuses('23505', fn () => DB::table('employees')->insert(
             $this->employeeRow($employee->agency_id, ['id' => $employee->id])
         ));
+
+        $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'employees_id_agency_id_unique'"));
     }
 
     public function test_number_is_unique_per_agency(): void
@@ -120,7 +122,7 @@ class EmployeeTest extends TestCase
             'agency_id' => $agency->id,
             'tags' => array_map(fn (int $i) => "tag{$i}", range(1, 20)),
         ]);
-        $this->assertCount(20, $accepted->tags);
+        $this->assertCount(20, $accepted->fresh()->tags);
     }
 
     /** agency_not_platform on employees: neither an INSERT under the platform agency nor an UPDATE into it is allowed. */
@@ -167,6 +169,22 @@ class EmployeeTest extends TestCase
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('employees')->insert(
             $this->employeeRow($agency->id, ['exempt' => null])
+        ));
+    }
+
+    /**
+     * tags is NOT NULL: it has a database default of '[]', which an omitted
+     * column would mask — this inserts an explicit null instead. With the
+     * column nullable, string_set_valid(NULL) returns NULL, so both tags
+     * CHECKs would pass and a tagless employee would be indistinguishable
+     * from a broken one.
+     */
+    public function test_tags_is_required(): void
+    {
+        $agency = Agency::factory()->create();
+
+        $this->assertDatabaseRefuses('23502', fn () => DB::table('employees')->insert(
+            $this->employeeRow($agency->id, ['tags' => null])
         ));
     }
 }
