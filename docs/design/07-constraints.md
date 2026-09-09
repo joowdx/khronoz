@@ -73,14 +73,33 @@ CHECK (parent_id IS DISTINCT FROM id)
 ```sql
 UNIQUE (agency_id, number)
 CHECK (separated_at IS NULL OR separated_at >= hired_at)
+CHECK (sex IN ('male', 'female'))                                 -- nullable; the enum rule above, mirrored by App\Enums\Sex
 tags jsonb NOT NULL DEFAULT '[]'                                  -- free-form agency labels; no rule reads them
+CHECK (string_set_valid(tags))                                    -- array of distinct, non-empty strings
+CHECK (jsonb_array_length(tags) <= 20)                            -- guarded in the DDL; see below
+CREATE INDEX employees_tags ON employees USING gin (tags)         -- tags are filtered with `tags ? 'x'`
 ```
 
-Open item, for whoever writes the migration: `tags` has no shape check yet. `permissions` and
-`slots` each got one (`permissions_valid`, `slots_valid`), and the same question — array, every
-element a string, no duplicates — applies here. It is left unstated rather than assumed, because
-a tag set an agency edits by hand may also want a length or character bound, and that is a
-decision, not a transcription.
+`tags` shape, decided in Milestone 2: the three rules `permissions` gets — array, every element a
+string, no duplicates — plus non-empty elements, and a bound of 20. The shared function is
+`string_set_valid(jsonb)`, not a second copy of `permissions_valid`, so the next jsonb label set
+reuses it and brings its own bound. The empty array stays legal; it is the column default. A
+per-tag character bound is the Form Request's job, not the database's — the length an agency may
+type is a UI decision that will change, and a CHECK is the wrong place to keep a changing number.
+
+```sql
+CREATE FUNCTION string_set_valid(value jsonb) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
+    SELECT jsonb_typeof(value) = 'array'
+       AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(value) e WHERE jsonb_typeof(e) <> 'string')
+       AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(value) e WHERE e = '')
+       AND jsonb_array_length(value) = (SELECT count(DISTINCT e) FROM jsonb_array_elements_text(value) e);
+$$;
+```
+
+The bound carries its own `jsonb_typeof(tags) <> 'array' OR` guard in the migration. Postgres does
+not order CHECK evaluation, and `jsonb_array_length()` raises `22023` on a non-array rather than
+returning false, so an unguarded bound could surface `22023` where `employees_tags_valid` owes
+`23514`.
 
 ### deployments
 
