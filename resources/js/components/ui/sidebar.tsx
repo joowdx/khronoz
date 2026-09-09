@@ -168,7 +168,26 @@ function Sidebar({
                     data-sidebar="sidebar"
                     data-slot="sidebar"
                     data-mobile="true"
-                    className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+                    /*
+                      z-50, back down from sheet.tsx's own z-[55]. Below 768
+                      this Sheet holds the ENTIRE sidebar, and the user menu
+                      and the agency switcher inside it portal to
+                      document.body at z-50 like every other Radix menu. At 55
+                      the surface won the stacking contest and covered them
+                      both: MEASURED — sign out, the product's only appearance
+                      control, and the agency switcher were all unreachable on
+                      any viewport under 768, and `grep -rln "Sign out"` finds
+                      exactly one file, so there was no other way out.
+
+                      55 is right for a sheet holding a form whose picker must
+                      float above it (the move sheet, popover.tsx's note); it
+                      is wrong for a sheet that IS the navigation and whose own
+                      children are menus. §4.4's full ladder — raising
+                      dialog/menu/select/tooltip to 60 — is the real fix and is
+                      deliberately deferred: it would need every Milestone 1
+                      overlay pairing re-verified.
+                    */
+                    className="bg-sidebar text-sidebar-foreground z-50 w-(--sidebar-width) p-0 [&>button]:hidden"
                     style={
                         {
                             '--sidebar-width': SIDEBAR_WIDTH_MOBILE,

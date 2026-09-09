@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
-import { formatDay, manilaToday } from '@/lib/dates';
+import { addDay, formatDay, laterDay, manilaToday } from '@/lib/dates';
 import { flattenUnits, unitPath } from '@/lib/units';
 import { cn } from '@/lib/utils';
 import { edit, index } from '@/routes/employees';
@@ -306,10 +306,11 @@ export default function Show({ employee, units }: { employee: Employee; units: U
  * confirming something destructive.
  *
  * Two fields and no overlap pre-check of its own. `deployments_no_overlap` (an
- * EXCLUDE USING gist constraint) is the last word on whether a date collides,
- * and EmployeeDeploymentController turns its refusal into an error on `starts`
- * — so a collision arrives on the label row like any other validation failure
- * and the sheet stays open on the values that caused it.
+ * EXCLUDE USING gist constraint) and `deployments_dates_ordered` (a CHECK) are
+ * the last word on whether a date collides, and EmployeeDeploymentController
+ * turns both refusals into an error on `starts` — so a collision arrives on
+ * the label row like any other validation failure and the sheet stays open on
+ * the values that caused it.
  */
 function MoveSheet({
     employee,
@@ -325,6 +326,23 @@ function MoveSheet({
     const [unit, setUnit] = useState<string | null>(null);
     const current = employee.current_deployment ?? null;
     const tree = flattenUnits(units);
+
+    /*
+     * The earliest date this move can carry, and the field enforces exactly
+     * it. A move closes the open placement the day before the new one starts,
+     * so anything on or before that placement's own `starts` would leave it
+     * ending before it began and `deployments_dates_ordered` refuses the
+     * whole transaction.
+     *
+     * MEASURED: with `min` at `hired_at` alone, an employee hired in 2019
+     * whose current placement began in 2026 was offered a seven-year window
+     * in which every single date was fatal — and before the controller
+     * translated 23514 it answered with a 500. The constraint is still what
+     * decides (R16: no pre-check, and a concurrent move can still make a
+     * legal-looking date illegal between render and submit); this is the
+     * control no longer inviting the refusal.
+     */
+    const earliest = current === null ? employee.hired_at : laterDay(employee.hired_at, addDay(current.starts));
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -386,15 +404,23 @@ function MoveSheet({
                                     label="Effective from"
                                     htmlFor="starts"
                                     error={errors.starts}
-                                    hint={`On or after ${formatDay(employee.hired_at)}, the day they were hired.`}
+                                    // The hint says what the control enforces,
+                                    // and which fact set the floor — a clerk
+                                    // who cannot pick last month should be
+                                    // able to read why without guessing.
+                                    hint={
+                                        earliest === employee.hired_at
+                                            ? `On or after ${formatDay(employee.hired_at)}, the day they were hired.`
+                                            : `On or after ${formatDay(earliest)}, the day after the current placement began.`
+                                    }
                                 >
                                     {({ id, invalid, describedBy }) => (
                                         <Input
                                             id={id}
                                             name="starts"
                                             type="date"
-                                            defaultValue={manilaToday()}
-                                            min={employee.hired_at}
+                                            defaultValue={laterDay(manilaToday(), earliest)}
+                                            min={earliest}
                                             max={employee.separated_at ?? undefined}
                                             aria-invalid={invalid}
                                             aria-describedby={describedBy}

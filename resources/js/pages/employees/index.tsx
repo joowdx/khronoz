@@ -238,8 +238,15 @@ export default function Index({
         return () => window.clearTimeout(timer);
     }, [search, filters]);
 
+    /*
+     * `search`, not `filters.search`: `filters` holds what the server last
+     * confirmed, so flipping a filter while the 250ms debounce is still in
+     * flight built the query from the previous term and silently threw away
+     * what had just been typed. The box is the truth about the box. `next`
+     * still comes last, so the Clear filters button's own `search: ''` wins.
+     */
     function go(next: Partial<Filters>) {
-        router.get(index.url(), query({ ...filters, ...next }), {
+        router.get(index.url(), query({ ...filters, search, ...next }), {
             only: PARTIAL,
             preserveState: true,
             preserveScroll: true,
@@ -280,10 +287,35 @@ export default function Index({
                 </Card>
             ) : (
                 <Card
-                    // No `overflow` on this panel: an overflow ancestor becomes
-                    // the sticky scrollport and the head silently stops pinning
-                    // under the 56px bar (components.md, commit 7f2414a).
-                    className="overflow-visible"
+                    /*
+                      Two rules meet on this panel and only one arrangement
+                      satisfies both.
+                      • §5.13: wide content scrolls rather than squeezing.
+                      • The sticky-head trap (components.md, commit 7f2414a):
+                        any `overflow` ancestor between the `th` and the
+                        shell's scroller becomes the sticky scrollport, and the
+                        head silently stops pinning under the 56px bar. CSS
+                        cannot give one axis `auto` and the other `visible`.
+                      So the scrolling is the SHELL's, not this panel's:
+                      `min-w-min` stops the panel from squeezing its table
+                      below the table's own min-content, the panel's border
+                      keeps wrapping it, `table-container` stays
+                      `overflow-x-clip` with nothing left to clip, and
+                      #main-content — already `overflow-auto` — is what
+                      scrolls sideways. The head keeps sticking to it.
+
+                      MEASURED at an 800px viewport with the sidebar expanded:
+                      before, a 646px table sat in a 486px card, `scrollWidth >
+                      clientWidth` with nothing scrollable, and `Actions for …`
+                      landed at x 871-903 — outside the viewport, taking Edit
+                      and Remove with it. Tags was fully clipped and Unit read
+                      "Fi…". After: the card is 648, the table is whole, and
+                      the shell scrolls 128px. Dropping columns instead was
+                      rejected: the overflow is data-dependent (one long tag
+                      moves it), so hiding a column narrows the odds of an
+                      unreachable action rather than removing it.
+                    */
+                    className="min-w-min overflow-visible"
                 >
                     <CardHeader className="min-h-[60px] flex-wrap gap-3">
                         <span className="relative">
@@ -366,7 +398,20 @@ export default function Index({
                         </CardDescription>
                     </CardHeader>
 
-                    <Table>
+                    {/*
+                      The floor the panel's `min-w-min` then inherits. Without
+                      it the panel stops at the table's *min-content*, which is
+                      the maximally squeezed layout: the `max-w-0` truncating
+                      cells collapse to nothing and Unit still reads "Fi…".
+                      MEASURED at 1440, where the whole table wants 1126:
+                      Unit 270 + Position 260 + Tags 200 + Actions 68 = 798
+                      hold their declared widths, and 242 leaves the Employee
+                      cell enough for "Ricardo Salazar Bautista Jr." and a
+                      pill. So 1040 is the narrowest width at which nothing
+                      clips, and it is a no-op at 1440 — verified: the table
+                      measures 1126 with and without it.
+                    */}
+                    <Table className="min-w-[1040px]">
                         <TableCaption className="sr-only mt-0">Employees</TableCaption>
                         {/* Sticky: the head pins at `top: var(--bar-h)`, under the title bar. */}
                         <TableHeader sticky>

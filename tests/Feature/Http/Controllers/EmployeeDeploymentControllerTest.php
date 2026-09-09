@@ -118,6 +118,46 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'starts' => '2025-06-01', 'ends' => '2025-09-01']);
     }
 
+    /**
+     * A move dated on or before the open deployment's own start.
+     * MoveEmployee closes that row at `starts - 1`, which leaves
+     * `ends < starts` and `deployments_dates_ordered` (a CHECK, 23514)
+     * refuses the UPDATE. That is the refusal a real user hits: the sheet
+     * used to offer every date back to the hire date, so for someone hired in
+     * 2019 whose placement began in 2026 a seven-year window was fatal. The
+     * controller translates it now, and the sheet's `min` no longer offers it.
+     *
+     * MEASURED: with an open deployment present this is the ONLY refusal
+     * reachable single-threaded — the exclusion constraint keeps every range
+     * disjoint, so the open row always holds the maximum start and 23P01
+     * cannot be reached before 23514 is.
+     */
+    public function test_refuses_a_move_dated_before_the_current_placement_began(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2019-01-01']);
+        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
+        $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
+        $current = Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'unit_id' => $unitA->id,
+            'starts' => '2026-01-01',
+            'ends' => null,
+        ]);
+
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'unit_id' => $unitB->id,
+            'starts' => '2020-06-01',
+        ])->assertSessionHasErrors(['starts' => 'Before the current placement began.']);
+
+        // The whole move rolled back: no new row, and the open one is still open.
+        $this->assertDatabaseMissing('deployments', ['unit_id' => $unitB->id]);
+        $this->assertNull($current->fresh()->ends);
+    }
+
     public function test_view_only_is_forbidden(): void
     {
         $agency = Agency::factory()->create();

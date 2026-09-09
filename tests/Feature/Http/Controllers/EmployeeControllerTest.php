@@ -3,6 +3,7 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
@@ -364,6 +365,68 @@ class EmployeeControllerTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('units', 2)
                 ->where('tags', ['night', 'ward-3']));
+    }
+
+    /**
+     * The partial-reload contract, which had no test at all: the brief
+     * requires a filter change to reload only the props the list owns, and
+     * the whole reason `units` and `tags` are sent as Inertia closures is
+     * that Inertia never invokes a closure for a prop a partial reload
+     * excluded — so the option lists are queried once per full load rather
+     * than once per keystroke.
+     *
+     * `X-Inertia-Partial-Data` is read from the page component's own
+     * `PARTIAL` constant rather than hard-coded, which is what makes this
+     * falsifiable in the direction that matters: adding `units` to `PARTIAL`
+     * puts it in the header, the closure is then invoked, and `missing`
+     * fails. A hard-coded header would have gone on passing.
+     */
+    public function test_a_filter_reload_returns_only_the_props_the_list_owns(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        Unit::factory()->create(['agency_id' => $agency->id]);
+        Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['night']]);
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => app(HandleInertiaRequests::class)->version(request()),
+            'X-Inertia-Partial-Component' => 'employees/index',
+            'X-Inertia-Partial-Data' => implode(',', $this->partialProps()),
+        ])->get(route('employees.index', ['search' => 'anything']))
+            ->assertOk()
+            // Asserted on the JSON, not through AssertableInertia: its
+            // fromTestResponse() reads the root view's `page` data, which a
+            // partial reload has no root view to carry.
+            ->assertHeader('X-Inertia', 'true')
+            ->assertJsonPath('component', 'employees/index')
+            ->assertJsonStructure(['props' => ['employees', 'pagination', 'filters']])
+            ->assertJsonMissingPath('props.units')
+            ->assertJsonMissingPath('props.tags');
+    }
+
+    /**
+     * `PARTIAL` as employees/index.tsx declares it — the same read-the-source
+     * approach PermissionMatrixContractTest and OrganizationNavContractTest
+     * take, for the same reason: nothing in `tsc` or the bundle would notice
+     * the list growing.
+     *
+     * @return array<int, string>
+     */
+    private function partialProps(): array
+    {
+        $source = file_get_contents(__DIR__.'/../../../../resources/js/pages/employees/index.tsx');
+
+        $this->assertNotFalse($source, 'resources/js/pages/employees/index.tsx could not be read.');
+        $this->assertSame(1, preg_match('/const PARTIAL = \[(.*?)\];/s', $source, $matches), 'resources/js/pages/employees/index.tsx: could not read the PARTIAL prop list.');
+
+        preg_match_all("/'([^']+)'/", $matches[1], $props);
+
+        $this->assertNotEmpty($props[1]);
+
+        return $props[1];
     }
 
     /**

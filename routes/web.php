@@ -35,9 +35,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // EmployeeDeploymentController is the one place a deployment is ever
     // written, through the MoveEmployee action (R16) — a deployment row is
     // otherwise read-only once created, so there is no update/destroy for it.
-    Route::resource('employees', EmployeeController::class);
-    Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
-    Route::resource('units', UnitController::class)->except(['show']);
+    //
+    // `agency` (EnsureAgency) is the boundary, not a courtesy: both tables
+    // carry an agency_not_platform trigger, so a platform user sitting on the
+    // platform tenant could reach /employees/create, fill it in and submit it
+    // into an uncaught P0001. The sidebar hides the group for them; this is
+    // what makes the routes themselves absent.
+    Route::middleware('agency')->group(function () {
+        Route::resource('employees', EmployeeController::class);
+        Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
+        Route::resource('units', UnitController::class)->except(['show']);
+    });
 
     // Platform users only (superusers of the one platform = true agency):
     // list, create and edit agencies, and "enter" one to adopt it as the

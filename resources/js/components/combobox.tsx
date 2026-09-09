@@ -29,10 +29,13 @@ export interface ComboboxOption {
  *
  * Two geometries, because the same choice appears in two places:
  *
- * | variant  | Looks like                            | Used by                        |
- * | -------- | ------------------------------------- | ------------------------------ |
- * | `field`  | a 36px control, `--input` border      | a form field (unit, parent)    |
- * | `inline` | text until hovered, no border at rest | a table cell (a unit's head)   |
+ * | variant  | Looks like                            | Empty reads as        | Used by                      |
+ * | -------- | ------------------------------------- | --------------------- | ---------------------------- |
+ * | `field`  | a 36px control, `--input` border      | the placeholder       | a form field (unit, parent)  |
+ * | `inline` | text until hovered, no border at rest | `—`, placeholder on hover | a table cell (a unit's head) |
+ *
+ * The trigger's accessible name always names the chosen value, never just the
+ * field — see the note on `aria-label` below.
  *
  * Controlled: `value` is the chosen option's value or `null`. `name` adds a
  * hidden input so an Inertia `<Form>` submits it without the caller wiring
@@ -101,7 +104,19 @@ export function Combobox({
                 */}
                 <PopoverTrigger
                     id={id}
-                    aria-label={label}
+                    /*
+                      The name has to carry the VALUE, not just the field.
+                      accname 4.3.1 makes `aria-label` override the element's
+                      contents outright, so `aria-label={label}` alone
+                      announced "Head of Records Section, button, collapsed,
+                      has pop-up dialog" and never the head's name — and it is
+                      not recovered inside the list either: cmdk puts
+                      `aria-selected` on the *highlighted* row, not the chosen
+                      one, and the check icon is aria-hidden. MEASURED: a
+                      sighted reader read nine names down the Head column and a
+                      screen-reader user read none of them.
+                    */
+                    aria-label={label ? `${label}: ${chosen?.label ?? placeholder}` : undefined}
                     aria-invalid={invalid}
                     aria-describedby={describedBy}
                     disabled={disabled}
@@ -118,11 +133,32 @@ export function Combobox({
                         // row — and stays put while the list is open.
                         variant === 'inline' &&
                             '[&>svg]:opacity-0 hover:[&>svg]:opacity-100 aria-expanded:[&>svg]:opacity-100 group-hover/row:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100',
+                        // The same four conditions decide the empty state's
+                        // words: `—` at rest, the invitation once the pointer
+                        // or the keyboard has arrived. MEASURED: four rows
+                        // reading "Choose a head" competed with the four real
+                        // names beside them and the column read as a form —
+                        // the same defect a `Standing` column of identical
+                        // pills had, so the same answer. The numeric columns
+                        // already say "nothing" with an em dash.
+                        variant === 'inline' &&
+                            '[&_[data-offer]]:hidden hover:[&_[data-offer]]:inline aria-expanded:[&_[data-offer]]:inline group-hover/row:[&_[data-offer]]:inline focus-visible:[&_[data-offer]]:inline',
+                        variant === 'inline' &&
+                            'hover:[&_[data-rest]]:hidden aria-expanded:[&_[data-rest]]:hidden group-hover/row:[&_[data-rest]]:hidden focus-visible:[&_[data-rest]]:hidden',
                         className,
                     )}
                 >
                     <span className={cn('min-w-0 truncate', chosen === null && 'text-muted-foreground font-normal')}>
-                        {chosen ? (chosen.trigger ?? chosen.label) : placeholder}
+                        {chosen ? (
+                            (chosen.trigger ?? chosen.label)
+                        ) : variant === 'inline' ? (
+                            <>
+                                <span data-rest>—</span>
+                                <span data-offer>{placeholder}</span>
+                            </>
+                        ) : (
+                            placeholder
+                        )}
                     </span>
                     <ChevronDownIcon aria-hidden strokeWidth={1.5} className="text-muted-foreground" />
                 </PopoverTrigger>

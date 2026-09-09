@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAgency;
 use App\Http\Middleware\EnsurePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTenant;
@@ -28,7 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // right before SubstituteBindings, after StartSession and Authenticate.
         $middleware->prependToPriorityList(SubstituteBindings::class, SetTenant::class);
 
-        $middleware->alias(['platform' => EnsurePlatform::class]);
+        $middleware->alias([
+            'agency' => EnsureAgency::class,
+            'platform' => EnsurePlatform::class,
+        ]);
 
         // The framework default is `fn () => route('login')`, which Authenticate
         // evaluates while constructing the AuthenticationException. With no login

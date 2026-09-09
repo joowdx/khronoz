@@ -281,6 +281,162 @@ class UnitControllerTest extends TestCase
         $this->assertModelMissing($unit);
     }
 
+    /**
+     * `units_acyclic` (a CONSTRAINT TRIGGER, P0001) is the only thing that
+     * decides this, and the controller translates its refusal — see
+     * UnitController::update. Reachable from a stale edit page: open Edit for
+     * A, move B under A in another tab, then set A's parent to B. Before the
+     * translation this was an uncaught 500.
+     */
+    public function test_update_refuses_a_parent_that_is_one_of_the_units_own(): void
+    {
+        $agency = Agency::factory()->create();
+        $parent = Unit::factory()->create(['agency_id' => $agency->id]);
+        $child = Unit::factory()->under($parent)->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->put(route('units.update', $parent), [
+            'code' => $parent->code,
+            'name' => $parent->name,
+            'parent_id' => $child->id,
+        ])->assertSessionHasErrors(['parent_id' => 'Under one of its own units.']);
+
+        $this->assertNull($parent->fresh()->parent_id);
+    }
+
+    /** units_parent_not_self, a CHECK (23514). The picker excludes the unit from its own options, so this arrives by URL. */
+    public function test_update_refuses_a_unit_as_its_own_parent(): void
+    {
+        $agency = Agency::factory()->create();
+        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->put(route('units.update', $unit), [
+            'code' => $unit->code,
+            'name' => $unit->name,
+            'parent_id' => $unit->id,
+        ])->assertSessionHasErrors(['parent_id' => 'Cannot be its own parent.']);
+
+        $this->assertNull($unit->fresh()->parent_id);
+    }
+
+    /**
+     * The two real RESTRICTs on a unit's own delete. The tree hides Remove
+     * where either would bite, but the route stays authorized and reachable
+     * from a stale index page or by URL, so the refusal is translated into a
+     * flash error rather than a 500. There is no field to hang it on.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function undeletableUnitCases(): array
+    {
+        return ['a child unit' => ['child'], 'a closed deployment' => ['history']];
+    }
+
+    #[DataProvider('undeletableUnitCases')]
+    public function test_destroy_reports_what_is_still_in_the_unit(string $holder): void
+    {
+        $agency = Agency::factory()->create();
+        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+
+        if ($holder === 'child') {
+            Unit::factory()->under($unit)->create();
+        } else {
+            Deployment::factory()->create([
+                'agency_id' => $agency->id,
+                'employee_id' => Employee::factory()->create(['agency_id' => $agency->id])->id,
+                'unit_id' => $unit->id,
+                'starts' => '2020-01-01',
+                'ends' => '2021-12-31',
+            ]);
+        }
+
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->delete(route('units.destroy', $unit))
+            ->assertRedirect(route('units.index'))
+            ->assertSessionHas('error')
+            ->assertSessionMissing('success');
+
+        $this->assertModelExists($unit);
+    }
+
+    /**
+     * M4: `units_head_id_agency_id_foreign` does NOT restrict this. `head_id`
+     * points *out of* `units` at an employee, so it restricts deleting the
+     * employee — and that is a soft delete, so it never fires at all. Both
+     * UnitController::destroy and .ai/rules/components.md used to claim
+     * otherwise; this is the proof they were wrong.
+     */
+    public function test_destroy_removes_a_unit_that_has_a_head(): void
+    {
+        $agency = Agency::factory()->create();
+        $head = Employee::factory()->create(['agency_id' => $agency->id]);
+        $unit = Unit::factory()->create(['agency_id' => $agency->id, 'head_id' => $head->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->delete(route('units.destroy', $unit))
+            ->assertRedirect(route('units.index'))->assertSessionHas('success');
+
+        $this->assertModelMissing($unit);
+        $this->assertModelExists($head);
+    }
+
+    /**
+     * M5: the picker's own query offers neither a removed nor a separated
+     * employee (test_the_head_picker_offers_only_this_agency_s_employees_who_
+     * are_still_employed), and the request must refuse one submitted anyway.
+     * Accepting it wrote a `head_id` the screen could never display: the unit
+     * came back with no head at all, because ->with('head') resolves through
+     * the model's own scopes and answers null.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function ineligibleHeadCases(): array
+    {
+        return ['separated' => ['separated'], 'removed' => ['removed']];
+    }
+
+    #[DataProvider('ineligibleHeadCases')]
+    public function test_store_refuses_a_head_who_cannot_run_a_unit(string $state): void
+    {
+        $agency = Agency::factory()->create();
+        $head = $this->ineligibleHead($agency, $state);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->post(route('units.store'), ['code' => 'HR', 'name' => 'Human Resources', 'head_id' => $head->id])
+            ->assertSessionHasErrors('head_id');
+
+        $this->assertDatabaseMissing('units', ['code' => 'HR']);
+    }
+
+    #[DataProvider('ineligibleHeadCases')]
+    public function test_update_refuses_a_head_who_cannot_run_a_unit(string $state): void
+    {
+        $agency = Agency::factory()->create();
+        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $head = $this->ineligibleHead($agency, $state);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->put(route('units.update', $unit), ['code' => $unit->code, 'name' => $unit->name, 'head_id' => $head->id])
+            ->assertSessionHasErrors('head_id');
+
+        $this->assertNull($unit->fresh()->head_id);
+    }
+
+    /** Separated uses the factory's own state, since employees_separation_after_hire refuses a separation before a random hired_at. */
+    private function ineligibleHead(Agency $agency, string $state): Employee
+    {
+        if ($state === 'separated') {
+            return Employee::factory()->separated()->create(['agency_id' => $agency->id]);
+        }
+
+        $head = Employee::factory()->create(['agency_id' => $agency->id]);
+        $head->delete();
+
+        return $head;
+    }
+
     public function test_editing_a_unit_of_another_agency_is_not_found(): void
     {
         $stranger = Unit::factory()->create();

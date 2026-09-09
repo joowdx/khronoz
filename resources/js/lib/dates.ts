@@ -64,3 +64,38 @@ export function manilaToday(): string {
 
     return `${parts.year}-${parts.month}-${parts.day}`;
 }
+
+/**
+ * The day after a `YYYY-MM-DD` string, as a `YYYY-MM-DD` string.
+ *
+ * The one place a date the API sent goes through `Date`, and it does so
+ * without ever touching a zone: the parts are read out of the string, handed
+ * to `Date.UTC` (which normalises 32 January into 1 February for us, month
+ * lengths and leap years included), and read back with `toISOString`, which is
+ * also UTC. Nothing is parsed from a string and nothing is printed in the
+ * browser's zone, so the off-by-one `new Date('2024-03-01')` causes cannot
+ * happen here. Rolling the calendar by hand instead would mean shipping a
+ * month-length table and a leap-year rule to avoid a `Date` that is already
+ * exact.
+ *
+ * An unrecognisable string comes back unchanged, the way `formatDay` does.
+ */
+export function addDay(iso: string): string {
+    const [year, month, day] = iso.split('-').map(Number);
+
+    if (year === undefined || month === undefined || day === undefined || Number.isNaN(year + month + day)) {
+        return iso;
+    }
+
+    return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+}
+
+/**
+ * The later of two `YYYY-MM-DD` strings.
+ *
+ * A plain string comparison, which is exactly chronological for zero-padded
+ * ISO dates — and is why every date on the wire is one of these.
+ */
+export function laterDay(a: string, b: string): string {
+    return a > b ? a : b;
+}
