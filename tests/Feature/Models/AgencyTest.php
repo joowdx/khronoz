@@ -4,6 +4,7 @@ namespace Tests\Feature\Models;
 
 use App\Models\Agency;
 use App\Models\Scopes\NotPlatformScope;
+use App\Models\User;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -79,13 +80,30 @@ class AgencyTest extends TestCase
         ]));
     }
 
-    // A test for ON DELETE RESTRICT on users.agency_id was deliberately left
-    // out here: deleting an agency that still has users refuses with
-    // SQLSTATE 23001 (restrict_violation), not the 23503 the fix-wave brief
-    // specified for it. See the handoff report (final-fix-wave-commit3-report.md)
-    // for the observed error — the RESTRICT clause itself is confirmed
-    // present and working; only the expected SQLSTATE needs the controller's
-    // sign-off before a test can assert it.
+    /**
+     * users.agency_id is ON DELETE RESTRICT (docs/design/07-constraints.md's
+     * global default for every paired FK, applying to ~25 tables across the
+     * full plan): deleting an agency that still has users must be refused,
+     * not silently cascaded or nulled.
+     *
+     * Refuses with SQLSTATE 23001 (restrict_violation), signed off by the
+     * controller — confirmed against the live cluster: pg_constraint reports
+     * users_agency_id_foreign's confdeltype as 'r' (RESTRICT), not 'a' (NO
+     * ACTION). See the SQLSTATE note in .ai/rules/tests.md for how this
+     * differs from insert-side 23503.
+     *
+     * Must target a non-platform agency: deleting the platform row itself
+     * trips the agencies_platform_row trigger first (P0001, see
+     * test_platform_row_cannot_be_deleted), which would prove nothing about
+     * this FK.
+     */
+    public function test_agency_with_users_cannot_be_deleted(): void
+    {
+        $agency = Agency::factory()->create();
+        User::factory()->forAgency($agency)->create();
+
+        $this->assertDatabaseRefuses('23001', fn () => DB::table('agencies')->where('id', $agency->id)->delete());
+    }
 
     /** platform is NOT NULL (with a database default of false); an explicit null must still be refused. */
     public function test_platform_flag_cannot_be_null(): void
