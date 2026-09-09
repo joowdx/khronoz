@@ -4,6 +4,7 @@ namespace Tests\Feature\Models;
 
 use App\Models\Agency;
 use App\Models\Scopes\NotPlatformScope;
+use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -13,6 +14,23 @@ class AgencyTest extends TestCase
     {
         $this->assertTrue(Agency::platform()->platform);
         $this->assertSame(1, Agency::withoutGlobalScope(NotPlatformScope::class)->where('platform', true)->count());
+    }
+
+    /**
+     * Minor 10: `platform` is deliberately absent from Agency's #[Fillable] —
+     * it is a flag the row-level privileges and the agencies_platform_row
+     * trigger protect, not something a request should ever set. This is the
+     * precondition PlatformSeeder::run() must not rely on SeedCommand's
+     * Model::unguarded() wrapper to work around: it uses forceFill so it
+     * still works called directly. The seeded platform row cannot itself be
+     * deleted (test_platform_row_cannot_be_deleted) to re-drive the seeder's
+     * create path in a test, so this asserts the guard the fix depends on.
+     */
+    public function test_platform_is_not_mass_assignable(): void
+    {
+        $this->expectException(MassAssignmentException::class);
+
+        Agency::create(['platform' => true, 'code' => 'not-the-real-one', 'name' => 'x']);
     }
 
     public function test_second_platform_row_is_refused(): void

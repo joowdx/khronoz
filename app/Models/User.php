@@ -18,14 +18,13 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
-use Laravel\Scout\Searchable;
 
 #[Fillable(['agency_id', 'employee_id', 'name', 'email', 'password', 'permissions', 'invited_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasUlids, Notifiable, Searchable;
+    use HasApiTokens, HasFactory, HasUlids, Notifiable;
 
     /**
      * Get the attributes that should be cast.
@@ -84,19 +83,5 @@ class User extends Authenticatable implements MustVerifyEmail
     public function allows(Permission $permission): bool
     {
         return $this->permissions->contains(fn (Permission $held) => $held->grants($permission));
-    }
-
-    /**
-     * Get the indexable data array for the model.
-     *
-     * @return array<string, mixed>
-     */
-    public function toSearchableArray(): array
-    {
-        return [
-            'id' => $this->id,
-            'name' => $this->name,
-            'email' => $this->email,
-        ];
     }
 }

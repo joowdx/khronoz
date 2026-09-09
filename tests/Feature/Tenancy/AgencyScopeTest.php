@@ -5,6 +5,7 @@ namespace Tests\Feature\Tenancy;
 use App\Models\Agency;
 use App\Models\Concerns\BelongsToAgency;
 use App\Models\Scopes\AgencyScope;
+use App\Tenancy\TenantMismatch;
 use App\Tenancy\TenantNotResolved;
 use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Attributes\Unguarded;
@@ -57,6 +58,37 @@ class AgencyScopeTest extends TestCase
         $this->withTenant($agency);
 
         $this->assertSame($agency->id, Probe::create(['name' => 'x'])->agency_id);
+    }
+
+    /**
+     * I-6, case 1 of 3: no tenant is set, so an explicit agency_id is trusted
+     * as-is — seeders and maintenance commands that iterate agencies rely on
+     * exactly this, setting agency_id themselves without ever calling
+     * Tenant::set().
+     */
+    public function test_creating_with_an_explicit_agency_id_and_no_tenant_is_allowed(): void
+    {
+        $agency = Agency::factory()->create();
+
+        $probe = Probe::create(['agency_id' => $agency->id, 'name' => 'x']);
+
+        $this->assertSame($agency->id, $probe->agency_id);
+    }
+
+    /**
+     * I-6, case 3 of 3: under tenant A, Model::create(['agency_id' => $b->id])
+     * must not silently write a row belonging to B. Case 2 (tenant set, no
+     * agency_id given, filled from the tenant) is test_creating_fills_
+     * agency_id_from_the_tenant above.
+     */
+    public function test_creating_with_an_agency_id_that_contradicts_the_tenant_throws(): void
+    {
+        [$mine, $theirs] = Agency::factory()->count(2)->create();
+        $this->withTenant($mine);
+
+        $this->expectException(TenantMismatch::class);
+
+        Probe::create(['agency_id' => $theirs->id, 'name' => 'x']);
     }
 
     public function test_reading_without_a_tenant_throws(): void
