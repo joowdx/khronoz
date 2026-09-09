@@ -1,0 +1,163 @@
+/* khronoz — flat, light, product-first.
+   Four token sets: [data-accent="violet"|"blue"] x [data-mode="light"|"dark"].
+   Default (no attributes) = violet + light, so the page is correct without JS.
+   No shadows except --lift, used only by the popover and the sheet. No gradients.
+
+   Neutrals are pure achromatic greys in both modes: R = G = B on every one of
+   them. The only hues on a screen are the accent, the eight-slot chip ramp and
+   the fault / attention / positive tints. */
+
+:root {
+  /* ---- shape ---- */
+  --r-panel: 12px;
+  --r-ctl: 8px;
+  --r-pill: 999px;
+  --r-chip: 6px;
+
+  /* ---- space scale: 4 8 12 16 24 32 48 ---- */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 24px; --s6: 32px; --s7: 48px;
+
+  --side-w: 248px;
+  --rail-w: 64px;
+  --bar-h: 56px;
+  --ctl-h: 36px;
+  --row-h: 44px;
+
+  /* ---- type: one family, Plus Jakarta Sans, 400 500 600 700 800.
+     Both names point at the same stack; --display marks the display sizes so
+     their tracking can be tuned in one place. ---- */
+  --display: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --text: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --lift: 0 8px 24px rgba(0, 0, 0, .10);
+}
+
+/* ================= NEUTRALS (achromatic) ================= */
+:root, :root[data-mode="light"] {
+  --canvas: #FFFFFF;
+  --side: #F5F5F5;          /* sidebar and rail                            */
+  --sheet: #FFFFFF;         /* sheet and popover surface                   */
+  --line: #E5E5E5;          /* panel border, section rule    1.26 / 1.16 */
+  --rule: #F0F0F0;          /* soft row divider              1.14 / 1.05 */
+  --edge: #8A8A8A;          /* control border   3.45 on canvas, 3.17 on side */
+  --edge-soft: #D4D4D4;     /* non-essential inner divider   1.48 / 1.36 */
+  --ink: #171717;           /* 17.93 on canvas, 16.44 on side */
+  --muted: #6B6B6B;         /*  5.33 on canvas,  4.89 on side */
+  --row-hover: #F5F5F5;     /* hover on canvas */
+  --side-hover: #EAEAEA;    /* hover on the sidebar and rail */
+  --fault: #B91C1C;         /*  6.47 on canvas,  5.93 on side */
+  --fault-soft: #FEE2E2;
+  --attn: #B45309;          /*  5.02 on canvas,  4.61 on side */
+  --attn-soft: #FEF3C7;
+  --pos: #047857;           /*  5.48 on canvas,  5.03 on side */
+  --pos-soft: #D1FAE5;
+  --weekend: #FAFAFA;
+  --off-fill: #FAFAFA;
+  --off-hatch: #D4D4D4;
+  --tick: #8E8E8E;         /* axis tick   3.28 on canvas, 3.01 on side */
+  --dot: #C4C4C4;           /* leader dots, decorative */
+  --scrim: rgba(0, 0, 0, .28);
+  color-scheme: light;
+}
+:root[data-mode="dark"] {
+  --canvas: #0A0A0A;
+  --side: #171717;
+  --sheet: #171717;
+  --line: #262626;          /* panel border, section rule    1.31 / 1.18 */
+  --rule: #1F1F1F;          /* soft row divider              1.20 / 1.09 */
+  --edge: #737373;          /* 4.18 on canvas, 3.78 on side */
+  --edge-soft: #333333;
+  --ink: #EDEDED;           /* 16.91 on canvas, 15.31 on side */
+  --muted: #A3A3A3;         /*  7.85 on canvas,  7.11 on side */
+  --row-hover: #1F1F1F;
+  --side-hover: #262626;
+  --fault: #F87171;         /*  7.16 on canvas,  6.48 on side */
+  --fault-soft: #3A1A1A;
+  --attn: #FBBF24;          /* 11.86 on canvas, 10.74 on side */
+  --attn-soft: #3A2C0F;
+  --pos: #34D399;           /* 10.30 on canvas,  9.33 on side */
+  --pos-soft: #0F2E25;
+  --weekend: #141414;
+  --off-fill: #141414;
+  --off-hatch: #333333;
+  --tick: #666666;         /* axis tick   3.45 on canvas, 3.12 on side */
+  --dot: #3A3A3A;
+  --scrim: rgba(0, 0, 0, .60);
+  --lift: 0 8px 24px rgba(0, 0, 0, .55);
+  color-scheme: dark;
+}
+
+/* ================= ACCENT: violet (default) =================
+   Accent tokens are the only tinted surfaces left. The sidebar carries no
+   accent tint; the active nav item still does. */
+:root, :root[data-accent="violet"], :root[data-accent="violet"][data-mode="light"] {
+  --acc: #6D28D9;           /* white on it            7.10:1 */
+  --acc-hover: #5B21B6;     /* white on it            8.98:1 */
+  --acc-ink: #FFFFFF;
+  --acc-text: #6D28D9;      /* on canvas 7.10, on side 6.52, on soft 5.98 */
+  --acc-soft: #EDE9FE;
+  --acc-tint: #F5F3FF;
+}
+:root[data-accent="violet"][data-mode="dark"] {
+  --acc: #7C3AED;           /* white on it            5.70:1 */
+  --acc-hover: #6D28D9;     /* white on it            7.10:1 */
+  --acc-ink: #FFFFFF;
+  --acc-text: #A78BFA;      /* on canvas 7.27, on side 6.59, on soft 5.54 */
+  --acc-soft: #2A1F4A;
+  --acc-tint: #1B1730;
+}
+
+/* ================= ACCENT: blue ================= */
+:root[data-accent="blue"], :root[data-accent="blue"][data-mode="light"] {
+  --acc: #2563EB;           /* white on it            5.17:1 */
+  --acc-hover: #1D4ED8;     /* white on it            6.70:1 */
+  --acc-ink: #FFFFFF;
+  --acc-text: #1D4ED8;      /* on canvas 6.70, on side 6.15, on soft 5.49 */
+  --acc-soft: #DBEAFE;
+  --acc-tint: #EFF6FF;
+}
+:root[data-accent="blue"][data-mode="dark"] {
+  --acc: #3B6FE0;           /* white on it            4.63:1 */
+  --acc-hover: #2E5FCD;     /* white on it            5.78:1 */
+  --acc-ink: #FFFFFF;
+  --acc-text: #93C5FD;      /* on canvas 10.98, on side 9.94, on soft 7.23 */
+  --acc-soft: #16305C;
+  --acc-tint: #101B2E;
+}
+
+/* ================= CHIP RAMP =================
+   Eight flat oklch hues. Violet accent sits at oklch h293, so hues keep >=35 deg
+   clear of it; every text-bearing chip keeps >=20 deg clear of fault red (h27.5).
+   light: fill L.94 C.064 | edge L.80 C.125 | text L.425 C.14
+   dark:  fill L.28 C.09  | edge L.44 C.12  | text L.80 C.12                      */
+
+:root, :root[data-accent="violet"][data-mode="light"], :root[data-accent="blue"][data-mode="light"] {
+  --c1-fill:#FFE2EC; --c1-edge:#FD9BC2; --c1-text:#852252; /* rose   h355  7.39 / 8.94 */
+  --c2-fill:#FFE6D5; --c2-edge:#FCA76C; --c2-text:#793B00; /* ochre  h 55  7.19 / 8.61 */
+  --c3-fill:#FFE9BB; --c3-edge:#E3B756; --c3-text:#644A00; /* olive  h 85  6.99 / 8.33 */
+  --c4-fill:#E7F2C2; --c4-edge:#B7C967; --c4-text:#4A5500; /* lime   h118  6.90 / 8.11 */
+  --c5-fill:#CEF8D5; --c5-edge:#7FD492; --c5-text:#005F29; /* green  h150  6.75 / 7.87 */
+  --c6-fill:#BBFAF1; --c6-edge:#41D7CA; --c6-text:#005B54; /* teal   h186  6.88 / 8.00 */
+  --c7-fill:#CCF3FF; --c7-edge:#48D0F4; --c7-text:#00586B; /* sky    h219  6.84 / 8.05 */
+  --c8-fill:#DDEDFF; --c8-edge:#8CC2FF; --c8-text:#004F91; /* blue   h252  6.98 / 8.31 */
+}
+:root[data-accent="violet"][data-mode="dark"], :root[data-accent="blue"][data-mode="dark"] {
+  --c1-fill:#48102B; --c1-edge:#833156; --c1-text:#FB9DC2; /* 7.73 / 9.56  */
+  --c2-fill:#421E00; --c2-edge:#7F3F00; --c2-text:#F9A870; /* 7.66 / 9.70  */
+  --c3-fill:#362600; --c3-edge:#694E00; --c3-text:#E1B75C; /* 7.76 / 9.94  */
+  --c4-fill:#262D00; --c4-edge:#4E5900; --c4-text:#B7C86B; /* 7.88 / 10.26 */
+  --c5-fill:#003312; --c5-edge:#03642B; --c5-text:#83D494; /* 7.97 / 10.54 */
+  --c6-fill:#00312C; --c6-edge:#006059; --c6-text:#4BD7C9; /* 8.04 / 10.59 */
+  --c7-fill:#002E3A; --c7-edge:#005C70; --c7-text:#50D0F2; /* 8.02 / 10.40 */
+  --c8-fill:#002950; --c8-edge:#125492; --c8-text:#8CC2FF; /* 7.87 / 10.07 */
+}
+
+/* Blue accent sits at oklch h263, which the violet ramp's slot 8 (h252) collides
+   with. Only slot 8 rotates, to h320; slots 1-7 are unchanged. */
+:root[data-accent="blue"][data-mode="light"] {
+  --c8-fill:#FAE2FF; --c8-edge:#E1A3F0; --c8-text:#6E2E7D; /* orchid h320  7.40 / 8.94 */
+}
+:root[data-accent="blue"][data-mode="dark"] {
+  --c8-fill:#3B1644; --c8-edge:#6F397B; --c8-text:#E0A4EE; /* 7.74 / 9.57 */
+}
