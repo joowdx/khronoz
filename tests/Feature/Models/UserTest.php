@@ -29,6 +29,27 @@ class UserTest extends TestCase
         $this->assertDatabaseRefuses('23505', fn () => User::factory()->create(['email' => 'ana@agency.gov.ph']));
     }
 
+    public function test_email_unique_index_is_case_insensitive(): void
+    {
+        $user = User::factory()->create(['email' => 'ana@agency.gov.ph']);
+
+        // Inserted through the query builder, bypassing User's email mutator, so this
+        // duplicate reaches Postgres in a different case than the stored row rather than
+        // the identical lower-cased literal a model-level create() would produce. Only a
+        // functional index on lower(email) can refuse a raw, differently-cased duplicate
+        // like this; a plain unique index on the column would let it through. This is what
+        // distinguishes the two, so don't "simplify" this back to a factory call.
+        $this->assertDatabaseRefuses('23505', fn () => DB::table('users')->insert([
+            'id' => (string) Str::ulid(),
+            'agency_id' => $user->agency_id,
+            'name' => 'x',
+            'email' => 'ANA@agency.gov.ph',
+            'password' => 'x',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
     public function test_user_needs_an_agency(): void
     {
         $this->assertDatabaseRefuses('23502', fn () => User::factory()->create(['agency_id' => null]));

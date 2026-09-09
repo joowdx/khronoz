@@ -79,15 +79,21 @@ abstract class TestCase extends BaseTestCase
 
     /**
      * Log in as a fresh superuser of the platform agency (docs/design/02-
-     * access.md rule 3). $enter is reserved for Task 6: once the tenant scope
-     * exists, it will let a platform user act as though inside a chosen
-     * agency; accepting it here now means that body change touches no caller.
+     * access.md rule 3). When $enter is given, marks that agency as the one
+     * this platform user has "entered" for the request; SetTenant (Task 6)
+     * reads that from session.
      */
     protected function actingAsPlatform(?Agency $enter = null): User
     {
         $user = User::factory()->platform()->create();
 
         $this->actingAs($user);
+
+        if ($enter) {
+            // 'agency' is the session key SetTenant (Task 6) reads to find the
+            // agency a platform user has "entered".
+            $this->withSession(['agency' => $enter->id]);
+        }
 
         return $user;
     }
