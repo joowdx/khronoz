@@ -4,7 +4,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
-| app/Http/Middleware/** | .ai/rules/middleware.md |
-| bootstrap/app.php | .ai/rules/middleware.md |
+| app/Http/Middleware/**, bootstrap/app.php | .ai/rules/middleware.md |
 | database/migrations/** | .ai/rules/migrations.md |
 | app/Models/** | .ai/rules/models.md |
+| resources/js/pages/** | .ai/rules/pages.md |

@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Building2, LayoutDashboard } from 'lucide-react';
+import { AgencySwitcher } from '@/components/agency-switcher';
 import { NavUser } from '@/components/nav-user';
 import {
     Sidebar,
@@ -13,28 +14,18 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as agenciesIndex } from '@/routes/platform/agencies';
 import type { SharedProps } from '@/types';
 
 export function AppSidebar() {
-    // `agency` is only shared from Task 6 on; tolerate it being absent at
+    // `auth` is only shared from Task 6 on; tolerate it being absent at
     // runtime even though SharedProps declares it as required.
-    const { agency } = usePage<SharedProps>().props;
+    const { auth } = usePage<SharedProps>().props;
 
     return (
         <Sidebar>
             <SidebarHeader>
-                {/* Task 8 replaces this static block with <AgencySwitcher />. */}
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                    <div className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 items-center justify-center rounded-md">
-                        <Building2 className="size-4" />
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                        <span className="truncate font-semibold">khronoz</span>
-                        <span className="text-sidebar-foreground/70 truncate text-xs">
-                            {agency?.name ?? 'Platform'}
-                        </span>
-                    </div>
-                </div>
+                <AgencySwitcher />
             </SidebarHeader>
             <SidebarContent>
                 {/*
@@ -55,6 +46,21 @@ export function AppSidebar() {
                         </SidebarMenuItem>
                     </SidebarMenu>
                 </SidebarGroup>
+                {auth?.user?.platform && (
+                    <SidebarGroup>
+                        <SidebarGroupLabel>Platform</SidebarGroupLabel>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton asChild>
+                                    <Link href={agenciesIndex()}>
+                                        <Building2 />
+                                        <span>Agencies</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroup>
+                )}
             </SidebarContent>
             <SidebarFooter>
                 <NavUser />
