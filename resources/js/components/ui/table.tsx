@@ -94,10 +94,15 @@ function TableSortButton({ className, children, ...props }: React.ComponentProps
             className={cn(
                 'inline-flex h-9 items-center gap-1.5 border-0 bg-transparent p-0 text-xs leading-4 font-semibold text-inherit',
                 'hover:text-foreground',
-                '[[aria-sort]_&]:text-foreground',
+                '[[aria-sort=ascending]_&]:text-foreground [[aria-sort=descending]_&]:text-foreground',
                 '[[data-numeric]_&]:flex-row-reverse',
                 '[&>svg]:text-edge-soft [&>svg]:size-3 [&>svg]:shrink-0 [&>svg]:opacity-0 hover:[&>svg]:opacity-100',
-                '[[aria-sort]_&>svg]:text-acc-text [[aria-sort]_&>svg]:opacity-100',
+                // Only the sorted column carries the glyph, so the state keys
+                // off the two real directions rather than the attribute's
+                // presence — an unsorted head declares `aria-sort="none"` and
+                // must still look unsorted.
+                '[[aria-sort=ascending]_&>svg]:text-acc-text [[aria-sort=ascending]_&>svg]:opacity-100',
+                '[[aria-sort=descending]_&>svg]:text-acc-text [[aria-sort=descending]_&>svg]:opacity-100',
                 '[[aria-sort=descending]_&>svg]:rotate-180',
                 className,
             )}

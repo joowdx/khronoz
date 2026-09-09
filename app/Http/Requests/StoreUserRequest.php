@@ -4,10 +4,10 @@ namespace App\Http\Requests;
 
 use App\Enums\Permission;
 use App\Models\User;
-use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
 {
@@ -21,9 +21,8 @@ class StoreUserRequest extends FormRequest
 
     /**
      * Normalise email the same way User's own mutator does, before the
-     * uniqueness rule below runs. Without this, a submission differing only
-     * in case from an existing row would pass validation (Rule::unique's own
-     * equality clause compares the raw, un-lowercased input) and then fail
+     * uniqueness check below runs. Without this, a submission differing only
+     * in case from an existing row would pass validation and then fail
      * loudly at the database instead, since users_email is a unique index on
      * lower(email).
      */
@@ -38,50 +37,77 @@ class StoreUserRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
+     * An account with no permissions can sign in and reach nothing, so the
+     * matrix is required rather than merely well-formed — `Choose at least
+     * one` (lang/en/validation.php's `custom.permissions.required`) is the
+     * error the design draws for it.
+     *
+     * Uniqueness is checked in after() instead of by Rule::unique, because
+     * this form answers a taken address twice: the short verdict on the
+     * field's label row and the sentence that says what to do about it.
+     *
      * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'email' => [
-                'required',
-                'email',
-                'max:254',
-                Rule::unique('users', 'email')->where(
-                    fn (Builder $query) => $query->whereRaw('lower(email) = ?', [Str::lower($this->string('email'))]),
-                ),
-            ],
-            'permissions' => ['array'],
+            'email' => ['required', 'email', 'max:254'],
+            'permissions' => ['required', 'array'],
             'permissions.*' => [Rule::enum(Permission::class)],
         ];
     }
 
     /**
      * The unique index on users.email is global by design (docs/design/07-
-     * constraints.md:103), so Laravel's stock "The email has already been
-     * taken." message would confirm — to whoever is filling in this form,
-     * for any agency — that the address has an account somewhere in the
-     * system. This message is deliberately neutral about *which* agency
-     * holds it.
+     * constraints.md:103), so the address may already belong to an account
+     * in another agency — one this form's submitter cannot see and must not
+     * be told about. Both messages are therefore silent about *which*
+     * agency holds it:
      *
-     * Unlike LoginRequest::authenticate() and PasswordResetLinkController::
-     * store() (Task 7), it does not close the oracle itself: those two
-     * return an identical response whether or not the address is registered,
-     * so submitting either tells the caller nothing. Here a taken address
-     * still fails validation while an untaken one succeeds, so the response
-     * shape alone still reveals existence — only the wording no longer
-     * confirms it outright. Accepted at that: this endpoint is authenticated
-     * and gated on users.manage (UserPolicy::create()), not an anonymous
-     * public form, and an admin creating an account does need to know the
+     * | Key              | Renders as                        | Says |
+     * | ---------------- | --------------------------------- | ---- |
+     * | `email`          | the field's label row (§6.1)      | `Already taken` |
+     * | `email_conflict` | a banner under the field (§6.4)   | the sentence, whose fix is a link the page supplies |
+     *
+     * `email_conflict` is not a field of this form, which is the convention
+     * for a message that is not a field's own one-line verdict.
+     *
+     * It does not close the oracle itself: unlike LoginRequest::
+     * authenticate() and PasswordResetLinkController::store(), which answer
+     * identically whether or not an address is registered, a taken address
+     * still fails here while an untaken one succeeds — the response shape
+     * alone reveals existence. Accepted at that: this endpoint is
+     * authenticated and gated on users.manage (UserPolicy::create()), not an
+     * anonymous public form, and an administrator does need to know the
      * address is unavailable.
      *
-     * @return array<string, string>
+     * @return array<int, callable>
      */
-    public function messages(): array
+    public function after(): array
     {
-        return [
-            'email.unique' => 'This address already has an account — ask them to sign in.',
-        ];
+        return [function (Validator $validator): void {
+            // A malformed or missing address has already been answered; a
+            // second verdict on the same row would only compete with it.
+            if ($validator->errors()->has('email') || ! $this->addressIsTaken()) {
+                return;
+            }
+
+            $validator->errors()->add('email', trans('validation.unique'));
+            $validator->errors()->add('email_conflict', 'This address already has an account.');
+        }];
+    }
+
+    /**
+     * Matches the index the database enforces — `lower(email)`, across every
+     * agency — so a duplicate is caught here rather than as an uncaught
+     * constraint violation. User carries no tenant scope, which is what
+     * makes this query global.
+     */
+    private function addressIsTaken(): bool
+    {
+        return User::query()
+            ->whereRaw('lower(email) = ?', [Str::lower($this->string('email')->toString())])
+            ->exists();
     }
 }

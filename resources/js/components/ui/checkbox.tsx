@@ -21,8 +21,15 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxP
                 'data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
                 'data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground',
                 'aria-invalid:border-destructive aria-invalid:focus-visible:outline-destructive',
-                'disabled:bg-rule disabled:border-edge-soft disabled:cursor-not-allowed disabled:hover:border-edge-soft',
+                'disabled:bg-rule disabled:border-edge-soft disabled:hover:border-edge-soft disabled:cursor-not-allowed',
                 'disabled:data-[state=checked]:bg-edge-soft disabled:data-[state=checked]:border-input disabled:data-[state=checked]:text-foreground',
+                // The same two states again for aria-disabled, which is what a
+                // box that must stay focusable uses instead — the permission
+                // matrix's implied views, where the lock beside the box is the
+                // explanation and a control out of the tab order could not be
+                // read (§5.21).
+                'aria-disabled:bg-rule aria-disabled:border-edge-soft aria-disabled:hover:border-edge-soft aria-disabled:cursor-default',
+                'aria-disabled:data-[state=checked]:bg-edge-soft aria-disabled:data-[state=checked]:border-input aria-disabled:data-[state=checked]:text-foreground',
                 className,
             )}
             {...props}

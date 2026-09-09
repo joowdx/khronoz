@@ -40,7 +40,7 @@ enum Preset: string
     {
         return match ($this) {
             self::Admin => 'Admin',
-            self::Hr => 'HR',
+            self::Hr => 'HR officer',
             self::Viewer => 'Viewer',
         };
     }

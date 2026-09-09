@@ -28,13 +28,17 @@ class UpdateUserRequest extends FormRequest
      *
      * Email is intentionally absent: it is not editable in v1.
      *
+     * `required` on the matrix matches StoreUserRequest — an account with no
+     * permissions can sign in and reach nothing, so the design answers an
+     * empty matrix with `Choose at least one` rather than saving it.
+     *
      * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         return [
             'name' => ['required', 'string', 'max:120'],
-            'permissions' => ['array', $this->preventsSelfDemotion()],
+            'permissions' => ['required', 'array', $this->preventsSelfDemotion()],
             'permissions.*' => [Rule::enum(Permission::class)],
         ];
     }

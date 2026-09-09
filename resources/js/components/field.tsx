@@ -54,13 +54,21 @@ export function Field({
                 <label htmlFor={id} className="text-[13px] leading-[18px] font-medium">
                     {label}
                 </label>
-                {/* Always rendered, so the row's height never depends on the error. */}
+                {/*
+                  Always rendered, so the row's height never depends on the
+                  error. The zero-width space is load-bearing: an empty block
+                  has no line box, so `items-baseline` falls back to its
+                  bottom margin edge and the row grows ~4px taller than the
+                  same row with a message in it — which is exactly the shift
+                  this layout exists to prevent. It is invisible, and an
+                  aria-live region does not announce its initial content.
+                */}
                 <p
                     id={errorId}
                     aria-live="polite"
                     className="text-destructive min-h-[18px] text-right text-[13px] leading-[18px] font-medium"
                 >
-                    {error}
+                    {error || '\u200b'}
                 </p>
             </div>
             {children({ id, invalid: error ? true : undefined, describedBy })}
