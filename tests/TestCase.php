@@ -5,6 +5,7 @@ namespace Tests;
 use App\Enums\Permission;
 use App\Models\Agency;
 use App\Models\User;
+use App\Tenancy\Tenant;
 use Closure;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
@@ -106,5 +107,13 @@ abstract class TestCase extends BaseTestCase
         $this->actingAs($user);
 
         return $user;
+    }
+
+    /** Set $agency as the current tenant directly, bypassing SetTenant/HTTP. */
+    protected function withTenant(Agency $agency): static
+    {
+        app(Tenant::class)->set($agency);
+
+        return $this;
     }
 }

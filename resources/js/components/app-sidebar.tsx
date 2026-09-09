@@ -1,7 +1,18 @@
-import { usePage } from '@inertiajs/react';
-import { Building2 } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { Building2, LayoutDashboard } from 'lucide-react';
 import { NavUser } from '@/components/nav-user';
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupLabel,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+} from '@/components/ui/sidebar';
+import { dashboard } from '@/routes';
 import type { SharedProps } from '@/types';
 
 export function AppSidebar() {
@@ -28,10 +39,22 @@ export function AppSidebar() {
             <SidebarContent>
                 {/*
                     Nav groups are added by the tasks that create their routes:
-                    Task 6 adds Workspace → Dashboard.
                     Task 8 adds Platform → Agencies.
                     Task 9 adds Workspace → Users.
                 */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <SidebarMenuButton asChild>
+                                <Link href={dashboard()}>
+                                    <LayoutDashboard />
+                                    <span>Dashboard</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
             </SidebarContent>
             <SidebarFooter>
                 <NavUser />

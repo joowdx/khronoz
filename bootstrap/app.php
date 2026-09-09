@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Middleware\EnsurePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SetTenant;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -16,8 +19,16 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
+            SetTenant::class,
             HandleInertiaRequests::class,
         ]);
+
+        // Appended middleware would run after SubstituteBindings, so route models
+        // would resolve before the tenant exists. The priority list puts SetTenant
+        // right before SubstituteBindings, after StartSession and Authenticate.
+        $middleware->prependToPriorityList(SubstituteBindings::class, SetTenant::class);
+
+        $middleware->alias(['platform' => EnsurePlatform::class]);
 
         // The framework default is `fn () => route('login')`, which Authenticate
         // evaluates while constructing the AuthenticationException. With no login

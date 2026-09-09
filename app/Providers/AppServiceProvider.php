@@ -10,6 +10,7 @@ use App\Models\Refresh;
 use App\Models\Secret;
 use App\Models\Token;
 use App\Models\User;
+use App\Tenancy\Tenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,10 @@ class AppServiceProvider extends ServiceProvider
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
             $this->app->register(TelescopeServiceProvider::class);
         }
+
+        // Scoped, not singleton: Octane and the queue worker must get a fresh
+        // Tenant per request or job rather than reusing the previous one's.
+        $this->app->scoped(Tenant::class);
     }
 
     /**

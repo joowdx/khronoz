@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Permission;
 use App\Models\Scopes\NotPlatformScope;
+use App\Tenancy\Tenant;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -53,10 +54,30 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Agency::class)->withoutGlobalScope(NotPlatformScope::class);
     }
 
-    /** A user of the platform agency is a superuser (docs/design/02-access.md rule 3). */
+    /**
+     * A user of the platform agency is a superuser (docs/design/02-access.md
+     * rule 3). Compares agency_id directly rather than reading the agency
+     * relation: Model::shouldBeStrict() (AppServiceProvider) throws on lazy
+     * loading outside production, and Gate::before calls this on every
+     * authorization check with whatever model the session guard supplies,
+     * which is not always a freshly-created (and so lazy-load-exempt) one.
+     */
     public function isPlatform(): bool
     {
-        return (bool) $this->agency?->platform;
+        return $this->agency_id === app(Tenant::class)->platformId();
+    }
+
+    /**
+     * `{user}` bindings never cross agencies even though User carries no
+     * global scope. Guest routes (invite, verification) run with no tenant
+     * and keep the plain lookup; their URLs are signed instead.
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null)
+    {
+        $tenant = app(Tenant::class);
+        $query = parent::resolveRouteBindingQuery($query, $value, $field);
+
+        return $tenant->check() ? $query->where('agency_id', $tenant->id()) : $query;
     }
 
     /** Whether this user holds $permission directly, or holds one that implies it. */

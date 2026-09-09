@@ -34,6 +34,12 @@ class UserFactory extends Factory
     {
         return [
             'agency_id' => Agency::factory(),
+            // Explicitly null, not omitted: Model::shouldBeStrict() (AppServiceProvider)
+            // throws MissingAttributeException on a column no attribute was ever set
+            // for, and create() never re-selects the row afterwards to pick up the
+            // database's own default. Every other real column below is set for the
+            // same reason; the paired FK to employees itself arrives in Milestone 2.
+            'employee_id' => null,
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
