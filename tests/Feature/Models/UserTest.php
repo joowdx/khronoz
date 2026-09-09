@@ -4,6 +4,7 @@ namespace Tests\Feature\Models;
 
 use App\Enums\Permission;
 use App\Models\Agency;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -93,13 +94,65 @@ class UserTest extends TestCase
         ]));
     }
 
-    /** users.employee_id is unique, so Milestone 2's employees pairing can never resolve to two colleagues at once. */
+    /**
+     * users.employee_id is unique, so Milestone 2's employees pairing can
+     * never resolve to two colleagues at once. Both users must share the
+     * employee's own agency_id — the paired FK (employee_id, agency_id)
+     * added in Task 2 refuses a mismatch before this UNIQUE is ever reached.
+     */
     public function test_employee_id_is_unique(): void
     {
-        $employeeId = (string) Str::ulid();
-        User::factory()->create(['employee_id' => $employeeId]);
+        $employee = Employee::factory()->create();
+        User::factory()->create(['agency_id' => $employee->agency_id, 'employee_id' => $employee->id]);
 
-        $this->assertDatabaseRefuses('23505', fn () => User::factory()->create(['employee_id' => $employeeId]));
+        $this->assertDatabaseRefuses('23505', fn () => User::factory()->create([
+            'agency_id' => $employee->agency_id,
+            'employee_id' => $employee->id,
+        ]));
+    }
+
+    /**
+     * users_employee_id_agency_id_foreign, insert side. Two ways to fail it:
+     * an employee of a different agency, and a platform user (superuser)
+     * given any employee_id at all — the platform agency has no employees
+     * (agency_not_platform on employees), so no (id, agency_id) pair for it
+     * ever exists. Makes docs/design/02-access.md rule 3's claim empirical.
+     */
+    public function test_employee_id_must_share_the_users_agency(): void
+    {
+        $employee = Employee::factory()->create();
+
+        $this->assertDatabaseRefuses('23503', fn () => User::factory()->create(['employee_id' => $employee->id]));
+
+        $another = Employee::factory()->create();
+
+        $this->assertDatabaseRefuses('23503', fn () => User::factory()->platform()->create(['employee_id' => $another->id]));
+    }
+
+    /**
+     * users_employee_id_agency_id_foreign, delete side. A raw DELETE, not
+     * $employee->delete() — employees are soft deleted, so the Eloquent call
+     * is an UPDATE the FK never sees.
+     */
+    public function test_employee_linked_to_a_user_cannot_be_hard_deleted(): void
+    {
+        $employee = Employee::factory()->create();
+        User::factory()->create(['agency_id' => $employee->agency_id, 'employee_id' => $employee->id]);
+
+        $this->assertDatabaseRefuses('23001', fn () => DB::table('employees')->where('id', $employee->id)->delete());
+    }
+
+    /**
+     * A staff user with no linked employee still inserts, now that the
+     * paired FK exists: MATCH SIMPLE skips the check when employee_id itself
+     * is null. docs/design/07-constraints.md explicitly allows this path —
+     * "the violation, or the insert" — and this is what keeps it open.
+     */
+    public function test_a_staff_user_can_have_no_linked_employee(): void
+    {
+        $user = User::factory()->create(['employee_id' => null]);
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'employee_id' => null]);
     }
 
     /** permissions is NOT NULL (with a database default of '[]'); an explicit null must still be refused. */
