@@ -22,6 +22,8 @@
 - Front end: Inertia pages under `resources/js/pages/<resource>/<action>.tsx` (kebab-case), shadcn primitives in `resources/js/components/ui/`, Wayfinder-generated route functions for every href and form action, one design token system in `resources/css/app.css`.
 - Boost rules: run `search-docs` before using a Laravel/Inertia API; run `vendor/bin/pint --dirty --format agent` after PHP edits; `php artisan make:*` with `--no-interaction` for new files; no new dependencies beyond the approved list below.
 - Commit per completed task on `master`; never push unless asked.
+- **Never publish an Artifact** (owner's rule, 2026-09-09). Mockups and any visual deliverable are plain HTML files under `docs/design/mockups/`, committed with the design docs, and viewed through the Browser pane from a local static server on a 43xxx port (for example `php -S 127.0.0.1:43990 -t docs/design/mockups`).
+- Every subagent (design, implementation, spec review, code review) runs on Opus (owner's choice, 2026-09-09) to spare the Fable budget; the orchestrator only coordinates.
 
 ---
 
@@ -38,6 +40,14 @@ The user asked to proceed to planning using Laravel Boost, shadcn for components
 | Roles | **Permissions instead of a role enum** | `users.permissions jsonb` array of strings checked by `permissions_valid()`, PHP `Permission` enum, `Preset` bundles for the invite form; design 02/07 updated in Task 1 |
 | Commits | Commit per task, on `master`, no branching | Every task ends with a commit step; no worktrees |
 
+Decided later on 2026-09-09, while Milestone 1 was already executing on another thread (design docs still to be updated, once that thread is between tasks: README decisions 19–20, `05-calendar.md` exemptions, `06-attendance.md` rendering table):
+
+| Topic | Decision | Effect |
+|---|---|---|
+| Office, memorandum, special and travel orders | Covered by `Exemption` (`travel`, `business`, `pass` with `reference` = order number) and `Overtime.reference`. An `Order` parent entity with fan-out and one-step revocation is **phase 2** | No schema change in v1; HR enters per-employee-per-day rows |
+| Personal pass slips (also called locator slip, OB slip) | New exemption type **`personal`**: recorded and printed, never excuses minutes; undertime still counts and is charged to leave (§34). `pass` stays the official-business type | One enum case, one `CHECK` value, one branch in the Milestone 6 deriver |
+| CS Form 48 | An exempt whole day prints the exemption type or order reference across the time columns; a partial day keeps its punches and marks the excused side | One row in the 06 rendering table, Milestone 7 |
+
 Assumptions made without asking (say if not):
 
 1. Auth is hand-rolled on framework primitives (`Auth::attempt`, the password broker, `MustVerifyEmail`, signed invite URLs). Fortify's stable line supports Laravel 12 only; when a Laravel 13 release lands it can replace the controllers without touching pages.
@@ -53,6 +63,18 @@ Assumptions made without asking (say if not):
 - Each later milestone gets its own bite-sized plan at `docs/superpowers/plans/2026-MM-DD-khronoz-mN-<name>.md`, written with the writing-plans skill right before it starts, so it reflects what earlier milestones actually produced. This plan is saved to `docs/superpowers/plans/2026-09-09-khronoz-m1-foundation.md` as the first step of execution.
 - Execution: subagent-driven development, one fresh subagent per task, two-stage review between tasks, on `master`.
 
+### Design pass (added 2026-09-09 after the first screens were rejected)
+
+The Milestone 1 auth screens, shell and dashboard were built exactly as this plan described them and looked like a template: a bare form on the grey canvas, a 14px wordmark, uniform spacing, the stock shadcn sidebar block, a dashboard made of one Card. The cause was this plan: its design brief was a token table plus prohibitions, its UI steps were shadcn assembly instructions, and its only visual check sat in the last task. Corrections:
+
+1. **Mockups before UI code.** A design subagent (Opus, to spare the Fable budget) produces a design canvas with six artboards: foundations (type, spacing, tokens, chip ramp, components), sign-in (desktop and mobile), app shell and dashboard, users list, invite form, and the roster grid with the "Assign schedule" sheet. The owner reviews and tweaks it. Its URL is recorded here once approved: `ARTIFACT_URL_PENDING`.
+
+   Status 2026-09-09: the design is specified in `/Users/joowdx/.claude/plans/warm-kindling-sonnet-agent-a7d94b98ea7ab245f.md` (concept "the timetable is the interface": a 24-hour tick-rule identity, hairline panels instead of cards, agency-first sidebar, month-titled dashboard with an on-duty lane chart, split sign-in carrying a faint CS Form 48 grid, roster grid with night bars spilling into the next day). Plan mode blocked the build; the first action after approval is re-running the Opus agent to build the seven artboard files as plain HTML under `docs/design/mockups/` (no Artifact: owner's rule), serve them locally on a 43xxx port and screenshot each through the Browser pane for the owner's review. Decisions taken from its report, say if not: `--radius` 0.375rem (shadcn's radius math made every control 2px); `--input` becomes `#888D94` so control borders pass 3:1 while `#D9DEE5` stays for table rules and panel edges; explicit `--primary-hover #005B4E`, `--primary-900 #003025`, `--danger-soft`, `--warning-soft`, `--row-hover`, `--row-selected`; type scale 30/24/20/16/14/13/12 with 11 only inside the roster grid if 12 cannot fit, preference: 12px with the sidebar collapsed to an icon rail on the roster page; spacing scale 2/4/6/8/12/16/20/24/32/48; shift chip ramp of eight oklch hues avoiding the primary's hue range, stored as `shifts.color smallint 1–8` defaulting to the lowest unused index per agency, copied with `origin_id` (Milestone 3 docs and DDL addition, decision 21); holidays get a neutral column wash, suspensions the warning wash; agency users see no switcher; dark mode keeps compiling, polish deferred to Milestone 9.
+2. **UI tasks are rewritten from the approved artboards**, screen by screen, with the composition spelled out (surfaces, spacing, type sizes, alignment), not primitives to assemble. Until then the executing thread continues Tasks 8 to 10 as written (owner's call: do not pause); every screen it produces is redone from the artboards afterwards.
+3. **Redo task (before Task 11):** sign-in, forgot/reset password, verify-email, accept-invite, app shell, dashboard, users list and forms, platform agencies pages, all rebuilt against the artboards.
+4. **Visual gate on every screen, from the first one.** Every task that adds or changes a page ends with: run it, screenshot it through the Browser pane, compare with the artboard, fix, then commit. The first screen of each family is shown to the owner before the rest of the family is built. Judging by checklist (tokens present, no Card) is not a review; the question is whether the screen reads as designed.
+5. Skills on every UI task: `frontend-design:frontend-design` for the composition pass, `design:ux-copy` for screen text, `design:accessibility-review` before a family closes.
+
 | # | Milestone | Design files | Produces |
 |---|---|---|---|
 | 1 | Foundation | 00, 01 (agencies), 02, 07 | DB roles, agencies + platform row, users + permissions, auth, tenancy, app shell, platform area, users management |
@@ -65,7 +87,7 @@ Assumptions made without asking (say if not):
 | 8 | Settings and audits | 00 tier 3, decision 15 | typed settings, `settings_valid()`, audits table + trigger + per-request user GUC, audit screen |
 | 9 | Hardening and ops | all | onboarding-test seeders A–E, Horizon/scheduler config, indexes, accessibility pass, platform user management, release checklist |
 
-Phase 2 (not planned here): biometric `Template`, token API for mobile over the same actions, filing/approval workflows, fine-grained permissions beyond the v1 set.
+Phase 2 (not planned here): biometric `Template`, token API for mobile over the same actions, filing/approval workflows, fine-grained permissions beyond the v1 set, `Order` (an issuance parent for exemptions and overtimes: `agency_id, kind, number, title, issued_at, starts, ends, revoked_at`, nullable `order_id` on both children, fan-out per employee per day, prospective revocation), scanned attachments on orders and exemptions through the S3 disk.
 
 ## Conventions every task follows
 
@@ -111,8 +133,11 @@ resources/js/
 - Forms use Inertia 3 `<Form action={store()} method="post">` with Wayfinder actions and render-prop `errors`/`processing`; inputs are shadcn `Input`/`Label`/`Select`/`Checkbox`; errors render through `InputError`.
 - Every href is a Wayfinder function (`index()`, `edit(user)`); no hand-typed URLs.
 - `npm run types` (tsc) and `npm run lint` must pass before a task's commit; `npm run build` before a milestone closes.
+- Every page task ends with a rendered check: open the page in the Browser pane, screenshot it, compare it with its artboard, fix what differs, then commit. The first screen of a family is shown to the owner before the rest of the family is built.
 
 ### Design brief (frontend-design skill, applied in Task 2 and every UI task)
+
+Tokens are not a design. The table below is the palette the artboards start from; composition (surfaces, hierarchy, spacing scale, alignment, identity) comes from the design canvas, and a screen that matches the tokens but not its artboard is wrong.
 
 Subject: a scheduling and Daily Time Record system for Philippine government HR offices. Audience: HR officers rostering staff, unit heads verifying DTRs, employees reading their own month. Primary job: build and read schedules and the monthly record fast, without ambiguity.
 
@@ -2122,7 +2147,8 @@ Each milestone below becomes its own writing-plans document before it starts. Li
 
 ## Milestone 4 — Calendar (design 05, 07)
 
-- **Tables:** `holidays` (`UNIQUE (agency_id, date, name)`, type CHECK, `declared_at`), `suspensions` (unit scope, `starts/ends` time, `declared_at`, user_id), `exemptions` (type CHECK, `starts/ends`, `approved_at`, `UNIQUE (id, employee_id)`), `overtimes` (timestamps, generated `date STORED`, mode CHECK, exclusion per employee `tsrange`).
+- **Tables:** `holidays` (`UNIQUE (agency_id, date, name)`, type CHECK, `declared_at`), `suspensions` (unit scope, `starts/ends` time, `declared_at`, user_id), `exemptions` (type CHECK over `leave, business, travel, cto, pass, personal, emergency`, `starts/ends`, `approved_at`, `UNIQUE (id, employee_id)`), `overtimes` (timestamps, generated `date STORED`, mode CHECK, exclusion per employee `tsrange`).
+- **Personal pass slips (decision 19):** type `personal` is recorded and printed but never excuses minutes; `Exemption::excused(): bool` is false only for it, and the Milestone 6 deriver consults `excused()` before excusing tardy, undertime or absence. Official-business slips stay `pass`. Orders (travel, office, memorandum) are entered as per-employee-per-day rows with `reference` = the order number; the `Order` parent is phase 2.
 - **Scopes:** `HolidayScope` (`agency_id IN (tenant, platform)`); platform holidays editable only as the platform tenant.
 - **Seeders:** Proclamation 1006 (2026) national holidays on the platform agency, `declared_at` = proclamation date.
 - **UI:** calendar month grid (react-day-picker in multiple-months mode is not needed; a custom month table) showing holidays/suspensions; forms for each; exemptions and overtimes entered from the employee page and from a per-day list; suspension form with unit picker ("agency-wide" default).
@@ -2138,7 +2164,7 @@ Each milestone below becomes its own writing-plans document before it starts. Li
 ## Milestone 6 — Attendance engine (design 06, 07)
 
 - **Tables:** `ledgers` (`UNIQUE (employee_id, month)`, `UNIQUE (id, employee_id, month)`, month CHECK, triggers `ledgers_lock_complete` and `ledgers_unlock_clean`), `workdays` (generated `month STORED`, three-column ledger FK, shift/exemption paired FKs, `UNIQUE (employee_id, date)`, status CHECK, minutes CHECKs), `punches` (`ON DELETE CASCADE` from workday, timelog paired FK, `UNIQUE (workday_id, slot, kind)`, partial unique `timelog_id`, trigger `punches_timelog_live`).
-- **Pipeline (`App\Attendance\`):** `Computer::compute(Employee, date): Workday` = `Resolver` (M3) → `Calendar::apply` (holiday, suspension truncation and §32 charge, exemption window, CWW fallback week) → `Matcher::match(expectations, timelogs, trust, window, grace, missing policy)` → `Deriver` (status, tardy, undertime, worked, excess, night; rules 1–9 of 06). Pure classes with unit tests per rule and the two worked examples (five timelogs on 8 Sep; night shift 30 Sep/1 Oct; 48-hour duty across month end).
+- **Pipeline (`App\Attendance\`):** `Computer::compute(Employee, date): Workday` = `Resolver` (M3) → `Calendar::apply` (holiday, suspension truncation and §32 charge, exemption window for excused types only with `personal` ignored, CWW fallback week) → `Matcher::match(expectations, timelogs, trust, window, grace, missing policy)` → `Deriver` (status, tardy, undertime, worked, excess, night; rules 1–9 of 06). Pure classes with unit tests per rule and the two worked examples (five timelogs on 8 Sep; night shift 30 Sep/1 Oct; 48-hour duty across month end).
 - **Jobs:** `RecomputeWorkday` (`ShouldBeUnique` on `employee:date`, checks `ledger.locked_at`, `firstOrCreate` ledger, writes workday + punches in a transaction), `RecomputeRange` (roster/schedule/calendar changes; widens to the ISO week for CWW rosters), dispatch points listed in 06 rule 3 wired through model events/actions.
 - **Lock/unlock:** `LockLedger`, `UnlockLedger` actions; the triggers decide.
 - **Tests:** constraint tests (locking with a pending out refused, unlock with attestations refused, second claim of a timelog refused, voided timelog refused), pipeline unit tests, job idempotence, recompute ordering T−3..T so the earlier workday claims first.
@@ -2146,7 +2172,7 @@ Each milestone below becomes its own writing-plans document before it starts. Li
 ## Milestone 7 — DTR and attestation (design 06)
 
 - **Views:** `Ledger::view(Period, Work)` returning a `LedgerView` (rows per day, totals, occurrences; overtime view = excess ∩ `Overtime` authority gated by JC 2 s.2015 constants); `Csc` constants class (tier 1 values with effectivity dates) and `LeaveDays::fromMinutes()` lookup seeded from the printed table.
-- **UI:** employee month page (self-service for users with `employee_id`; HR for any employee) as the CS Form 48 layout: AM/PM columns, day markers `⁺¹`, `…` for pending, undertime column, totals; print stylesheet (A4, two DTRs per sheet as the paper form); ledger list per month (status: open, pending outs, locked, attested), lock/unlock buttons, attestation panel showing the chain from settings with who signed when; supervisor view (heads see their unit's ledgers).
+- **UI:** employee month page (self-service for users with `employee_id`; HR for any employee) as the CS Form 48 layout: AM/PM columns, day markers `⁺¹`, `…` for pending, undertime column, totals, exempt whole days printing the exemption type or order reference across the time columns while partial days keep their punches (decision 19); print stylesheet (A4, two DTRs per sheet as the paper form); ledger list per month (status: open, pending outs, locked, attested), lock/unlock buttons, attestation panel showing the chain from settings with who signed when; supervisor view (heads see their unit's ledgers).
 - **Attestations:** table (`UNIQUE (ledger_id, role)`, role regex CHECK, paired FKs, trigger `attestations_locked`, `REVOKE UPDATE`), `Attest` action resolving who may sign each role from the org tree, `Unattest`.
 - **Tests:** renderer cases from the 06 tables, occurrences counting, attestation resolution (employee, supervisor via `Unit.head_id`, head by unit kind, hr by permission), constraint tests.
 
@@ -2167,3 +2193,32 @@ Each milestone below becomes its own writing-plans document before it starts. Li
 - **Type consistency:** `Tenant::set/forget/agency/id/check/platformId`, `User::allows/isPlatform`, `Permission::implies/grants/group/label`, `Preset::permissions/label`, `InviteUser::handle(array): User`, `CreateAgency::handle(array): Agency`, shared props `auth.user`, `agency`, `agencies`, `flash` are used with the same names in every task.
 - **Placeholders:** none; the two `YOUR CALL` points each carry a default so execution never blocks.
 - **Architecture review applied:** middleware priority for `SetTenant`, no tenant scope on `User`, fail-closed `AgencyScope`, role provisioning outside migrations, seeding on the app connection, `lower(email)` index through `DB::statement`, Wayfinder plugin placement and `pretypes`, TypeScript strictness note for generated shadcn files.
+
+---
+
+## Milestone 1 outcome and design redo
+
+**Milestone 1 is complete.** Tasks 1 to 11 were delivered on `master`, the last milestone commit is `f8ff3dc`, 163 tests pass, nothing is pushed.
+
+The screens Milestone 1 produced predate the interface design, so they are being rebuilt against `docs/design/08-interface.md` and the artboards in `docs/design/mockups/`. The redo pass is five tasks:
+
+| # | Rebuilds |
+|---|---|
+| 1 | tokens, fonts, dark mode, the primitives and the auth family |
+| 2 | the app shell and the dashboard |
+| 3 | the users family, including the permission matrix |
+| 4 | the platform agencies pages |
+| 5 | the marketing home page, which replaces `welcome` at `/` and stays server-rendered |
+
+Every task ends with a rendered screenshot compared against its artboard.
+
+Decisions 19 to 23 are recorded in `docs/design/README.md`: exemption type `personal`, `Order` deferred to phase 2, `shifts.color`, the interface design, and CS Form 48 placing each punch by its own clock time.
+
+Milestone 1 product decisions taken for the redo, all because the data they would display arrives in later milestones:
+
+| Decision | Why |
+|---|---|
+| The sidebar shows only navigation that exists: Dashboard, Users, and the Platform group for superusers | every other area is a later milestone |
+| The employee search field arrives with Milestone 2 | there are no employees yet |
+| The day strip shows the date, the hour ticks and the now marker, and no on-duty count | on-duty needs workdays, Milestone 6 |
+| The dashboard carries a plain page title, not the month stepper | nothing on it is month-scoped yet |
