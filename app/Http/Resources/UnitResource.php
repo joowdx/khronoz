@@ -14,6 +14,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * flat list keyed by `parent_id`, so this resource carries no nested
  * `children` — see task-6-brief.md's units/index composition notes.
  *
+ * `people_count` is the open-deployment headcount and `deployments_count`
+ * every placement the unit has ever held; both are aliased by
+ * UnitController::index's withCount and therefore present only there; every
+ * other place this resource appears (the parent and unit pickers, a unit's
+ * own edit form) omits the key rather than sending zero, so a missing count
+ * can never read as "nobody is here". The list's own row type is `UnitRow` in
+ * resources/js/pages/units/index.tsx — the same split AgencyResource uses for
+ * `users_count`.
+ *
  * @mixin \App\Models\Unit
  */
 class UnitResource extends JsonResource
@@ -33,6 +42,8 @@ class UnitResource extends JsonResource
             'name' => $this->name,
             'head_id' => $this->head_id,
             'head' => $this->whenLoaded('head', fn ($head) => EmployeeResource::make($head)->resolve()),
+            'people_count' => $this->whenCounted('people'),
+            'deployments_count' => $this->whenCounted('deployments'),
         ];
     }
 }

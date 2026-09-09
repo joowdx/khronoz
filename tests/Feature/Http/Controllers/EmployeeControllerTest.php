@@ -210,6 +210,202 @@ class EmployeeControllerTest extends TestCase
     }
 
     /**
+     * P17's unit filter. The fixture is the point: three employees, one in a
+     * department, one in a division *under* it, one in an unrelated division.
+     * Filtering by the department must return the first two — 01-organization.md
+     * rule 4 makes "this unit and everything under it" what choosing a unit
+     * means, and a department whose people all sit in its divisions would
+     * otherwise answer with nothing. A fixture with only a direct member would
+     * pass whether or not the subtree walk existed.
+     */
+    public function test_the_unit_filter_includes_everything_under_the_chosen_unit(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        $department = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Treasury']);
+        $division = Unit::factory()->under($department)->create(['name' => 'Collection']);
+        $elsewhere = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Legal']);
+
+        $inDepartment = $this->deployed($agency, $department, 'Aaa');
+        $inDivision = $this->deployed($agency, $division, 'Bbb');
+        $this->deployed($agency, $elsewhere, 'Ccc');
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index', ['unit' => $department->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('employees/index', false)
+                ->has('employees', 2)
+                ->where('employees.0.id', $inDepartment->id)
+                ->where('employees.1.id', $inDivision->id)
+                ->where('filters.unit', $department->id)
+                ->where('pagination.total', 2));
+    }
+
+    /** The subtree is inclusive of the unit itself but not of its siblings: filtering by the child returns only the child's own. */
+    public function test_the_unit_filter_does_not_climb_to_a_parent(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        $department = Unit::factory()->create(['agency_id' => $agency->id]);
+        $division = Unit::factory()->under($department)->create();
+
+        $this->deployed($agency, $department, 'Aaa');
+        $inDivision = $this->deployed($agency, $division, 'Bbb');
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index', ['unit' => $division->id]))
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
+                ->where('employees.0.id', $inDivision->id));
+    }
+
+    /** P17's tag filter: jsonb containment against employees.tags, which is a set and not a string. */
+    public function test_the_tag_filter_narrows_to_employees_carrying_it(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        $tagged = Employee::factory()->create(['agency_id' => $agency->id, 'last_name' => 'Aaa', 'tags' => ['night', 'ward-3']]);
+        Employee::factory()->create(['agency_id' => $agency->id, 'last_name' => 'Bbb', 'tags' => ['day']]);
+        Employee::factory()->create(['agency_id' => $agency->id, 'last_name' => 'Ccc', 'tags' => []]);
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index', ['tag' => 'night']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
+                ->where('employees.0.id', $tagged->id)
+                ->where('filters.tag', 'night')
+                ->where('pagination.total', 1));
+    }
+
+    /** P17's exempt toggle. */
+    public function test_the_exempt_filter_narrows_to_employees_with_no_daily_time_record_expected(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        $exempt = Employee::factory()->create(['agency_id' => $agency->id, 'last_name' => 'Aaa', 'exempt' => true]);
+        Employee::factory()->create(['agency_id' => $agency->id, 'last_name' => 'Bbb', 'exempt' => false]);
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index', ['exempt' => '1']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
+                ->where('employees.0.id', $exempt->id)
+                ->where('filters.exempt', true));
+
+        $this->get(route('employees.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 2)->where('filters.exempt', false));
+    }
+
+    /** All three at once, because the screen offers them at once and each is a separate ->when(). */
+    public function test_the_filters_combine(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $other = Unit::factory()->create(['agency_id' => $agency->id]);
+
+        $wanted = $this->deployed($agency, $unit, 'Aaa', ['tags' => ['night'], 'exempt' => true]);
+        $this->deployed($agency, $unit, 'Bbb', ['tags' => ['night'], 'exempt' => false]);
+        $this->deployed($agency, $unit, 'Ccc', ['tags' => ['day'], 'exempt' => true]);
+        $this->deployed($agency, $other, 'Ddd', ['tags' => ['night'], 'exempt' => true]);
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index', ['unit' => $unit->id, 'tag' => 'night', 'exempt' => '1']))
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
+                ->where('employees.0.id', $wanted->id));
+    }
+
+    /**
+     * A unit id or a tag the tenant does not have is dropped, not applied, and
+     * `filters` reports it as unset — otherwise the picker would show an empty
+     * value while the list stayed filtered by something nobody can see. Same
+     * whitelisting AgencyController::index gives `sort`.
+     */
+    public function test_an_unknown_unit_or_tag_filter_is_dropped(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        Employee::factory()->count(2)->create(['agency_id' => $agency->id, 'tags' => ['day']]);
+        $stranger = Unit::factory()->create(); // another agency's unit
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index', ['unit' => $stranger->id, 'tag' => 'night']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 2)
+                ->where('filters.unit', '')
+                ->where('filters.tag', ''));
+    }
+
+    /**
+     * The filter controls' own options. `tags` is this tenant's whole tag
+     * vocabulary, once each and sorted; a soft-deleted employee's tags are not
+     * part of it, which is the half a plain DISTINCT over the raw table would
+     * get wrong.
+     */
+    public function test_index_carries_the_units_and_tags_the_filters_need(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+        Unit::factory()->count(2)->create(['agency_id' => $agency->id]);
+        Unit::factory()->create(); // another agency's
+        Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['ward-3', 'night']]);
+        Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['night']]);
+        Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['gone']])->delete();
+        Employee::factory()->create(['tags' => ['someone-elses']]); // another agency's
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('employees.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('units', 2)
+                ->where('tags', ['night', 'ward-3']));
+    }
+
+    /**
+     * The profile carries the tree, for the move sheet's picker and for the
+     * ancestry line under the current unit. A view-only reader gets it too:
+     * the same tree is on /units for anyone holding organization.view, so
+     * withholding it would only cost them the line that says where the unit
+     * sits — and it stays this tenant's own tree either way.
+     */
+    public function test_show_carries_the_tree_for_the_path_and_the_move_picker(): void
+    {
+        $agency = Agency::factory()->create();
+        Unit::factory()->count(2)->create(['agency_id' => $agency->id]);
+        Unit::factory()->create(); // another agency entirely
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        foreach ([Permission::ViewOrganization, Permission::ManageOrganization] as $permission) {
+            $this->actingAsAgency($agency, $permission);
+
+            $this->get(route('employees.show', $employee))
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page->has('units', 2));
+        }
+    }
+
+    /** An employee with an open deployment in $unit, ordered by $lastName so a filtered list's row order is assertable. */
+    private function deployed(Agency $agency, Unit $unit, string $lastName, array $attributes = []): Employee
+    {
+        $employee = Employee::factory()->create([...$attributes, 'agency_id' => $agency->id, 'last_name' => $lastName]);
+
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'unit_id' => $unit->id,
+            'starts' => '2020-01-01',
+            'ends' => null,
+        ]);
+
+        return $employee;
+    }
+
+    /**
      * Minor 6: create/edit were only ever exercised for 403 (view-only) and
      * 404 (cross-tenant), never for a manager actually reaching the form —
      * so a wrong Inertia::render() component string here would first surface

@@ -4,6 +4,7 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
 use App\Models\Agency;
+use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Unit;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -57,6 +58,91 @@ class UnitControllerTest extends TestCase
      * "two-or-more rows" caution as EmployeeControllerTest even though
      * UnitController::index already eager-loads `head`.
      */
+    /**
+     * The tree's two aggregates. `people_count` is the headcount to show —
+     * open deployments only — and `deployments_count` is every placement the
+     * unit has ever held, which is what decides whether Remove can be offered
+     * at all: `deployments_unit_id_agency_id_foreign` RESTRICTs, and its
+     * refusal arrives as a 500 rather than as a message a form can show.
+     *
+     * The fixture keeps them apart deliberately: one unit with a closed
+     * deployment and no open one must read 0 people but 1 placement, so a
+     * single count could not stand in for both.
+     */
+    public function test_index_counts_who_is_in_each_unit_now_and_who_ever_was(): void
+    {
+        $agency = Agency::factory()->create();
+        $busy = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Aaa Busy']);
+        $vacated = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Mmm Vacated']);
+        Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Zzz Untouched']);
+
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        Deployment::factory()->create([
+            'agency_id' => $agency->id, 'employee_id' => $employee->id, 'unit_id' => $vacated->id,
+            'starts' => '2020-01-01', 'ends' => '2021-12-31',
+        ]);
+        Deployment::factory()->create([
+            'agency_id' => $agency->id, 'employee_id' => $employee->id, 'unit_id' => $busy->id,
+            'starts' => '2022-01-01', 'ends' => null,
+        ]);
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('units.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('units', 3)
+                ->where('units.0.people_count', 1)
+                ->where('units.0.deployments_count', 1)
+                ->where('units.1.people_count', 0)
+                ->where('units.1.deployments_count', 1)
+                ->where('units.2.people_count', 0)
+                ->where('units.2.deployments_count', 0));
+    }
+
+    /**
+     * The head picker's options, on the index and on both forms. Someone who
+     * has left cannot run a unit, so offering them would be offering a
+     * mistake — and the list is this tenant's own, like everything else here.
+     */
+    public function test_the_head_picker_offers_only_this_agency_s_employees_who_are_still_employed(): void
+    {
+        $agency = Agency::factory()->create();
+        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $employed = Employee::factory()->create(['agency_id' => $agency->id, 'separated_at' => null]);
+        // The factory's own state, not a hard-coded date: `hired_at` is random,
+        // and employees_separation_after_hire refuses a separation before it.
+        Employee::factory()->separated()->create(['agency_id' => $agency->id]);
+        Employee::factory()->create(); // another agency entirely
+
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        foreach ([route('units.index'), route('units.create'), route('units.edit', $unit)] as $url) {
+            $this->get($url)
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
+                    ->where('employees.0.id', $employed->id));
+        }
+    }
+
+    /** Both forms need the whole tree for their parent picker; the front end composes the nesting from parent_id. */
+    public function test_the_forms_carry_the_tree_for_their_parent_picker(): void
+    {
+        $agency = Agency::factory()->create();
+        $parent = Unit::factory()->create(['agency_id' => $agency->id]);
+        Unit::factory()->under($parent)->create();
+        Unit::factory()->create(); // another agency entirely
+
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->get(route('units.create'))
+            ->assertInertia(fn (Assert $page) => $page->component('units/create', false)->has('units', 2));
+
+        $this->get(route('units.edit', $parent))
+            ->assertInertia(fn (Assert $page) => $page->component('units/edit', false)
+                ->where('unit.id', $parent->id)
+                ->has('units', 2));
+    }
+
     public function test_index_lists_every_unit_of_the_current_agency_flat_with_its_head(): void
     {
         $agency = Agency::factory()->create();
