@@ -40,4 +40,53 @@ class AgencyControllerTest extends TestCase
             ->post(route('platform.agencies.store'), ['code' => 'doh', 'name' => 'Dup'])
             ->assertSessionHasErrors(['code' => 'The code has already been taken.']);
     }
+
+    public function test_edit_renders_the_agency_being_edited(): void
+    {
+        $agency = Agency::factory()->create();
+
+        $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.edit', $agency))
+            ->assertInertia(fn (Assert $page) => $page->component('platform/agencies/edit')
+                ->where('agency.id', $agency->id)
+                ->where('agency.code', $agency->code));
+    }
+
+    public function test_update_persists_changes_and_redirects_with_success(): void
+    {
+        $agency = Agency::factory()->create(['code' => 'DOH', 'name' => 'Department of Health']);
+
+        $this->actingAs(User::factory()->platform()->create())
+            ->put(route('platform.agencies.update', $agency), ['code' => 'MOH', 'name' => 'Ministry of Health'])
+            ->assertRedirect(route('platform.agencies.index'))->assertSessionHas('success');
+
+        $this->assertDatabaseHas('agencies', ['id' => $agency->id, 'code' => 'MOH', 'name' => 'Ministry of Health']);
+    }
+
+    /**
+     * The single most valuable test in this file. UpdateAgencyRequest's
+     * Rule::unique('agencies', 'code')->ignore($this->route('agency')) exists
+     * precisely so posting an agency's own unchanged code back to itself does
+     * not collide with its own row. Do not "simplify" this into changing both
+     * fields — the unchanged code is the point: without ->ignore(), this exact
+     * request would fail validation against the agency's own row.
+     */
+    public function test_updating_an_agency_without_changing_its_code_succeeds(): void
+    {
+        $agency = Agency::factory()->create(['code' => 'DOH', 'name' => 'Department of Health']);
+
+        $this->actingAs(User::factory()->platform()->create())
+            ->put(route('platform.agencies.update', $agency), ['code' => $agency->code, 'name' => 'Renamed Department of Health'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Renamed Department of Health', $agency->refresh()->name);
+    }
+
+    public function test_the_platform_row_cannot_be_edited_or_updated_by_id(): void
+    {
+        $superuser = User::factory()->platform()->create();
+
+        $this->actingAs($superuser)->get(route('platform.agencies.edit', Agency::platform()->id))->assertNotFound();
+
+        $this->actingAs($superuser)->put(route('platform.agencies.update', Agency::platform()->id), ['code' => 'PLT', 'name' => 'Renamed'])->assertNotFound();
+    }
 }
