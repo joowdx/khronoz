@@ -38,7 +38,7 @@ export function AppSidebar() {
      * add markup to nav-main.tsx. Only what exists is rendered, so the groups
      * §6.2 names arrive as their models land:
      *
-     *   Organization        Units · Employees · Groups          Milestone 2
+     *   Organization        Units · Employees                   Milestone 2
      *   Scheduling          Shifts · Schedules · Rosters        Milestone 3
      *   Calendar            Calendar                            Milestone 4
      *   Terminals           Terminals                           Milestone 5

@@ -49,7 +49,7 @@ erDiagram
     ATTESTATIONS {
         ulid id PK
         ulid ledger_id FK
-        string role "employee, supervisor, head, hr... from agency settings"
+        string role "employee, supervisor, head, timekeeper... from agency settings"
         ulid user_id FK
         timestamp at
     }
