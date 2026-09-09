@@ -138,6 +138,11 @@ class UserControllerTest extends TestCase
      * lower(email), so a duplicate submitted in a different case than the
      * stored row must still be caught here, before it ever reaches Postgres
      * as an uncaught constraint violation.
+     *
+     * Also pins the message itself (StoreUserRequest::messages()): the
+     * stock "has already been taken" wording would confirm to the submitter
+     * that the address has an account in some other agency — a cross-tenant
+     * existence oracle the unique index is global enough to create.
      */
     public function test_store_requires_a_unique_email_regardless_of_case(): void
     {
@@ -145,7 +150,7 @@ class UserControllerTest extends TestCase
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->post(route('users.store'), ['name' => 'Dup', 'email' => 'ANA@X.TEST', 'permissions' => []])
-            ->assertSessionHasErrors('email');
+            ->assertSessionHasErrors(['email' => 'This address already has an account — ask them to sign in.']);
     }
 
     /**
@@ -217,6 +222,43 @@ class UserControllerTest extends TestCase
         $colleague->refresh();
         $this->assertSame('Renamed Colleague', $colleague->name);
         $this->assertEqualsCanonicalizing(['organization.manage'], $colleague->permissions->map->value->all());
+    }
+
+    /**
+     * UpdateUserRequest::preventsSelfDemotion() guards this: UserPolicy has
+     * no visibility into the submitted permissions, so it cannot be the one
+     * to refuse a users.manage holder editing themselves out of their own
+     * access. Mirrors test_admins_cannot_remove_themselves (self-delete),
+     * but this path fails validation (422/session error) rather than
+     * authorization (403), since it depends on the payload, not just who
+     * the target is.
+     */
+    public function test_self_edit_cannot_drop_users_manage(): void
+    {
+        $admin = User::factory()->permissions(Permission::ManageUsers, Permission::ViewScheduling)->create();
+
+        $this->actingAs($admin)->put(route('users.update', $admin), [
+            'name' => $admin->name,
+            'permissions' => ['scheduling.view'],
+        ])->assertSessionHasErrors('permissions');
+
+        $admin->refresh();
+        $this->assertTrue($admin->allows(Permission::ManageUsers));
+    }
+
+    /** The self-demotion guard is specific to self-edit: a colleague may still be edited down to fewer permissions, including losing users.manage. */
+    public function test_editing_a_colleague_can_remove_their_users_manage(): void
+    {
+        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $colleague = User::factory()->forAgency($admin->agency)->permissions(Permission::ManageUsers, Permission::ViewScheduling)->create();
+
+        $this->actingAs($admin)->put(route('users.update', $colleague), [
+            'name' => $colleague->name,
+            'permissions' => ['scheduling.view'],
+        ])->assertRedirect(route('users.index'));
+
+        $colleague->refresh();
+        $this->assertFalse($colleague->allows(Permission::ManageUsers));
     }
 
     /** Same cross-tenant binding protection as the edit route, exercised through update instead. */

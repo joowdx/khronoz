@@ -4,10 +4,15 @@ Before planning or editing, find the row whose globs match the file's path and r
 
 | Applies to | Rule file |
 | --- | --- |
+| app/Actions/** | .ai/rules/actions.md |
 | app/Http/Controllers/** | .ai/rules/controllers.md |
+| app/Enums/** | .ai/rules/enums.md |
+| database/factories/**, database/seeders/** | .ai/rules/factories.md |
 | resources/js/** | .ai/rules/js.md |
 | app/Http/Middleware/**, bootstrap/app.php | .ai/rules/middleware.md |
 | database/migrations/** | .ai/rules/migrations.md |
 | app/Models/** | .ai/rules/models.md |
 | resources/js/pages/** | .ai/rules/pages.md |
+| app/Http/Requests/** | .ai/rules/requests.md |
+| app/Http/Resources/** | .ai/rules/resources.md |
 | tests/** | .ai/rules/tests.md |

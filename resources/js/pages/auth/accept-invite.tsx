@@ -15,7 +15,7 @@ export default function AcceptInvite({ user, action }: { user: { name: string; e
                     <>
                         <div className="grid gap-2">
                             <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" defaultValue={user.email} readOnly disabled />
+                            <Input id="email" type="email" defaultValue={user.email} readOnly />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="password">Password</Label>

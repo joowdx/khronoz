@@ -2,6 +2,25 @@ import { createInertiaApp, type ResolvedComponent } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 
+/**
+ * Read the `--primary` token instead of hardcoding the light palette's hex
+ * value, so the progress bar tracks whichever theme is active rather than
+ * always painting the light-mode colour. getPropertyValue never throws, but
+ * can come back empty — before the stylesheet has loaded, or with no
+ * `document` at all — so fall back to that same light-mode literal.
+ */
+function progressColor(): string {
+    const fallback = '#0b6b5d';
+
+    if (typeof document === 'undefined') {
+        return fallback;
+    }
+
+    const token = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+
+    return token === '' ? fallback : token;
+}
+
 void createInertiaApp({
     // Laravel Head resolves the document head server side and shares it as a
     // `head` prop; Inertia adopts those elements and keeps them in sync on
@@ -31,6 +50,6 @@ void createInertiaApp({
     },
 
     progress: {
-        color: '#0b6b5d',
+        color: progressColor(),
     },
 });

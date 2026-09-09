@@ -28,9 +28,9 @@ class UserController extends Controller
     /**
      * List the current tenant's users. Always through the tenant's own
      * agency relation, never User::query() — User carries no tenant scope
-     * (a platform user working inside an entered agency must still see
-     * themselves in it), so a bare query would list every user in every
-     * agency instead of just this one.
+     * (authentication must resolve a user before any tenant exists to scope
+     * by, see User::agency()), so a bare query would list every user in
+     * every agency instead of just this one.
      */
     public function index(Request $request): Response
     {

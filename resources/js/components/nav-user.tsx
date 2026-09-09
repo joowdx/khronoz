@@ -30,6 +30,7 @@ export function NavUser() {
                         {({ processing }) => (
                             <SidebarMenuAction type="submit" title="Log out" disabled={processing}>
                                 <LogOut />
+                                <span className="sr-only">Log out</span>
                             </SidebarMenuAction>
                         )}
                     </Form>
