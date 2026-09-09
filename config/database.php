@@ -115,14 +115,23 @@ return [
         // Migrations and schema changes run as the database owner. The application
         // itself connects as `khronoz_app`, which cannot alter schema or bypass the
         // column-level grants declared in the migrations (docs/design/07-constraints.md).
+        //
+        // No fallback defaults on username/password: a fallback would let the
+        // connection quietly resolve to a superuser even when DB_OWNER_* is
+        // unset, defeating the one thing that is supposed to close it off in
+        // the Octane/Horizon runtime (AppServiceProvider::guardOwnerConnection()
+        // backs this with an actual refusal, not just absent credentials). A
+        // separate DB_OWNER_URL, rather than sharing the pgsql connection's
+        // DB_URL, keeps one shared DB_URL in production from collapsing both
+        // identities into the same connection string.
         'owner' => [
             'driver' => 'pgsql',
-            'url' => env('DB_URL'),
+            'url' => env('DB_OWNER_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
             'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_OWNER_USERNAME', 'sail'),
-            'password' => env('DB_OWNER_PASSWORD', 'password'),
+            'username' => env('DB_OWNER_USERNAME'),
+            'password' => env('DB_OWNER_PASSWORD'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,

@@ -5,6 +5,7 @@ namespace Tests\Feature\Database;
 use App\Listeners\EnsureMigrationsRunAsOwner;
 use Illuminate\Database\Events\MigrationsStarted;
 use Illuminate\Support\Facades\DB;
+use ReflectionProperty;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -54,5 +55,54 @@ class AppRoleTest extends TestCase
         $this->expectExceptionMessage('composer migrate');
 
         (new EnsureMigrationsRunAsOwner)->handle(new MigrationsStarted('up'));
+    }
+
+    /**
+     * Unset DB_OWNER_* only documents the privilege boundary (config/database.php
+     * has no fallback credentials any more); AppServiceProvider::guardOwnerConnection()
+     * is what actually enforces it. PHPUnit itself runs as a CLI process, so
+     * runningInConsole() is genuinely true for every other test in this class —
+     * flipping the Application's own memoized flag is the only way to exercise
+     * the "resolved from a web request or queue worker" branch without a second
+     * process. DB::purge('owner') before and after: LazilyRefreshDatabase's
+     * one-time migrate:fresh --database=owner already resolved and cached this
+     * connection earlier in the run, and the cached instance must not survive
+     * into later tests (including AgencyScopeTest's own DB::connection('owner')
+     * call) that expect a normal, working owner connection.
+     */
+    public function test_owner_connection_refuses_resolution_outside_a_console_run(): void
+    {
+        DB::purge('owner');
+
+        $flag = new ReflectionProperty($this->app, 'isRunningInConsole');
+        $flag->setAccessible(true);
+        $original = $flag->getValue($this->app);
+        $flag->setValue($this->app, false);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('composer migrate');
+
+            DB::connection('owner');
+        } finally {
+            $flag->setValue($this->app, $original);
+            DB::purge('owner');
+        }
+    }
+
+    /**
+     * The grants a fresh install gets from 0000_00_00_000001_prepare_database
+     * must also work re-issued by hand (php artisan db:grant) after an owner
+     * role rotation — see App\Support\AppRoleGrants. Runs against the same
+     * already-migrated testing database, so this proves the statements are
+     * genuinely idempotent, not just correct on an empty schema.
+     */
+    public function test_db_grant_command_reapplies_privileges_idempotently(): void
+    {
+        $this->artisan('db:grant')->assertExitCode(0);
+
+        DB::table('sessions')->insert(['id' => 'probe-grant', 'payload' => '', 'last_activity' => 0]);
+
+        $this->assertSame(1, DB::table('sessions')->where('id', 'probe-grant')->count());
     }
 }

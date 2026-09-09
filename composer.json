@@ -61,7 +61,7 @@
             "@php artisan dev"
         ],
         "migrate": [
-            "@php artisan migrate --database=owner"
+            "@php artisan migrate --force --database=owner"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

@@ -13,8 +13,10 @@ use App\Models\User;
 use App\Tenancy\Tenant;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -25,6 +27,7 @@ use Laravel\Head\Facades\Head;
 use Laravel\Head\HeadBuilder;
 use Laravel\Passport\Passport;
 use Laravel\Sanctum\Sanctum;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -67,6 +70,31 @@ class AppServiceProvider extends ServiceProvider
         Model::shouldBeStrict(! $this->app->isProduction());
 
         DB::prohibitDestructiveCommands($this->app->isProduction());
+
+        $this->guardOwnerConnection();
+    }
+
+    /**
+     * `DB_OWNER_*` being unset only documents the privilege boundary; it does
+     * not enforce it (config/database.php no longer defaults them, but a
+     * shared DB_URL or a misconfigured deploy could still populate them). This
+     * is the actual enforcement: the owner connection — which bypasses every
+     * REVOKE the migrations put in place — may only be resolved from a real
+     * console run (composer migrate, php artisan db:grant, the test suite,
+     * which run PHPUnit as a CLI process). A web request or queued job on
+     * Octane/Horizon that somehow resolves it is refused outright, even if
+     * the credentials happen to be present.
+     */
+    protected function guardOwnerConnection(): void
+    {
+        Event::listen(function (ConnectionEstablished $event): void {
+            if ($event->connectionName === 'owner' && ! $this->app->runningInConsole()) {
+                throw new RuntimeException(
+                    'The owner database connection may not be used outside a console run. '.
+                    'Migrate with `composer migrate` (php artisan migrate --database=owner) or run `php artisan db:grant`.'
+                );
+            }
+        });
     }
 
     /**
