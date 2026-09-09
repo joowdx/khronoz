@@ -28,7 +28,13 @@ enum Permission: string
     case ManageLedgers = 'ledgers.manage';
     case AttestLedgers = 'ledgers.attest';
 
-    /** @return array<int, self> permissions this one carries with it */
+    /**
+     * @return array<int, self> permissions this one carries with it
+     *
+     * Mirrored by the `implied` map in resources/js/hooks/use-can.ts, which
+     * cannot import this enum and so restates every edge by hand — add a case
+     * here and add its match there, or useCan() will disagree with this gate.
+     */
     public function implies(): array
     {
         return match ($this) {

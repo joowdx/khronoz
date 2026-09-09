@@ -13,6 +13,7 @@ class PermissionTest extends TestCase
         $this->assertTrue(Permission::ManageScheduling->grants(Permission::ViewScheduling));
         $this->assertFalse(Permission::ViewScheduling->grants(Permission::ManageScheduling));
         $this->assertTrue(Permission::AttestLedgers->grants(Permission::AttestLedgers));
+        $this->assertTrue(Permission::AttestLedgers->grants(Permission::ViewLedgers));
     }
 
     public function test_presets_only_contain_known_permissions(): void
