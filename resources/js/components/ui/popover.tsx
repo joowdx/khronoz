@@ -12,6 +12,12 @@ function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimiti
     return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 
+/**
+ * z-60, not shadcn's flat z-50: §4.4's one page-wide ladder puts the sheet at
+ * 55 and a popover, menu or toast at 60. MEASURED — with both at 50 the unit
+ * picker inside the move sheet (employees/show) rendered *behind* the sheet's
+ * own surface, so the list was legible only as a ghost through it.
+ */
 function PopoverContent({
     className,
     align = 'center',
@@ -25,7 +31,7 @@ function PopoverContent({
                 align={align}
                 sideOffset={sideOffset}
                 className={cn(
-                    'bg-popover text-popover-foreground data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 border-border z-50 w-72 origin-(--radix-popover-content-transform-origin) rounded-[10px] border p-4 shadow-lift',
+                    'bg-popover text-popover-foreground data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 border-border z-[60] w-72 origin-(--radix-popover-content-transform-origin) rounded-[10px] border p-4 shadow-lift',
                     className,
                 )}
                 {...props}

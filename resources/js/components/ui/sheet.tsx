@@ -34,6 +34,11 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Sheet
     );
 }
 
+/**
+ * z-55, between §4.4's scrim (50) and the popover/menu/toast tier (60), so a
+ * picker opened inside the sheet lands above it rather than behind — see
+ * popover.tsx's note.
+ */
 function SheetContent({
     className,
     children,
@@ -50,7 +55,7 @@ function SheetContent({
             <SheetPrimitive.Content
                 data-slot="sheet-content"
                 className={cn(
-                    'bg-card text-card-foreground border-border data-[state=closed]:animate-out data-[state=open]:animate-in shadow-lift fixed z-50 flex flex-col transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
+                    'bg-card text-card-foreground border-border data-[state=closed]:animate-out data-[state=open]:animate-in shadow-lift fixed z-[55] flex flex-col transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500',
                     side === 'right' &&
                         'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-full border-l sm:w-[420px] sm:max-w-full',
                     side === 'left' &&

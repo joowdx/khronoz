@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Building2, LayoutGrid, UserRoundCheck } from 'lucide-react';
+import { Building2, LayoutGrid, Network, UserRoundCheck, UsersRound } from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -7,7 +7,9 @@ import { Sidebar } from '@/components/ui/sidebar';
 import { UserMenu } from '@/components/user-menu';
 import { useCan } from '@/hooks/use-can';
 import { dashboard } from '@/routes';
+import { index as employeesIndex } from '@/routes/employees';
 import { index as agenciesIndex } from '@/routes/platform/agencies';
+import { index as unitsIndex } from '@/routes/units';
 import { index as usersIndex } from '@/routes/users';
 import type { SharedProps } from '@/types';
 
@@ -29,16 +31,30 @@ import type { SharedProps } from '@/types';
  * it.
  */
 export function AppSidebar() {
-    const { auth } = usePage<SharedProps>().props;
+    const { auth, agency } = usePage<SharedProps>().props;
     const can = useCan();
     const platform = auth?.user?.platform ?? false;
+
+    /*
+     * Units and employees belong to an agency, and the platform row is the one
+     * agency that may not have any: `employees`' agency_not_platform trigger
+     * refuses the insert (P0001), so for a superuser who has not entered an
+     * agency yet the whole group leads nowhere — Add employee would answer
+     * with an uncaught 500. SetTenant defaults such a user's tenant to the
+     * platform agency itself and Gate::before grants them every ability, so
+     * neither the tenant being set nor the permission check catches this; what
+     * decides it is whether the agency they are in is a real one. §10 and
+     * components.md agree that a nav item leading nowhere is worse than an
+     * absent one, so the group waits until they enter an agency — which the
+     * sidebar's own switcher, two blocks above, is how they do it.
+     */
+    const insideAgency = agency !== null && agency !== undefined && !agency.platform;
 
     /*
      * Navigation is data. A milestone adds a group to this array; it does not
      * add markup to nav-main.tsx. Only what exists is rendered, so the groups
      * §6.2 names arrive as their models land:
      *
-     *   Organization        Units · Employees                   Milestone 2
      *   Scheduling          Shifts · Schedules · Rosters        Milestone 3
      *   Calendar            Calendar                            Milestone 4
      *   Terminals           Terminals                           Milestone 5
@@ -55,6 +71,17 @@ export function AppSidebar() {
                 ...(can('users.manage') ? [{ title: 'Users', href: usersIndex().url, icon: UserRoundCheck }] : []),
             ],
         },
+        ...(insideAgency && can('organization.view')
+            ? [
+                  {
+                      label: 'Organization',
+                      items: [
+                          { title: 'Units', href: unitsIndex().url, icon: Network },
+                          { title: 'Employees', href: employeesIndex().url, icon: UsersRound },
+                      ],
+                  },
+              ]
+            : []),
         ...(platform
             ? [{ label: 'Platform', items: [{ title: 'Agencies', href: agenciesIndex().url, icon: Building2 }] }]
             : []),
