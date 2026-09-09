@@ -19,6 +19,7 @@ class TenantTest extends TestCase
         $this->assertTrue($tenant->check());
         $this->assertSame($agency->id, $tenant->id());
         $tenant->forget();
+        $this->assertNull(Context::getHidden('agency'));
         $this->assertFalse($tenant->check());
     }
 

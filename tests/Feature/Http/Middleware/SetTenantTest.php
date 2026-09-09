@@ -19,8 +19,10 @@ class SetTenantTest extends TestCase
 
     public function test_platform_user_defaults_to_the_platform_agency(): void
     {
+        Agency::factory()->count(2)->create();
+
         $this->actingAs(User::factory()->platform()->create())->get(route('dashboard'))
-            ->assertInertia(fn (Assert $page) => $page->where('agency.platform', true)->has('agencies'));
+            ->assertInertia(fn (Assert $page) => $page->where('agency.platform', true)->has('agencies', 2));
     }
 
     public function test_platform_user_enters_the_agency_held_in_session(): void
