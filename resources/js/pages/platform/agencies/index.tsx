@@ -226,7 +226,6 @@ export default function Index({
                     // to scroll sideways, so the container is handed back to
                     // the shell's own scroller. MEASURED: with the primitive's
                     // own overflow the head lands at -75 instead of 56.
-                    className="[&_[data-slot=table-container]]:overflow-visible"
                 >
                     <CardHeader className="min-h-[60px]">
                         <div className="relative w-[260px] max-w-full">

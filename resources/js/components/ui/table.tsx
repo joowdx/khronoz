@@ -9,9 +9,21 @@ import { ChevronUpIcon } from 'lucide-react';
  * nothing — only its cells do — and rows would show through as they scroll
  * underneath.
  */
+/**
+ * The container is `overflow-x-clip`, not shadcn's `overflow-x-auto`. A
+ * scrollable axis makes this div the nearest scrollport, and a sticky `thead`
+ * then sticks to *it* rather than to the page's scroll container, which put
+ * our heads 75px above the title bar and looked like sticky was simply broken.
+ * `clip` is the one overflow value that leaves the other axis `visible`, so
+ * the head keeps sticking at `top: var(--bar-h)`.
+ *
+ * A table that genuinely needs to scroll sideways — the roster grid in
+ * Milestone 3 — opts in with `overflow-x-auto` on this slot, and accepts that
+ * its head then sticks inside its own scrollport.
+ */
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
     return (
-        <div data-slot="table-container" className="relative w-full overflow-x-auto">
+        <div data-slot="table-container" className="relative w-full overflow-x-clip">
             <table
                 data-slot="table"
                 className={cn('w-full border-separate border-spacing-0 text-sm', className)}

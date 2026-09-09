@@ -257,7 +257,6 @@ export default function Index({
                     // (components.md). Four narrow columns have nothing to
                     // scroll sideways, so the container is handed back to the
                     // shell's own scroller.
-                    className="[&_[data-slot=table-container]]:overflow-visible"
                 >
                     <CardHeader className="min-h-[60px] flex-wrap">
                         <span className="relative">
