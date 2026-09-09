@@ -28,14 +28,18 @@ class PasswordResetLinkController extends Controller
     {
         $request->validate(['email' => ['required', 'string', 'email']]);
 
-        // The status slug is translated by lang/en/passwords.php so the same
-        // call handles both the success message and, on failure, an error
-        // naming which field was wrong (there is no invited-user secrecy
-        // rule for this endpoint the way there is for login).
-        $status = Password::sendResetLink($request->only('email'));
+        // Every broker outcome — a registered address (ResetLinkSent), an
+        // unregistered one (InvalidUser), or a repeat request too soon after
+        // the last one (ResetThrottled) — deliberately produces this same
+        // neutral response. The broker still only emails an address that is
+        // actually registered; what changes here is that the HTTP response
+        // itself no longer tells the caller which case happened, so this
+        // endpoint cannot be used to test whether a given address has an
+        // account in a government HR system. The login endpoint's single
+        // generic __('auth.failed') failure (LoginRequest::authenticate())
+        // is the same policy applied there.
+        Password::sendResetLink($request->only('email'));
 
-        return $status === Password::ResetLinkSent
-            ? back()->with('status', __($status))
-            : back()->withErrors(['email' => __($status)]);
+        return back()->with('status', 'If that address is registered, a reset link is on its way.');
     }
 }

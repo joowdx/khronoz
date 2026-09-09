@@ -38,4 +38,16 @@ class VerifyEmailControllerTest extends TestCase
 
         $this->assertNull($user->fresh()->email_verified_at);
     }
+
+    public function test_seventh_verification_attempt_in_a_minute_is_throttled(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id' => $user->id, 'hash' => sha1($user->email)]);
+
+        foreach (range(1, 6) as $i) {
+            $this->actingAs($user)->get($url);
+        }
+
+        $this->actingAs($user)->get($url)->assertStatus(429);
+    }
 }

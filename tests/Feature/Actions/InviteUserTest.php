@@ -51,7 +51,7 @@ class InviteUserTest extends TestCase
 
     public function test_sends_exactly_one_invite_notification_with_a_validly_signed_url(): void
     {
-        Notification::fake();
+        Notification::fake([InviteNotification::class]);
         $this->withTenant(Agency::factory()->create());
 
         $user = app(InviteUser::class)->handle(['name' => 'Ana Cruz', 'email' => 'ana@agency.gov.ph', 'permissions' => []]);

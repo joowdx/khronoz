@@ -11,7 +11,7 @@ class EmailVerificationNotificationControllerTest extends TestCase
 {
     public function test_sends_a_new_verification_email_to_an_unverified_user(): void
     {
-        Notification::fake();
+        Notification::fake([VerifyEmail::class]);
         $user = User::factory()->unverified()->create();
 
         $this->actingAs($user)->post(route('verification.send'))
@@ -23,7 +23,7 @@ class EmailVerificationNotificationControllerTest extends TestCase
 
     public function test_already_verified_user_is_redirected_without_sending(): void
     {
-        Notification::fake();
+        Notification::fake([VerifyEmail::class]);
         $user = User::factory()->create();
 
         $this->actingAs($user)->post(route('verification.send'))->assertRedirect(route('dashboard'));

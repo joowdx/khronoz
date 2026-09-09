@@ -94,4 +94,31 @@ class InviteControllerTest extends TestCase
         $this->assertGuest();
         $this->assertSame($originalPassword, $user->fresh()->password);
     }
+
+    /**
+     * The signature covers the full signed URL, path included, so swapping
+     * the {user} segment for a different user's id invalidates it even
+     * though the id still resolves to a real, existing user — this is what
+     * proves the 403 below comes from signature validation and not from
+     * route-model binding failing to find someone. Swapping in another
+     * user's id is also the attack that actually matters: using your own
+     * valid invite link to seize someone else's account.
+     */
+    public function test_tampered_user_segment_is_rejected_and_leaves_the_victims_password_unchanged(): void
+    {
+        $attacker = User::factory()->invited()->create();
+        $victim = User::factory()->invited()->create();
+        $originalPassword = $victim->password;
+
+        $url = URL::temporarySignedRoute('invite.store', now()->addDays(7), ['user' => $attacker]);
+        $tamperedUrl = str_replace((string) $attacker->id, (string) $victim->id, $url);
+
+        $this->post($tamperedUrl, [
+            'password' => 'attacker-chosen-password',
+            'password_confirmation' => 'attacker-chosen-password',
+        ])->assertForbidden();
+
+        $this->assertGuest();
+        $this->assertSame($originalPassword, $victim->fresh()->password);
+    }
 }
