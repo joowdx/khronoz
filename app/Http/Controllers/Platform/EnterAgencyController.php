@@ -17,7 +17,7 @@ class EnterAgencyController extends Controller
     {
         session(['agency' => $agency->id]);
 
-        return redirect()->route('dashboard')->with('success', "You are now working in {$agency->name}.");
+        return redirect()->route('dashboard')->with('success', "Entered {$agency->name}");
     }
 
     /** Leave the entered agency, returning to the platform agency itself. */
