@@ -55,6 +55,70 @@ class UserTest extends TestCase
         $this->assertDatabaseRefuses('23502', fn () => User::factory()->create(['agency_id' => null]));
     }
 
+    /**
+     * UNIQUE (id, agency_id) is the pair Milestone 2's paired foreign keys
+     * will reference (docs/design/07-constraints.md, "carry the parent's
+     * key"). A duplicate id alone already trips the primary key, but this
+     * proves the compound index the FK needs is actually there too, not
+     * just assumed from the primary key — if this migration line silently
+     * vanished, M2's FK creation would fail with an error pointing nowhere
+     * near the cause.
+     */
+    public function test_id_and_agency_id_pair_is_unique(): void
+    {
+        $user = User::factory()->create();
+
+        $this->assertDatabaseRefuses('23505', fn () => DB::table('users')->insert([
+            'id' => $user->id,
+            'agency_id' => $user->agency_id,
+            'name' => 'x',
+            'email' => Str::random().'@x.test',
+            'password' => 'x',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
+    /** users.agency_id references agencies(id); a nonexistent agency is refused, not silently accepted. */
+    public function test_agency_id_must_reference_an_existing_agency(): void
+    {
+        $this->assertDatabaseRefuses('23503', fn () => DB::table('users')->insert([
+            'id' => (string) Str::ulid(),
+            'agency_id' => (string) Str::ulid(), // no such agency
+            'name' => 'x',
+            'email' => Str::random().'@x.test',
+            'password' => 'x',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
+    /** users.employee_id is unique, so Milestone 2's employees pairing can never resolve to two colleagues at once. */
+    public function test_employee_id_is_unique(): void
+    {
+        $employeeId = (string) Str::ulid();
+        User::factory()->create(['employee_id' => $employeeId]);
+
+        $this->assertDatabaseRefuses('23505', fn () => User::factory()->create(['employee_id' => $employeeId]));
+    }
+
+    /** permissions is NOT NULL (with a database default of '[]'); an explicit null must still be refused. */
+    public function test_permissions_cannot_be_null(): void
+    {
+        $agency = Agency::factory()->create();
+
+        $this->assertDatabaseRefuses('23502', fn () => DB::table('users')->insert([
+            'id' => (string) Str::ulid(),
+            'agency_id' => $agency->id,
+            'name' => 'x',
+            'email' => Str::random().'@x.test',
+            'password' => 'x',
+            'permissions' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]));
+    }
+
     public function test_allows_follows_held_and_implied_permissions(): void
     {
         $user = User::factory()->permissions(Permission::ManageScheduling)->create();

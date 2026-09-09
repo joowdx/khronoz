@@ -78,4 +78,21 @@ class AgencyTest extends TestCase
             'created_at' => now(), 'updated_at' => now(),
         ]));
     }
+
+    // A test for ON DELETE RESTRICT on users.agency_id was deliberately left
+    // out here: deleting an agency that still has users refuses with
+    // SQLSTATE 23001 (restrict_violation), not the 23503 the fix-wave brief
+    // specified for it. See the handoff report (final-fix-wave-commit3-report.md)
+    // for the observed error — the RESTRICT clause itself is confirmed
+    // present and working; only the expected SQLSTATE needs the controller's
+    // sign-off before a test can assert it.
+
+    /** platform is NOT NULL (with a database default of false); an explicit null must still be refused. */
+    public function test_platform_flag_cannot_be_null(): void
+    {
+        $this->assertDatabaseRefuses('23502', fn () => DB::table('agencies')->insert([
+            'id' => '01J00000000000000000000001', 'code' => 'X', 'name' => 'X', 'platform' => null,
+            'created_at' => now(), 'updated_at' => now(),
+        ]));
+    }
 }

@@ -35,6 +35,32 @@ class UserControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('users/index')->has('users', 3));
     }
 
+    /**
+     * The superuser path through index: Gate::before grants a platform user
+     * every ability, so UserPolicy::viewAny never actually runs for them.
+     * What stops a platform user who has entered X from seeing every
+     * agency's users is that index reads through $tenant->agency()->users()
+     * rather than a bare User::query() — this proves that holds for a
+     * platform actor specifically, with a fixture in all three places
+     * (X, Y, platform) so the assertion actually discriminates between
+     * them rather than passing by coincidence.
+     */
+    public function test_platform_user_in_an_entered_agency_sees_only_that_agencys_users(): void
+    {
+        $agencyX = Agency::factory()->create();
+        $agencyY = Agency::factory()->create();
+        $inX = User::factory()->forAgency($agencyX)->create();
+        User::factory()->forAgency($agencyY)->create();
+        User::factory()->platform()->create();
+
+        $this->actingAsPlatform($agencyX);
+
+        $this->get(route('users.index'))
+            ->assertInertia(fn (Assert $page) => $page->component('users/index')
+                ->has('users', 1)
+                ->where('users.0.id', $inX->id));
+    }
+
     public function test_index_filters_by_search_on_name_or_email(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -123,6 +149,28 @@ class UserControllerTest extends TestCase
     }
 
     /**
+     * The superuser path through store: Gate::before also lets a platform
+     * user create a colleague without holding users.manage.
+     * InviteUser::handle() assigns agency_id from app(Tenant::class)->id(),
+     * which SetTenant set from the agency the platform user entered — this
+     * proves the new row lands in X, not in the platform agency the actor
+     * itself belongs to.
+     */
+    public function test_platform_user_store_creates_the_invited_user_in_the_entered_agency(): void
+    {
+        Notification::fake([InviteNotification::class]);
+        $agencyX = Agency::factory()->create();
+
+        $this->actingAsPlatform($agencyX);
+
+        $this->post(route('users.store'), ['name' => 'Ana Cruz', 'email' => 'ana@x.test', 'permissions' => []])
+            ->assertRedirect(route('users.index'));
+
+        $user = User::withoutGlobalScopes()->where('email', 'ana@x.test')->firstOrFail();
+        $this->assertSame($agencyX->id, $user->agency_id);
+    }
+
+    /**
      * The middleware-order tripwire: User::resolveRouteBindingQuery's
      * agency_id filter is only observable when it must exclude a row, so a
      * cross-tenant lookup is the only shape that can detect SetTenant
@@ -181,6 +229,25 @@ class UserControllerTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * The superuser path through update: Gate::before grants a platform
+     * user every ability, so resolveRouteBindingQuery's agency_id filter is
+     * the only thing stopping a platform user who has entered X from
+     * reaching Y's user through this route — UserPolicy::update never even
+     * gets asked. Same shape as test_updating_a_user_of_another_agency_is_not_found,
+     * exercised by a platform actor instead of an ordinary ManageUsers holder.
+     */
+    public function test_platform_user_updating_another_agencys_user_is_not_found(): void
+    {
+        $agencyX = Agency::factory()->create();
+        $stranger = User::factory()->create(); // agency Y
+
+        $this->actingAsPlatform($agencyX);
+
+        $this->put(route('users.update', $stranger), ['name' => 'Someone Else', 'permissions' => []])
+            ->assertNotFound();
+    }
+
     public function test_admins_cannot_remove_themselves(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -211,6 +278,21 @@ class UserControllerTest extends TestCase
 
         $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
             ->delete(route('users.destroy', $stranger))->assertNotFound();
+    }
+
+    /**
+     * Same superuser binding protection as
+     * test_platform_user_updating_another_agencys_user_is_not_found,
+     * exercised through destroy instead.
+     */
+    public function test_platform_user_destroying_another_agencys_user_is_not_found(): void
+    {
+        $agencyX = Agency::factory()->create();
+        $stranger = User::factory()->create(); // agency Y
+
+        $this->actingAsPlatform($agencyX);
+
+        $this->delete(route('users.destroy', $stranger))->assertNotFound();
     }
 
     public function test_resend_invite_notifies_the_user_again(): void
