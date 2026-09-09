@@ -19,14 +19,14 @@ export interface PresetOption {
  *
  * The rows are written out rather than derived from the permission values
  * because the label is the sentence a person reads ("Units, employees,
- * deployments and groups"), not a name the enum holds. Every `Permission`
+ * deployments and tags"), not a name the enum holds. Every `Permission`
  * case must appear here or in `ATTEST`, and
  * tests/Unit/PermissionMatrixContractTest.php fails if one does not.
  */
 const AREAS: { label: string; view: Permission | null; manage: Permission }[] = [
     { label: 'Agency profile and settings', view: null, manage: 'agency.manage' },
     { label: 'Users and their permissions', view: null, manage: 'users.manage' },
-    { label: 'Units, employees, deployments and groups', view: 'organization.view', manage: 'organization.manage' },
+    { label: 'Units, employees, deployments and tags', view: 'organization.view', manage: 'organization.manage' },
     { label: 'Shifts, schedules and rosters', view: 'scheduling.view', manage: 'scheduling.manage' },
     { label: 'Holidays, suspensions, exemptions and overtime', view: 'calendar.view', manage: 'calendar.manage' },
     { label: 'Terminals, enrollments and timelogs', view: 'terminals.view', manage: 'terminals.manage' },
@@ -36,7 +36,7 @@ const AREAS: { label: string; view: Permission | null; manage: Permission }[] = 
 /** The one right that is not a view/manage pair, so it sits below the table. */
 const ATTEST = {
     permission: 'ledgers.attest' as Permission,
-    label: 'Sign daily time records as the HR officer',
+    label: 'Sign daily time records as the timekeeper',
     hint: 'Puts their name on CS Form 48 when a ledger is attested. Only the officer who signs needs this.',
 };
 

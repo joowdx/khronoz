@@ -174,7 +174,7 @@ export default function Home({ demo }: { demo: string }) {
                             <p className="pt-3 text-sm leading-[23px] md:text-[15px] md:leading-[25px]">
                                 One agency to a tenant, with its own units, terminals, shifts, calendar and signing
                                 chain. The Civil Service Commission rules are applied as written, and the product keeps
-                                the issuance behind each one visible, so an HR officer can check a computation against
+                                the issuance behind each one visible, so a timekeeper can check a computation against
                                 the circular rather than take it on trust.
                             </p>
                             <ul className="pt-3.5 pl-0">
@@ -182,7 +182,7 @@ export default function Home({ demo }: { demo: string }) {
                                     Units of any shape: <b>departments, divisions, sections</b>, or none.
                                 </li>
                                 <li className={COLUMN_FACT}>
-                                    Who signs is agency data: <b>employee, supervisor, head</b> and <b>HR</b>, in the
+                                    Who signs is agency data: <b>employee, supervisor, head</b> and <b>timekeeper</b>, in the
                                     order the agency uses.
                                 </li>
                             </ul>

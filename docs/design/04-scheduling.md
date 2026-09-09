@@ -7,7 +7,9 @@ erDiagram
     SCHEDULES ||--o{ TURNS     : "cycle, one row per day"
     SHIFTS    ||--o{ TURNS     : "at position"
     SHIFTS    |o--o{ SCHEDULES : "fallback when a holiday lands on an off turn"
+    SCHEDULES ||--o{ TEAMS     : "a team is one schedule and one anchor"
     SCHEDULES ||--o{ ROSTERS   : "assigned through"
+    TEAMS     |o--o{ ROSTERS   : "membership: the rosters carrying its team_id"
     EMPLOYEES ||--o{ ROSTERS   : "follows, one at a time"
 
     SHIFTS {
@@ -36,10 +38,18 @@ erDiagram
         smallint position "0 to length-1"
         ulid shift_id FK
     }
+    TEAMS {
+        ulid id PK
+        ulid agency_id FK
+        string name
+        ulid schedule_id FK
+        date anchor "cycle day 0 for the whole cohort"
+    }
     ROSTERS {
         ulid id PK
         ulid employee_id FK
         ulid schedule_id FK
+        ulid team_id FK "nullable, the cohort this assignment came from"
         date anchor "cycle day 0"
         date starts
         date ends "nullable"
@@ -52,13 +62,14 @@ erDiagram
     }
 ```
 
-## The four words
+## The five words
 
 - **Shift**: a day template. `Off` is a shift with no slots. `Remote` is a shift with no slots and `remote` true.
 - **Schedule**: a repeating cycle of shifts. Turns are its days, in order.
 - **Roster**: employee follows schedule from `starts` to `ends`, with the cycle anchored at `anchor`. This is the only assignment. Direct FK, no polymorphism.
+- **Team**: a named `(schedule, anchor)` cohort. Three hospital teams are one schedule and three anchors. A team has no members of its own — the rosters carrying its `team_id` *are* its membership, so who was on it in March is answerable from their date ranges, and one employee on two teams at once is already impossible.
 
-Groups are not in this picture. A group is how you pick many employees at once; rostering a group creates one roster per member with the same schedule and anchor.
+Rostering many at once has two shapes. A rotation cohort is a `Team`: assigning it writes one roster per employee, each copying the team's schedule and anchor and pointing back with `team_id`. An ad-hoc set is a tag filter plus select-all, writing rosters with `team_id` null. Either way resolution reads one roster row, and an exception is just a roster of its own.
 
 ## Resolution for employee E on date D
 
@@ -146,11 +157,11 @@ Schedule `24/48`, length 3: Duty24, Off, Off. Three guards per post, anchors 1 d
 
 ## Rules
 
-1. One roster per employee per date. Postgres exclusion constraint on `employee_id` and `daterange(starts, ends)`; overlapping rosters cannot be written.
+1. One roster per employee per date. Postgres exclusion constraint on `employee_id` and `daterange(starts, ends, '[]')`; overlapping rosters cannot be written.
 2. Editing a shift or schedule changes future computation only. Workdays keep a snapshot of the shift they were computed against.
 3. A one-week override is a one-week roster. The exclusion constraint forces you to end the standing roster first, which is the right paper trail.
 4. A schedule's turns must be complete: exactly `length` rows, positions 0 to `length - 1`. Deferrable constraint trigger, 07-constraints.md.
 5. `fallback_shift_id`: when a holiday or suspension lands on an Off turn, the other turns of that ISO week resolve to the fallback shift, prospectively from `declared_at` (Res. 2600838 §2.3 and §2.5). Recompute for such rosters widens from the date to the week.
 6. A `remote` shift expects no punches. The day is credited on attestation and never yields overtime (Flexiplace, OP MC 114).
 7. Platform-owned shifts and schedules are readable by every agency, copied into each new agency at onboarding and on demand later. `origin_id` points at the platform row, so the UI shows when a copy has diverged and can refresh it on request. A roster can only reference a schedule of its own agency, which the paired FK enforces.
-8. `color smallint NOT NULL` is the shift's slot in the roster grid's fixed eight-colour ramp, stored on the row and never derived from the name or the id. A new shift takes the lowest index its agency is not already using and wraps at 8; HR may change it; a copy from the platform agency carries the origin row's index. `Off` and `Remote` are drawn from empty `slots` and the `remote` flag, so their index is never read. Range 1 to 8 is a database check with the other shift constraints (07-constraints.md); the ramp itself is in 08-interface.md (decision 21).
+8. `color smallint NOT NULL` is the shift's slot in the roster grid's fixed eight-colour ramp, stored on the row and never derived from the name or the id. A new shift takes the lowest index its agency is not already using and wraps at 8; the timekeeper may change it; a copy from the platform agency carries the origin row's index. `Off` and `Remote` are drawn from empty `slots` and the `remote` flag, so their index is never read. Range 1 to 8 is a database check with the other shift constraints (07-constraints.md); the ramp itself is in 08-interface.md (decision 21).

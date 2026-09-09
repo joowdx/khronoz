@@ -4,7 +4,7 @@ Derived from the approved artboards in `mockups/`, committed at `0fcc57f`: `toke
 
 ## 1. The language
 
-White is the material. Hierarchy comes from type and rules, not from boxes: a section is a 14/600 head, a 1px rule and 32px of air either side of it, not a card. Every grey is a pure achromatic grey; the only hues on a screen are one accent, the eight-slot chip ramp and the fault, attention and positive families, and hue in the data is the point of the roster grid and the lane chart. One family, Plus Jakarta Sans, does the wordmark, the titles and the interface. The product is a working instrument for a Philippine HR office, so figures are tabular, controls are 36px with borders that clear 3:1, and nothing decorative competes with a number.
+White is the material. Hierarchy comes from type and rules, not from boxes: a section is a 14/600 head, a 1px rule and 32px of air either side of it, not a card. Every grey is a pure achromatic grey; the only hues on a screen are one accent, the eight-slot chip ramp and the fault, attention and positive families, and hue in the data is the point of the roster grid and the lane chart. One family, Plus Jakarta Sans, does the wordmark, the titles and the interface. The product is a working instrument for a Philippine government office, so figures are tabular, controls are 36px with borders that clear 3:1, and nothing decorative competes with a number.
 
 | # | Rule |
 |---|---|
@@ -394,7 +394,7 @@ Use for an immediate setting that takes effect on toggle. Use a checkbox for som
 
 32 high, padding 2, radius 8, `1px solid var(--edge)`, `--canvas`. Buttons 26 high, padding `0 11`, radius 6, transparent, 12/16/500 `--muted`; hover takes `--ink`; selected takes `--acc-soft` ground, `--acc-text`, weight 600. `.seg--full` stretches each button to an equal share (the appearance switcher in the user menu).
 
-Two uses only: a preset chooser (Admin / HR officer / Viewer / Custom) and a three-way appearance choice (Light / Dark / System).
+Two uses only: a preset chooser (Admin / Timekeeper / Viewer / Custom) and a three-way appearance choice (Light / Dark / System).
 
 A11y: `<span class="seg" role="group" aria-label="...">` wrapping real `<button type="button">`s with `aria-pressed`. Arrow keys are not required for a group of buttons; Tab reaches each. If it is modelled as a radio group instead, use `role="radiogroup"` + `role="radio"` + `aria-checked` and then arrow keys **are** required.
 
@@ -498,7 +498,7 @@ A chip is a shift, identified by its first letter and its colour together. Colou
 
 Left-aligned, `max-width: 460`, padding `48 0`. Heading 20/26/700 −0.008em; one sentence at 14/20 `--muted` with `padding: 8 0 16`; then the same primary action the title bar offers.
 
-An invitation, not an apology. It says how the thing works, so a first-time user learns the model from it: "Sign-in is by invitation. Invite the people in your HR office who keep the daily time records, and they choose their own password." No illustration, no icon, no centred layout, no "Oops".
+An invitation, not an apology. It says how the thing works, so a first-time user learns the model from it: "Sign-in is by invitation. Invite the people in your office who keep the daily time records, and they choose their own password." No illustration, no icon, no centred layout, no "Oops".
 
 Distinguish three cases: **nothing yet** (the invitation above), **nothing matches the filter** (say which filter, offer to clear it, keep the filters on screen), **nothing you may see** (say so plainly and name who to ask; never show an action the user cannot take).
 
@@ -508,13 +508,13 @@ The invite form's core. A borderless table inside a `.panel-pad` panel, renderin
 
 | Part | Spec |
 |---|---|
-| Preset row | `Start from a preset` at 13/18 `--muted`, spacer, then the segmented control: Admin / HR officer / Viewer / Custom. Editing any box moves the preset to Custom. |
+| Preset row | `Start from a preset` at 13/18 `--muted`, spacer, then the segmented control: Admin / Timekeeper / Viewer / Custom. Editing any box moves the preset to Custom. |
 | Head | `<th>` 34 high, padding `0 0 6`, 12/16/600 `--muted`. First column is `What they can reach`; the View and Manage columns are 86 wide and centred. |
 | Row | `<td>` 44 high, `border-top: 1px solid var(--rule)`; the first row's top border is `--line`. Label at 14/20. |
-| Rows, in order | Agency profile and settings · Users and their permissions · Units, employees, deployments and groups · Shifts, schedules and rosters · Holidays, suspensions, exemptions and overtime · Terminals, enrollments and timelogs · Workdays and daily time records |
+| Rows, in order | Agency profile and settings · Users and their permissions · Units, employees, deployments and tags · Shifts, schedules and rosters · Holidays, suspensions, exemptions and overtime · Terminals, enrollments and timelogs · Workdays and daily time records |
 | No-view cell | an em dash in `--muted` with `aria-label="No separate view right"` — `agency.manage` and `users.manage` have no paired view right |
 | Implied view | checked **and** disabled: the `--edge-soft` box with an `--ink` check, plus a 14px lock icon beside it. `manage` implies `view`, so the view box cannot be unchecked while manage is on. |
-| Attest | below the table, above a `1px solid var(--line)` rule at `padding-top: 16`: a single checkbox, `Sign daily time records as the HR officer`, with a hint at 12/16 `--muted`: `Puts their name on CS Form 48 when a ledger is attested. Only the officer who signs needs this.` This is `ledgers.attest`, which is not a view/manage pair. |
+| Attest | below the table, above a `1px solid var(--line)` rule at `padding-top: 16`: a single checkbox, `Sign daily time records as the timekeeper`, with a hint at 12/16 `--muted`: `Puts their name on CS Form 48 when a ledger is attested. Only the officer who signs needs this.` This is `ledgers.attest`, which is not a view/manage pair. |
 | Error | the field's own label row carries `Choose at least one`, and every checkbox border turns `--fault` (`.cb--err`). Nothing moves. |
 | A11y | a real `<table>` so each box is announced with its row and column. Every box's accessible name is its permission string (`organization.manage`), which is also what is submitted, so the form and the announcement cannot drift. The label row is the table's `aria-labelledby` source. |
 
@@ -675,7 +675,7 @@ Chip edges are decoration on a filled chip and are not held to 3:1; they measure
 |---|---|
 | 1 | A new shift takes the **lowest index its agency is not already using**, and wraps at 8. |
 | 2 | A copy from the platform agency carries the **origin row's index**, so an agency's Morning is the same ochre as the default Morning. |
-| 3 | HR may change a shift's index. The UI offers the eight slots as swatches, marking which are already in use. |
+| 3 | The timekeeper may change a shift's index. The UI offers the eight slots as swatches, marking which are already in use. |
 | 4 | `Off` and `Remote` **never take an index**. They are drawn from empty `slots` and the `remote` flag: Off is the hatch, Remote is the dashed box. Their `color` value is never read. |
 | 5 | More than eight shifts in one agency means a repeated colour. That is accepted: the letter and the legend disambiguate, and the roster's Schedule column names the cycle. |
 | 6 | The same index drives the roster chip, the lane-chart bar, the sheet's cycle preview and the legend swatch, so one shift is one colour everywhere. |
@@ -800,7 +800,7 @@ The mockups show the finished product. Milestone 1 covers agencies, users, permi
 | Dashboard — the shell, the title bar, the section rules, the empty and attention states | `Agency`, `User` | M1 |
 | Dashboard — the figure strip, the attention counts, the ledger split | `Workday`, `Ledger` | after attendance |
 | Lane chart (on duty now) | `Shift` with `slots`, `Schedule`, `Turn`, `Roster`, `Workday` | after scheduling and attendance |
-| Roster grid — day columns, chips, night bands, group rows, totals | `Shift` (incl. `color`), `Schedule`, `Turn`, `Roster`, `Workday` | after scheduling |
+| Roster grid — day columns, chips, night bands, group rows, totals | `Shift` (incl. `color`), `Schedule`, `Turn`, `Team`, `Roster`, `Workday` | after scheduling |
 | Roster grid — weekend and suspension wash, the legend note | `Holiday`, `Suspension` | after calendar |
 | Assign-schedule sheet and the cycle preview | `Schedule`, `Turn`, `Roster` | after scheduling |
 | Day strip in the sidebar (headcount on duty) | `Workday` | after attendance |

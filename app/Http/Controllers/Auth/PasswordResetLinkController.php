@@ -35,7 +35,7 @@ class PasswordResetLinkController extends Controller
         // actually registered; what changes here is that the HTTP response
         // itself no longer tells the caller which case happened, so this
         // endpoint cannot be used to test whether a given address has an
-        // account in a government HR system. The login endpoint's single
+        // account in a government personnel system. The login endpoint's single
         // generic __('auth.failed') failure (LoginRequest::authenticate())
         // is the same policy applied there.
         Password::sendResetLink($request->only('email'));

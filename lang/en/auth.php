@@ -23,5 +23,5 @@ return [
      * An invited account exists but has never been claimed. Naming the fix
      * matters more than naming the cause: the emailed link is the only way in.
      */
-    'invited' => 'This invitation has not been accepted yet. Use the link in your email, or ask your HR office to send it again.',
+    'invited' => 'This invitation has not been accepted yet. Use the link in your email, or ask your administrator to send it again.',
 ];

@@ -7,10 +7,7 @@ erDiagram
     UNITS     |o--o{ UNITS       : "parent, null = top level"
     UNITS     ||--o{ DEPLOYMENTS : "places"
     EMPLOYEES ||--o{ DEPLOYMENTS : "moves through, one open at a time"
-    EMPLOYEES |o--o| UNITS       : "heads"
-    AGENCIES  ||--o{ GROUPS      : "owns"
-    GROUPS    ||--o{ MEMBERS     : "has"
-    EMPLOYEES ||--o{ MEMBERS     : "joins, many at once"
+    EMPLOYEES |o--o{ UNITS       : "heads, one employee may head several"
 
     AGENCIES {
         ulid id PK
@@ -40,7 +37,7 @@ erDiagram
         string email
         string mobile
         string position
-        enum status "permanent, casual, contractual, ..."
+        json tags "free-form agency labels, read by no rule"
         boolean exempt "no DTR expected"
         date hired_at
         date separated_at "nullable"
@@ -48,33 +45,21 @@ erDiagram
     }
     DEPLOYMENTS {
         ulid id PK
+        ulid agency_id FK
         ulid employee_id FK
         ulid unit_id FK
         date starts
         date ends "nullable = current"
-    }
-    GROUPS {
-        ulid id PK
-        ulid agency_id FK
-        string name
-        string description
-    }
-    MEMBERS {
-        ulid id PK
-        ulid group_id FK
-        ulid employee_id FK
-        date starts
-        date ends "nullable"
     }
 ```
 
 ## Rules
 
 1. A unit's parent is null or another unit of the same agency, enforced by a paired FK on `(parent_id, agency_id)`. No cycles, enforced by trigger.
-2. An employee has at most one deployment per date: exclusion constraint on `employee_id` and `daterange(starts, ends)`, which also yields at most one open deployment.
-3. Exactly one agency row has `platform` true, enforced by a partial unique index. It owns the shared rows: national holidays, default shifts and schedules, superusers. It has no employees, units, terminals or groups, enforced by trigger, cannot be deleted, and the flag cannot move. Eloquent hides it from `Agency` queries with a global scope; it is reached through `Agency::platform()`, so lists, counts and reports never see it.
+2. An employee has at most one deployment per date: exclusion constraint on `employee_id` and `daterange(starts, ends, '[]')`, which also yields at most one open deployment.
+3. Exactly one agency row has `platform` true, enforced by a partial unique index. It owns the shared rows: national holidays, default shifts and schedules, superusers. It has no employees, units, terminals or teams, enforced by trigger, cannot be deleted, and the flag cannot move. Eloquent hides it from `Agency` queries with a global scope; it is reached through `Agency::platform()`, so lists, counts and reports never see it.
 4. "This unit and everything under it" is a recursive CTE over `parent_id`.
-5. Units are the formal structure, one placement at a time. Groups are generic, cross-cutting containers: an employee may be in many. They exist for filtering and bulk actions such as rostering every member at once. A group owns nothing.
+5. Units are the formal structure: one placement at a time, through `Deployment`. Tags are labels on the employee — free-form, agency-defined, read by no rule — and the way you select many employees at once for an ad-hoc bulk action. A `Team` (04-scheduling.md) is a named `(schedule, anchor)` cohort and is the only one of the three that decides what a person is expected to work. A fact you filter by is a tag; a rotation you belong to is a team. `meta` is inert payload nothing filters on.
 
 ## Shapes it covers
 

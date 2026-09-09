@@ -25,7 +25,7 @@ use Inertia\Response;
 class UserController extends Controller
 {
     /**
-     * A users list is an office's HR staff, not its headcount, so a page
+     * A users list is an office's timekeeping staff, not its headcount, so a page
      * holds every row an agency is likely to have and the pager is usually
      * disabled — but the query is paged anyway, because a platform user who
      * enters a large agency must not be handed the whole table.

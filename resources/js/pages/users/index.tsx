@@ -245,7 +245,7 @@ export default function Index({
                     <EmptyState
                         className="py-0"
                         title="No users yet"
-                        description="Sign-in is by invitation. Invite the people in your HR office who keep the daily time records, and they choose their own password."
+                        description="Sign-in is by invitation. Invite the people in your office who keep the daily time records, and they choose their own password."
                         action={inviteUser}
                     />
                 </Card>

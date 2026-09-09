@@ -52,7 +52,7 @@ class AuthenticatedSessionControllerTest extends TestCase
         $user = User::factory()->invited()->create();
 
         $this->post(route('login'), ['email' => $user->email, 'password' => 'password'])
-            ->assertSessionHasErrors(['form' => 'This invitation has not been accepted yet. Use the link in your email, or ask your HR office to send it again.']);
+            ->assertSessionHasErrors(['form' => 'This invitation has not been accepted yet. Use the link in your email, or ask your administrator to send it again.']);
         $this->assertGuest();
     }
 

@@ -10,7 +10,7 @@ namespace App\Enums;
 enum Preset: string
 {
     case Admin = 'admin';
-    case Hr = 'hr';
+    case Timekeeper = 'timekeeper';
     case Viewer = 'viewer';
 
     /** @return array<int, Permission> */
@@ -18,7 +18,7 @@ enum Preset: string
     {
         return match ($this) {
             self::Admin => Permission::cases(),
-            self::Hr => [
+            self::Timekeeper => [
                 Permission::ManageOrganization,
                 Permission::ManageScheduling,
                 Permission::ManageCalendar,
@@ -40,7 +40,7 @@ enum Preset: string
     {
         return match ($this) {
             self::Admin => 'Admin',
-            self::Hr => 'HR officer',
+            self::Timekeeper => 'Timekeeper',
             self::Viewer => 'Viewer',
         };
     }

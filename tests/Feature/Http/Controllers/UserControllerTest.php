@@ -427,27 +427,27 @@ class UserControllerTest extends TestCase
     /**
      * The Access filter is an exact-set match, because the Access column
      * only reads a preset's name when the held set *is* that preset. A user
-     * holding the HR bundle plus one extra right is Custom in both places,
+     * holding the timekeeper bundle plus one extra right is Custom in both places,
      * which is what the third fixture proves.
      */
     public function test_index_filters_by_access_preset_and_by_custom(): void
     {
         $agency = Agency::factory()->create();
         $admin = $this->actingAsAgency($agency, Permission::ManageUsers);
-        $hr = User::factory()->forAgency($agency)->preset(Preset::Hr)->create();
-        $nearlyHr = User::factory()->forAgency($agency)
-            ->permissions(...Preset::Hr->permissions(), ...[Permission::ManageAgency])->create();
+        $timekeeper = User::factory()->forAgency($agency)->preset(Preset::Timekeeper)->create();
+        $nearlyTimekeeper = User::factory()->forAgency($agency)
+            ->permissions(...Preset::Timekeeper->permissions(), ...[Permission::ManageAgency])->create();
 
-        $this->get(route('users.index', ['access' => 'hr']))
+        $this->get(route('users.index', ['access' => 'timekeeper']))
             ->assertInertia(fn (Assert $page) => $page->has('users', 1)
-                ->where('users.0.id', $hr->id)
-                ->where('users.0.access.label', 'HR officer')
-                ->where('users.0.access.preset', 'hr'));
+                ->where('users.0.id', $timekeeper->id)
+                ->where('users.0.access.label', 'Timekeeper')
+                ->where('users.0.access.preset', 'timekeeper'));
 
         // Custom is everything that matches no preset: the near-miss above
         // and the acting admin, who holds users.manage alone.
         $this->assertEqualsCanonicalizing(
-            [$admin->id, $nearlyHr->id],
+            [$admin->id, $nearlyTimekeeper->id],
             $this->renderedIds(route('users.index', ['access' => 'custom'])),
         );
     }
@@ -604,8 +604,8 @@ class UserControllerTest extends TestCase
             ->get(route('users.create'))
             ->assertInertia(fn (Assert $page) => $page->component('users/create')
                 ->has('presets', 3)
-                ->where('presets.1.value', 'hr')
-                ->where('presets.1.label', 'HR officer')
+                ->where('presets.1.value', 'timekeeper')
+                ->where('presets.1.label', 'Timekeeper')
                 ->has('presets.1.permissions'));
     }
 

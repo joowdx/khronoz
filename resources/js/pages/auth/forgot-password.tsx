@@ -12,7 +12,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
     return (
         <AuthLayout
             title="Reset your password"
-            description="Enter the email address your HR office invited. We'll send a link to set a new one."
+            description="Enter the email address your administrator invited. We'll send a link to set a new one."
         >
             {/* The same neutral confirmation whether or not the address is
                 registered — see PasswordResetLinkController::store(). */}

@@ -67,7 +67,7 @@ export default function Login({ status, canResetPassword }: { status?: string; c
     const resetHref = request().url;
 
     return (
-        <AuthLayout title="Sign in" description="khronoz is invite-only. Use the email address your HR office invited.">
+        <AuthLayout title="Sign in" description="khronoz is invite-only. Use the email address your administrator invited.">
             {status && (
                 <Alert variant="positive" className="mb-5">
                     <CircleCheckIcon />

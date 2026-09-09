@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Builds flat/00-home.html. The page fragment is emitted twice (1440 and 390
-frames) from one source so the two can never drift."""
+"""Builds 00-home.html beside this script. The page fragment is emitted twice
+(1440 and 390 frames) from one source so the two can never drift."""
 
 import os
 
-OUT = ("/private/tmp/claude-501/-Users-joowdx-Projects-khronoz/"
-       "98e7655c-d358-4414-bf6f-870cb0ecae18/scratchpad/design/mockups/flat/00-home.html")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '00-home.html')
 
 # ---------------------------------------------------------------- icons
 def icon(paths, size=18):
@@ -439,11 +438,11 @@ def page():
         <h3 class="h3">Government agencies</h3>
         <p>One agency to a tenant, with its own units, terminals, shifts, calendar and signing
           chain. The Civil Service Commission rules are applied as written, and the product
-          keeps the issuance behind each one visible, so an HR officer can check a computation
+          keeps the issuance behind each one visible, so a timekeeper can check a computation
           against the circular rather than take it on trust.</p>
         <ul>
           <li>Units of any shape: <b>departments, divisions, sections</b>, or none.</li>
-          <li>Who signs is agency data: <b>employee, supervisor, head</b> and <b>HR</b>,
+          <li>Who signs is agency data: <b>employee, supervisor, head</b> and <b>timekeeper</b>,
             in the order the agency uses.</li>
         </ul>
       </div>

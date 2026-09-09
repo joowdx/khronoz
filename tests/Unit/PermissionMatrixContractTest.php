@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
  * The permission matrix (resources/js/components/permission-matrix.tsx) is
  * the only place a permission is offered to a person, and it writes its rows
  * out by hand: the row label is the sentence a reader sees ("Units,
- * employees, deployments and groups"), not a name the enum holds, so it
+ * employees, deployments and tags"), not a name the enum holds, so it
  * cannot be derived from `Permission::cases()`.
  *
  * That makes the matrix a fourth copy of the permission set, alongside the

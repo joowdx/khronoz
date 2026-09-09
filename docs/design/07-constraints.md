@@ -28,7 +28,7 @@ FKs use `MATCH SIMPLE`, the default: when any referencing column is null the che
 - National holidays, default shifts and schedules, superusers: `agency_id = platform`.
 - An agency roster cannot reference a platform schedule, because `(schedule_id, agency_id)` would not match. **Copy on use is enforced by the FK**, not by discipline. The copy keeps `origin_id` pointing at the platform row it came from, the one deliberate cross-agency pointer, reference only.
 - Scoping is `agency_id IN (own, platform)` for holidays and `agency_id = own` for everything else.
-- Nothing operational hangs under the platform row: employees, units, terminals and groups refuse it by trigger, and everything else needs one of those.
+- Nothing operational hangs under the platform row: employees, units, terminals and teams refuse it by trigger, and everything else needs one of those.
 - The application never lists it: an Eloquent global scope on `Agency` excludes it, `Agency::platform()` reaches it.
 
 ## Extensions
@@ -51,8 +51,9 @@ UNIQUE (code)
 platform boolean NOT NULL DEFAULT false
 CREATE UNIQUE INDEX agencies_platform ON agencies (platform) WHERE platform     -- at most one platform row
 -- trigger agencies_platform_row: the platform row cannot be deleted; `platform` cannot change after insert
--- trigger agency_not_platform on employees, units, terminals, groups, BEFORE INSERT OR UPDATE OF agency_id:
+-- trigger agency_not_platform on employees, units, terminals, teams, BEFORE INSERT OR UPDATE OF agency_id:
 --   raise if the agency is the platform row
+--   Milestone 2 applies it to employees and units only; terminals arrive in M5, teams in M3
 ```
 
 ### units
@@ -62,7 +63,9 @@ FOREIGN KEY (parent_id, agency_id) REFERENCES units (id, agency_id)
 FOREIGN KEY (head_id, agency_id)   REFERENCES employees (id, agency_id)
 UNIQUE (agency_id, code)
 CHECK (parent_id IS DISTINCT FROM id)
--- trigger units_acyclic: walk NEW.parent_id upward with a recursive CTE; raise if NEW.id is reached
+-- trigger units_acyclic, BEFORE INSERT OR UPDATE OF parent_id: walk NEW.parent_id upward with a
+--   recursive CTE; raise if NEW.id is reached. Without UPDATE the trigger is unreachable: a cycle
+--   is made by repointing an existing row, not by inserting a leaf.
 ```
 
 ### employees
@@ -70,7 +73,14 @@ CHECK (parent_id IS DISTINCT FROM id)
 ```sql
 UNIQUE (agency_id, number)
 CHECK (separated_at IS NULL OR separated_at >= hired_at)
+tags jsonb NOT NULL DEFAULT '[]'                                  -- free-form agency labels; no rule reads them
 ```
+
+Open item, for whoever writes the migration: `tags` has no shape check yet. `permissions` and
+`slots` each got one (`permissions_valid`, `slots_valid`), and the same question — array, every
+element a string, no duplicates — applies here. It is left unstated rather than assumed, because
+a tag set an agency edits by hand may also want a length or character bound, and that is a
+decision, not a transcription.
 
 ### deployments
 
@@ -81,19 +91,12 @@ CHECK (ends IS NULL OR ends >= starts)
 EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
 ```
 
-The exclusion replaces the partial unique index from 01. It forbids any overlap, which implies at most one open deployment.
+The exclusion forbids any overlap, which implies at most one open deployment.
 
-### groups, members
-
-```sql
--- groups
-UNIQUE (agency_id, name)
--- members
-FOREIGN KEY (group_id, agency_id)    REFERENCES groups (id, agency_id)
-FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
-CHECK (ends IS NULL OR ends >= starts)
-EXCLUDE USING gist (group_id WITH =, employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
-```
+Open item: nothing here proves a deployment stays inside the employee's service. A row with
+`starts` before `hired_at`, or `ends` after `separated_at`, is accepted. Postgres cannot say it
+declaratively — the dates live on the parent — so it would need a trigger on both tables, and
+the tightening is deliberately deferred rather than forgotten.
 
 ### users
 
@@ -241,7 +244,7 @@ What the database does not do is queue the workday recompute. The application do
 
 Why a trigger and not the alternatives: a generated column cannot read another table; `CREATE RULE` is legacy and does not compose with `ON CONFLICT`; resolving with a join inside each `INSERT ... SELECT` works but has to be remembered by every ingestion path.
 
-### shifts, schedules, turns
+### shifts, schedules, turns, teams
 
 ```sql
 -- shifts
@@ -268,6 +271,13 @@ UNIQUE (schedule_id, position)
 CHECK (position >= 0)
 -- constraint trigger turns_complete, DEFERRABLE INITIALLY DEFERRED, on turns and on schedules UPDATE OF length:
 --   count(*) = schedules.length AND max(position) = schedules.length - 1
+
+-- teams (Milestone 3)
+UNIQUE (agency_id, name)
+UNIQUE (id, agency_id)                                              -- target for the roster FK below
+FOREIGN KEY (schedule_id, agency_id) REFERENCES schedules (id, agency_id)
+anchor date NOT NULL
+-- trigger agency_not_platform (see agencies): a team cannot hang under the platform row
 ```
 
 Deferred means a schedule and its turns are written in one transaction and checked at commit.
@@ -302,9 +312,16 @@ $$;
 ```sql
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
 FOREIGN KEY (schedule_id, agency_id) REFERENCES schedules (id, agency_id)
+FOREIGN KEY (team_id, agency_id)     REFERENCES teams (id, agency_id)     -- nullable: an ad-hoc set has no team
 CHECK (ends IS NULL OR ends >= starts)
 EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
 ```
+
+A roster's `schedule_id` and `anchor` **may differ** from those of the team its `team_id` names,
+and nothing here forbids it. That is deliberate, not a missing constraint: `team_id` records where
+the assignment came from, not a rule about what it produced, so an agency can slide one nurse's
+anchor by a day without taking her off the cohort or rewriting the team. Resolution reads the
+roster and never the team. A trigger could hold the two equal; it is deliberately absent.
 
 ### holidays, suspensions, exemptions
 
@@ -410,7 +427,7 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 | Is this exemption the right person's? | composite FK on `(exemption_id, employee_id)` |
 | Can anything point across agencies? | `agency_id` on every table, every FK paired with it |
 | Can an agency roster a platform default without copying it? | no, the paired FK fails on the agency mismatch |
-| Can two deployments, memberships, rosters or overtime windows overlap? | exclusion constraints with btree_gist |
+| Can two deployments, rosters or overtime windows overlap? | exclusion constraints with btree_gist |
 | Can a schedule be half-built? | deferred constraint trigger `turns_complete` |
 | Can a unit be its own ancestor? | trigger `units_acyclic` |
 | Can a month be locked while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
@@ -420,7 +437,7 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 
 ## Cost
 
-One extra `agency_id` column and one `UNIQUE (id, agency_id)` index per table, one gist index per exclusion constraint, six triggers. Writes on `timelogs` gain one indexed lookup against enrollments per row for resolution and one FK check. Nothing here is measurable next to the upsert itself.
+One extra `agency_id` column and one `UNIQUE (id, agency_id)` index per table, one gist index per exclusion constraint, eleven triggers. Writes on `timelogs` gain one indexed lookup against enrollments per row for resolution and one FK check. Nothing here is measurable next to the upsert itself.
 
 ## Laravel notes
 

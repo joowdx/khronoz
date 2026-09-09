@@ -63,7 +63,7 @@ enum Permission: string
             self::ManageAgency => 'Manage agency profile and settings',
             self::ManageUsers => 'Invite users and set permissions',
             self::ViewOrganization => 'View units and employees',
-            self::ManageOrganization => 'Manage units, employees, deployments and groups',
+            self::ManageOrganization => 'Manage units, employees, deployments and tags',
             self::ViewScheduling => 'View shifts, schedules and rosters',
             self::ManageScheduling => 'Manage shifts, schedules and rosters',
             self::ViewCalendar => 'View holidays, suspensions, exemptions and overtime',
@@ -72,7 +72,7 @@ enum Permission: string
             self::ManageTerminals => 'Manage terminals, enrollments and timelogs',
             self::ViewLedgers => 'View workdays and DTRs',
             self::ManageLedgers => 'Lock and unlock DTRs',
-            self::AttestLedgers => 'Sign DTRs as HR',
+            self::AttestLedgers => 'Sign DTRs as timekeeper',
         };
     }
 }

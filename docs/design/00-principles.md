@@ -8,7 +8,7 @@ One rule: **variation between agencies is data, invariants are code.** Onboardin
 |---|---|---|
 | Org shape: departments, divisions, sections, none | `Unit` tree with a `kind` label, `Deployment` for placement | fixed Department and Division tables |
 | Work patterns: 8–5, flexi, CWW, rotation, 24/7, remote day, Ramadan | `Shift` + `Schedule` + `Turn` + `Roster` rows | an arrangement enum with branches in the compute code |
-| Who follows what | one `Roster` per employee; `Group` only to select many at once | schedules attached to groups or units |
+| Who follows what | one `Roster` per employee, grouped by `Team` for a rotation cohort, selected by tag for an ad-hoc bulk action | schedules attached to units or to a tag |
 | Calendar | `Holiday` (national when owned by the platform agency, local otherwise), `Suspension` scoped by unit, `Exemption` per employee | a hardcoded holiday list |
 | Terminals and vendors | `Terminal.protocol` with one driver per protocol, `Timelog` normalised to `(uid, time, state, mode)` | vendor-specific tables or columns |
 | Sensible starting points | rows owned by the platform agency, copied into every new agency at onboarding, `origin_id` keeps the link | seeders per agency |
@@ -19,7 +19,7 @@ One rule: **variation between agencies is data, invariants are code.** Onboardin
 ## Principles
 
 1. **One compute path.** Every arrangement is resolved to a `Shift` snapshot before a workday is computed. The engine compares punches to slots and knows nothing about "compressed" or "rotational". A new arrangement is new rows.
-2. **Effective dates, never overwrite.** `Deployment`, `Roster`, `Enrollment`, `Member` carry `starts` and `ends`. A change is a new range. History stays reconstructible and Postgres exclusion constraints keep ranges from overlapping.
+2. **Effective dates, never overwrite.** `Deployment`, `Roster`, `Enrollment` carry `starts` and `ends`. A change is a new range. History stays reconstructible and Postgres exclusion constraints keep ranges from overlapping.
 3. **Snapshot the expectation, keep the fact raw.** `Workday.shift` json freezes what was expected; `Timelog` is immutable. Editing a shift changes the future only.
 4. **Two scopes only: global and agency.** Ownership stops at the agency. Finer granularity comes from assignment (`Roster`, `Deployment`, `Suspension.unit_id`), not from unit-owned configuration.
 5. **A type column when the shape is the same, a table when it differs.** `Holiday.type`, `Exemption.type`, `Unit.kind` are columns. `Suspension` is its own table because it has a time range and a unit scope that holidays do not.
@@ -43,7 +43,7 @@ Every design change must keep these five agencies onboardable without a code cha
 | Agency | Shape | Needs |
 |---|---|---|
 | A | departments → divisions → employees, 8–5 | defaults only |
-| B | divisions only, staggered 7–4 and 9–6 flexitime | two shifts, two rosters per group |
+| B | divisions only, staggered 7–4 and 9–6 flexitime | two shifts, two roster sets built from a tag filter |
 | C | hospital, three 8-hour shifts rotating weekly, 24/7 | schedule of length 21, three anchors, a slot ending past 24:00, later `night` minutes |
 | D | LGU on a Tuesday–Friday CWW with local holidays | 10-hour shift, CWW schedule with fallback (D2), local `Holiday` rows |
 | E | national agency under OP MC 114 with a remote Friday | schedule whose Friday turn is a `remote` shift (D1) |
