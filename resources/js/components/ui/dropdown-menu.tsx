@@ -27,7 +27,7 @@ function DropdownMenuContent({
                 sideOffset={sideOffset}
                 className={cn(
                     'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 max-h-(--radix-dropdown-menu-content-available-height) origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto',
-                    'bg-popover text-popover-foreground border-border z-50 min-w-[232px] rounded-[10px] border p-1.5 shadow-lift',
+                    'bg-popover text-popover-foreground border-border shadow-lift z-50 min-w-[232px] rounded-[10px] border p-1.5',
                     className,
                 )}
                 {...props}
@@ -55,7 +55,7 @@ function DropdownMenuItem({
             data-inset={inset}
             data-variant={variant}
             className={cn(
-                "focus:bg-row-hover relative flex h-8 cursor-default items-center gap-[9px] rounded-md px-[9px] text-[13px] leading-[18px] font-medium select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive-soft data-[variant=destructive]:*:[svg]:text-destructive! [&_svg:not([class*='text-'])]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+                "focus:bg-row-hover data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive-soft data-[variant=destructive]:*:[svg]:text-destructive! [&_svg:not([class*='text-'])]:text-muted-foreground relative flex h-8 cursor-default items-center gap-[9px] rounded-md px-[9px] text-[13px] leading-[18px] font-medium select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
                 className,
             )}
             {...props}
@@ -117,6 +117,62 @@ function DropdownMenuRadioItem({
     );
 }
 
+/**
+ * The segmented control (§5.10) as a run of menu choices.
+ *
+ * The design puts a three-way segmented control inside the user menu — the
+ * Light / Dark / System appearance switcher — and `toggle-group.tsx` is that
+ * control everywhere else. It cannot be reused here: a Radix menu keeps focus
+ * in its own roving group and swallows Tab, so plain buttons inside the
+ * surface are unreachable by keyboard (2.1.1). These two wrap Radix's radio
+ * group instead, which renders `role="menuitemradio"` and so is driven by the
+ * same arrow keys as every other item — exactly what `01-foundations.html`
+ * marks up — while carrying the segmented control's own geometry.
+ *
+ * Pass `aria-labelledby` pointing at the visible label above the track.
+ */
+function DropdownMenuSegmented({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+    return (
+        <DropdownMenuPrimitive.RadioGroup
+            data-slot="dropdown-menu-segmented"
+            className={cn('border-input bg-background flex h-8 w-full items-center rounded-lg border p-0.5', className)}
+            {...props}
+        />
+    );
+}
+
+function DropdownMenuSegmentedItem({
+    className,
+    children,
+    onSelect,
+    ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+    return (
+        <DropdownMenuPrimitive.RadioItem
+            data-slot="dropdown-menu-segmented-item"
+            // Choosing a segment must not close the menu: the whole point of a
+            // three-way appearance control is trying the other two.
+            onSelect={(event) => {
+                event.preventDefault();
+                onSelect?.(event);
+            }}
+            className={cn(
+                'text-muted-foreground inline-flex h-[26px] flex-1 cursor-default items-center justify-center rounded-md bg-transparent text-xs leading-4 font-medium whitespace-nowrap transition-[color,background-color,border-color] select-none',
+                'hover:text-foreground',
+                // The ring sits inside the segment, the way a field's does: the
+                // track leaves only 2px of padding, so the global +2 offset
+                // would straddle the track's own border.
+                'focus-visible:outline-offset-[-1px]',
+                'data-[state=checked]:bg-acc-soft data-[state=checked]:text-acc-text data-[state=checked]:font-semibold',
+                className,
+            )}
+            {...props}
+        >
+            {children}
+        </DropdownMenuPrimitive.RadioItem>
+    );
+}
+
 function DropdownMenuLabel({
     className,
     inset,
@@ -128,7 +184,10 @@ function DropdownMenuLabel({
         <DropdownMenuPrimitive.Label
             data-slot="dropdown-menu-label"
             data-inset={inset}
-            className={cn('text-muted-foreground px-[9px] pt-2 pb-1.5 text-xs leading-4 font-medium data-[inset]:pl-8', className)}
+            className={cn(
+                'text-muted-foreground px-[9px] pt-2 pb-1.5 text-xs leading-4 font-medium data-[inset]:pl-8',
+                className,
+            )}
             {...props}
         />
     );
@@ -191,7 +250,7 @@ function DropdownMenuSubContent({
             data-slot="dropdown-menu-sub-content"
             className={cn(
                 'data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden',
-                    'bg-popover text-popover-foreground border-border z-50 min-w-[232px] rounded-[10px] border p-1.5 shadow-lift',
+                'bg-popover text-popover-foreground border-border shadow-lift z-50 min-w-[232px] rounded-[10px] border p-1.5',
                 className,
             )}
             {...props}
@@ -210,6 +269,8 @@ export {
     DropdownMenuCheckboxItem,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
+    DropdownMenuSegmented,
+    DropdownMenuSegmentedItem,
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuSub,

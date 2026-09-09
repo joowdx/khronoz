@@ -46,19 +46,24 @@ export function initials(name: string): string {
     return (words.length === 1 ? first.slice(0, 2) : first.slice(0, 1) + last.slice(0, 1)).toUpperCase();
 }
 
+/**
+ * The design draws three avatars — 32, 28 and 24 (§4.3) — each with its own
+ * type size. `md` is the 28px one (`.avatar--28`), which is what a two-line
+ * table row and the sidebar's user menu use; it is the commonest of the three.
+ */
 function Avatar({
     className,
     size = 'default',
     ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Root> & {
-    size?: 'default' | 'sm' | 'lg';
+    size?: 'default' | 'md' | 'sm' | 'lg';
 }) {
     return (
         <AvatarPrimitive.Root
             data-slot="avatar"
             data-size={size}
             className={cn(
-                'group/avatar relative flex size-8 shrink-0 overflow-hidden rounded-full select-none data-[size=lg]:size-10 data-[size=sm]:size-6',
+                'group/avatar relative flex size-8 shrink-0 overflow-hidden rounded-full select-none data-[size=lg]:size-10 data-[size=md]:size-7 data-[size=sm]:size-6',
                 className,
             )}
             {...props}
@@ -85,7 +90,7 @@ function AvatarFallback({
         <AvatarPrimitive.Fallback
             data-slot="avatar-fallback"
             className={cn(
-                'flex size-full items-center justify-center rounded-full text-xs leading-4 font-semibold tracking-[0.01em] group-data-[size=lg]/avatar:text-sm group-data-[size=sm]/avatar:text-[10px] group-data-[size=sm]/avatar:leading-[13px]',
+                'flex size-full items-center justify-center rounded-full text-xs leading-4 font-semibold tracking-[0.01em] group-data-[size=lg]/avatar:text-sm group-data-[size=md]/avatar:text-[11px] group-data-[size=md]/avatar:leading-[14px] group-data-[size=sm]/avatar:text-[10px] group-data-[size=sm]/avatar:leading-[13px]',
                 tintClasses[tint],
                 className,
             )}

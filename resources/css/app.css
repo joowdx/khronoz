@@ -431,3 +431,19 @@
         outline-offset: -1px;
     }
 }
+
+/* The product's motion is confined to the four layers that float — the
+   popover, menu, dialog and sheet open with the shadcn enter animation. When
+   the reader has asked the OS for less motion, they open plainly instead. The
+   design forbids animation on anything else (§1 rule 7), so this is a floor,
+   not a switch: nothing on screen depends on a transition to be legible. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
