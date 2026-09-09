@@ -17,3 +17,8 @@ Font is Plus Jakarta Sans (400-800); titles are 700. Every time, date, count and
 Validation uses components/field.tsx: the label row carries the one-line fault message in an aria-live slot at a fixed height, so an error never shifts the page. Write the message server side (lang/en/validation.php, or a Form Request's messages()/attributes()) — short forms only. A failure that belongs to no field goes under a non-field key (`form`) and renders as an `<Alert>` banner above the fields.
 
 Controls use `transition-[color,background-color,border-color]`, not `transition-colors`: Tailwind's list includes `outline-color`, which makes the focus ring fade in from currentColor.
+
+## Label-row validation: the empty error still needs a line box, and a sentence needs its own key
+`components/field.tsx`'s error paragraph renders `{error || '​'}`. The zero-width space is load-bearing: an empty block has no line box, so the row's `items-baseline` falls back to its bottom margin edge and the label row is ~4px taller *without* a message than with one — the exact shift the layout exists to prevent. Keep it in any hand-rolled label row too (permission-matrix.tsx has one).
+
+A field whose verdict needs a sentence as well (§6.4) gets two server-side keys: the field's own key carries the one-line verdict (`Already taken`), and a second, non-field key carries the sentence a banner under the field renders (`email_conflict` in StoreUserRequest). `form` stays reserved for a failure that belongs to no field and renders above the fields. The banner is an `<Alert role={undefined}>` referenced by the input's `aria-describedby` — never a second `role="alert"` competing with the label row that already announced the verdict.

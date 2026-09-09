@@ -1,6 +1,7 @@
 ---
 paths:
   - 'resources/js/components/**'
+  - resources/js/components/permission-matrix.tsx
 ---
 
 # Components
@@ -17,3 +18,8 @@ Navigation is data, not markup. `app-sidebar.tsx` builds a `NavGroup[]` and `nav
 The user menu (`user-menu.tsx`) owns appearance. Light/Dark/System is the only appearance control in the product and it is wired to `hooks/use-appearance.ts`. Inside a Radix menu the segmented control must be `DropdownMenuSegmented` / `DropdownMenuSegmentedItem` (menuitemradio), not `toggle-group.tsx`: a menu swallows Tab and keeps focus in its own roving group, so plain buttons in the surface are unreachable by keyboard.
 
 `hooks/use-manila-clock.ts` is the one clock. Asia/Manila through `Intl`, assembled from `formatToParts` (no locale prints what the artboards draw), ticking on the minute. A day runs 06:00 to 30:00, so the day strip's date is the open window's date, not the calendar date.
+
+## The matrix is a fourth copy of the permission set, and a locked box is aria-disabled
+`AREAS` writes every area out by hand because a row's label is a sentence ("Units, employees, deployments and groups"), not a name `Permission` holds. That makes the matrix a fourth copy of the permission set alongside the enum, the TS union and `use-can.ts`'s `implied` map — `tests/Unit/PermissionMatrixContractTest.php` parses the file and fails when a case has no row.
+
+A View a Manage implies is checked and **`aria-disabled`, not `disabled`**: a disabled control leaves the tab order, and the lock icon beside the box is the explanation someone arriving by keyboard needs. `ui/checkbox.tsx` carries `aria-disabled:` variants mirroring its `disabled:` ones for exactly this. Only directly-held rights are submitted; the backend grants the implied view through `Permission::implies()`.
