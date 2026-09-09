@@ -67,6 +67,48 @@ interface Pagination {
 const PARTIAL = ['employees', 'pagination', 'filters'];
 
 /**
+ * The declared width for every fixed column. Both the `TableHead`s below and
+ * the table's `min-w` floor (`TABLE_MIN_WIDTH`) read from this one object, so
+ * the floor cannot silently drift out of step with the columns the way a
+ * hand-typed `min-w-[1040px]` did (fix round 2): the floor had been derived
+ * as "798 declared + 242 flexible" as if the table rendered each column at
+ * exactly its declared width. It does not — `table-layout` is `auto`
+ * (the default), so a `TableHead`'s width is only a preference the browser
+ * redistributes under pressure. MEASURED at this floor (1440 in brackets):
+ * Unit 212.6px (259.1), Position 211.3px (250.7), Tags 213px (213) — all
+ * short of 270/260/200 declared. `actions` is declared 68, not the 64 a bare
+ * `w-16` would give it, because table-layout:auto never shrinks it below 68
+ * regardless of what is asked — MEASURED identically at both floors and both
+ * widths on this page and on units/index.tsx, so 68 is what the column
+ * reliably gets, not a rounding artifact.
+ *
+ * One cell still clips at this floor: "Office of the Executive Director" (a
+ * unit name) does not fit the 212.6px Unit column, 4 clipped `<td>`s at 800
+ * against 3 at 1440 (the two-line "Human Resource Management Section" /
+ * "…Officer III" cells clip at both widths). Dropping columns responsively
+ * was rejected in fix round 1 — the overflow is data-dependent — so this is
+ * an accepted cost, not zero as an earlier version of this comment and of
+ * `.ai/rules/pages.md` both claimed.
+ */
+const COLUMNS = {
+    unit: 270,
+    position: 260,
+    tags: 200,
+    actions: 68,
+} as const;
+
+/**
+ * Not a column: what the *flexible* Employee column needs for the longest
+ * real two-line name cell ("Ricardo Salazar Bautista Jr." plus a pill),
+ * measured at 1440. There is no `w-[…]` for Employee — it takes whatever
+ * `COLUMNS` leaves.
+ */
+const FLEX_MIN = 242;
+
+/** A no-op at 1440, where the table wants 1126 regardless. */
+const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
+
+/**
  * Every filter lives in the query string, so the list is a link: a colleague
  * can be sent `/employees?unit=…&tag=night`. Defaults are dropped rather than
  * spelled out, so an unfiltered list is `/employees` and nothing else.
@@ -399,19 +441,17 @@ export default function Index({
                     </CardHeader>
 
                     {/*
-                      The floor the panel's `min-w-min` then inherits. Without
-                      it the panel stops at the table's *min-content*, which is
-                      the maximally squeezed layout: the `max-w-0` truncating
-                      cells collapse to nothing and Unit still reads "Fi…".
-                      MEASURED at 1440, where the whole table wants 1126:
-                      Unit 270 + Position 260 + Tags 200 + Actions 68 = 798
-                      hold their declared widths, and 242 leaves the Employee
-                      cell enough for "Ricardo Salazar Bautista Jr." and a
-                      pill. So 1040 is the narrowest width at which nothing
-                      clips, and it is a no-op at 1440 — verified: the table
-                      measures 1126 with and without it.
+                      The floor the panel's `min-w-min` then inherits, derived
+                      from `COLUMNS` and `FLEX_MIN` above rather than
+                      hand-typed — see that comment for what actually renders
+                      at this floor (table-layout:auto only ever treats a
+                      declared width as a preference) and for the one cell
+                      that still clips. Without a floor at all the panel stops
+                      at the table's *min-content*, which is the maximally
+                      squeezed layout: the `max-w-0` truncating cells collapse
+                      to nothing and Unit still reads "Fi…".
                     */}
-                    <Table className="min-w-[1040px]">
+                    <Table style={{ minWidth: TABLE_MIN_WIDTH }}>
                         <TableCaption className="sr-only mt-0">Employees</TableCaption>
                         {/* Sticky: the head pins at `top: var(--bar-h)`, under the title bar. */}
                         <TableHeader sticky>
@@ -420,10 +460,10 @@ export default function Index({
                                 {/* MEASURED at 1440: "Human Resource Management Section" needs 270 and a
                                     CSC position title needs 260; below either, the column that
                                     tells you where someone works clips first. */}
-                                <TableHead className="w-[270px]">Unit</TableHead>
-                                <TableHead className="w-[260px]">Position</TableHead>
-                                <TableHead className="w-[200px]">Tags</TableHead>
-                                <TableHead className="w-16">
+                                <TableHead style={{ width: COLUMNS.unit }}>Unit</TableHead>
+                                <TableHead style={{ width: COLUMNS.position }}>Position</TableHead>
+                                <TableHead style={{ width: COLUMNS.tags }}>Tags</TableHead>
+                                <TableHead style={{ width: COLUMNS.actions }}>
                                     <span className="sr-only">Actions</span>
                                 </TableHead>
                             </TableRow>

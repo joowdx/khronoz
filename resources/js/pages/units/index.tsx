@@ -52,7 +52,8 @@ interface UnitRow extends Unit {
  * One indent slot: 22px of guide, then the elbow, then the name. Enough to
  * read at a glance, small enough that a five-deep tree still fits the column.
  *
- * Drawn in `--tick` — see `Elbow` for the contrast ruling that settles it.
+ * Drawn in `border-input` (the design's `--edge`) — see `Elbow` for the
+ * contrast ruling that settles it.
  */
 function Guides({ guides }: { guides: boolean[] }) {
     return guides.map((draw, slot) => (
@@ -60,7 +61,7 @@ function Guides({ guides }: { guides: boolean[] }) {
             // Positional by nature: slot 0 is the outermost ancestor.
             key={slot}
             aria-hidden
-            className={cn('h-full w-[22px] shrink-0', draw && 'border-tick border-l')}
+            className={cn('h-full w-[22px] shrink-0', draw && 'border-input border-l')}
         />
     ));
 }
@@ -74,38 +75,82 @@ function Guides({ guides }: { guides: boolean[] }) {
  *
  * The guides are what make a three-level tree read as a tree rather than as
  * indentation, so they are **meaning-bearing** and WCAG 1.4.11 applies: a
- * non-text graphical object needs 3:1 against what it is drawn on. MEASURED
- * against the panel ground each mode paints:
+ * non-text graphical object needs 3:1 against what it is drawn on — and a row
+ * is a state the guides are seen in as much as rest is, since `TableRow`
+ * paints `--row-hover` under the cursor. MEASURED against **both** grounds
+ * the row can paint, in both modes (WCAG 2.x relative luminance):
  *
- * | Token        | Light on `#FFFFFF` | Dark on `#171717` | 1.4.11 |
- * | ------------ | ------------------ | ----------------- | ------ |
- * | `--rule`     | 1.14 : 1           | 1.09 : 1          | fails  |
- * | `--edge-soft`| 1.48 : 1           | 1.42 : 1          | fails  |
- * | `--tick`     | 3.28 : 1           | 3.12 : 1          | passes |
+ * | Token          | Light on `--card` `#FFFFFF` | Light on `--row-hover` `#F5F5F5` | Dark on `--card` `#171717` | Dark on `--row-hover` `#1F1F1F` | 1.4.11 (worst case) |
+ * | -------------- | ---------------------------- | --------------------------------- | ---------------------------- | ---------------------------------- | -------------------- |
+ * | `--rule`       | 1.14 : 1                     | 1.05 : 1                          | 1.20 : 1                     | 1.09 : 1                           | fails                |
+ * | `--edge-soft`  | 1.48 : 1                     | 1.36 : 1                          | 1.57 : 1                     | 1.42 : 1                           | fails                |
+ * | `--tick`       | 3.28 : 1                     | 3.01 : 1                          | 3.12 : 1                     | **2.87 : 1**                       | fails on a hovered row, dark |
+ * | `--edge` (now) | 3.45 : 1                     | 3.17 : 1                          | 3.78 : 1                     | 3.48 : 1                           | **passes everywhere** |
  *
- * So `--tick`, not `--rule` (invisible at one pixel — the tree collapsed to
- * bare indentation) and not `--edge-soft` either, which reads as "non-essential
- * inner divider" and is a third of the way to legible. §11's own `--tick`
- * ruling picked those values precisely because they clear 3:1 "for an axis
- * tick", and §11 check 5 rejected `--acc` on the dark meter trough at 2.89:1
- * "because the bar is a graphical object under 1.4.11" — a tree guide is the
- * same class of object, so the project's own precedent decides it. Not
- * `--border` either, which is the panel's own edge and would make the elbows
- * compete with it.
+ * `--tick` was the previous token here (§11's own ruling: it clears 3:1 "for
+ * an axis tick", and it does — at rest, against `--card`. It was never
+ * measured against `--row-hover`). Against a hovered row in dark mode it
+ * measures 2.87:1 — the *same figure* §11 check 5 rejected `--acc` at on the
+ * dark meter trough, "because the bar is a graphical object under 1.4.11."
+ * The ruling that put the guides on a token in the first place was that they
+ * are meaning-bearing; a hovered row is a state they are seen in, so the
+ * requirement follows them there too, and the binding ground is whichever one
+ * is worse — the hover ground, not the rest one.
+ *
+ * `--edge` clears 3:1 against both grounds in both modes, worst case 3.17:1
+ * (light, hovered). It is exposed as the Tailwind utility `border-input`
+ * (`.ai/rules` and `08-interface.md` §9.4 trap 2: `--input` *is* `--edge`,
+ * the control border, under the shadcn-mapped name) rather than a fresh
+ * `--color-edge` entry — no new token. Not `--rule` (invisible at one pixel —
+ * the tree collapsed to bare indentation), not `--edge-soft` (reads as
+ * "non-essential inner divider" and is a third of the way to legible), and
+ * not `--border` either, which is the panel's own edge and would make the
+ * elbows compete with it.
  */
 function Elbow({ last }: { last: boolean }) {
     return (
         <span
             aria-hidden
             className={cn(
-                'border-tick relative mr-2.5 w-3 shrink-0 border-l',
+                'border-input relative mr-2.5 w-3 shrink-0 border-l',
                 last ? 'h-1/2 self-start' : 'h-full',
             )}
         >
-            <span className={cn('border-tick absolute left-0 w-3 border-t', last ? 'bottom-0' : 'top-1/2')} />
+            <span className={cn('border-input absolute left-0 w-3 border-t', last ? 'bottom-0' : 'top-1/2')} />
         </span>
     );
 }
+
+/**
+ * The declared width for every fixed column. Both the `TableHead`s below and
+ * the table's `min-w` floor (`TABLE_MIN_WIDTH`) read from this one object, so
+ * the floor cannot silently drift out of step with the columns the way a
+ * hand-typed `min-w-[1060px]` did (fix round 2) — see employees/index.tsx's
+ * `COLUMNS` for the fuller derivation note and the table-layout:auto caveat.
+ * Unlike employees/index.tsx, MEASURED here shows Unit/Kind/People holding
+ * their declared widths exactly at both 800 and 1440 — this page's overflow
+ * comes entirely from Head, the flexible column, not from the fixed ones
+ * being squeezed. `actions` is 68 for the same reason it is on
+ * employees/index.tsx: table-layout:auto never renders it narrower than
+ * that, on either page, at any width tried.
+ */
+const COLUMNS = {
+    unit: 480,
+    kind: 150,
+    people: 110,
+    actions: 68,
+} as const;
+
+/**
+ * Not a column: what the *flexible* Head column needs for the longest real
+ * head name in the agency this was measured against ("Maria Luisa Ocampo
+ * Villanueva"), at 1440. There is no `w-[…]` for Head — it takes whatever
+ * `COLUMNS` leaves.
+ */
+const FLEX_MIN = 252;
+
+/** A no-op at 1440, where the table wants 1126 regardless and Head gets 318. */
+const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
 export default function Index({ units, employees }: { units: UnitRow[]; employees: Employee[] }) {
     const can = useCan();
@@ -193,17 +238,12 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                     </CardHeader>
 
                     {/*
-                      The floor the panel's `min-w-min` inherits — see
-                      employees/index.tsx for why min-content alone is not
-                      enough. MEASURED at 1440, where the table wants 1126:
-                      Unit 480 + Kind 150 + People 110 + Actions 68 = 808 hold
-                      their declared widths, and Head — the column that flexes
-                      — needs 252 of the remainder for "Maria Luisa Ocampo
-                      Villanueva" to read unclipped, the longest head name in
-                      the agency this was measured against. 1040 left it 16px
-                      short. A no-op at 1440, where Head gets 318.
+                      The floor the panel's `min-w-min` inherits, derived from
+                      `COLUMNS` and `FLEX_MIN` above rather than hand-typed —
+                      see employees/index.tsx for why min-content alone is not
+                      enough and for the table-layout:auto caveat.
                     */}
-                    <Table className="min-w-[1060px]">
+                    <Table style={{ minWidth: TABLE_MIN_WIDTH }}>
                         <TableCaption className="sr-only mt-0">
                             Units, indented under the unit each one sits in
                         </TableCaption>
@@ -220,13 +260,13 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                               hover tint has somewhere to go.
                             */}
                             <TableRow>
-                                <TableHead className="w-[480px]">Unit</TableHead>
-                                <TableHead className="w-[150px]">Kind</TableHead>
-                                <TableHead className="w-[110px]" numeric>
+                                <TableHead style={{ width: COLUMNS.unit }}>Unit</TableHead>
+                                <TableHead style={{ width: COLUMNS.kind }}>Kind</TableHead>
+                                <TableHead style={{ width: COLUMNS.people }} numeric>
                                     People
                                 </TableHead>
                                 <TableHead>Head</TableHead>
-                                <TableHead className="w-16">
+                                <TableHead style={{ width: COLUMNS.actions }}>
                                     <span className="sr-only">Actions</span>
                                 </TableHead>
                             </TableRow>

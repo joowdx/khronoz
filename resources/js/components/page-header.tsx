@@ -6,13 +6,26 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 /**
  * Every page in the shell renders this first. It draws two things:
  *
- * 1. The **sticky bar**: 56 high, on the canvas, `position: sticky; top: 0` at
- *    z-index 30, always carrying its 1px bottom rule. It holds the sidebar
- *    trigger and the breadcrumb trail, and nothing else. The negative
- *    horizontal margin cancels the content column's own 32 so the bar and its
- *    rule reach both edges, then re-applies the same 32 to its contents.
+ * 1. The **sticky bar**: 56 high, on the canvas, `position: sticky; top: 0;
+ *    left: 0` at z-index 30, always carrying its 1px bottom rule. It holds
+ *    the sidebar trigger and the breadcrumb trail, and nothing else. The
+ *    negative horizontal margin cancels the content column's own 32 so the
+ *    bar and its rule reach both edges, then re-applies the same 32 to its
+ *    contents.
  * 2. The **heading row** in the content: the page title with its description
  *    on the left, the page's one primary action on the right.
+ *
+ * **`left-0` is load-bearing, not decorative.** `position: sticky` only pins
+ * the axes it is given an offset for — an index panel wide enough to scroll
+ * `#main-content` sideways (pages/employees/index.tsx, pages/units/index.tsx)
+ * moves this element's static-position box left along with everything else,
+ * and `top: 0` alone re-pins it only vertically. MEASURED before `left-0`
+ * existed, scrolled fully right: 1440/1366 no-op (nothing scrolls there),
+ * 1280 left a 42px strip of the bar uncovered, 800 left half the bar gone
+ * (rect left −274 / right 278), and 500 put the bar entirely off-screen
+ * (rect left −574 / right −74) with a table row painting through where it
+ * used to be. `left: 0` re-pins the other axis, and the bar now covers the
+ * full viewport width at every size, scrolled or not.
  *
  * The title and the action are deliberately *not* in the bar (owner,
  * 2026-09-09, following the sibling project `paayo`, whose bar carries the
@@ -55,7 +68,7 @@ export function PageHeader({
 }) {
     return (
         <>
-            <header className="bg-background border-b-border sticky top-0 z-30 -mx-8 flex h-14 items-center gap-2 border-b px-8">
+            <header className="bg-background border-b-border sticky top-0 left-0 z-30 -mx-8 flex h-14 items-center gap-2 border-b px-8">
                 <SidebarTrigger className="-ml-1 size-8" />
                 {/* The trail is the bar's whole job: it says where you are and
                     gives the way back. It never renders empty, because the

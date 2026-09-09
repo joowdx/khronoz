@@ -326,6 +326,11 @@ class UnitControllerTest extends TestCase
      * from a stale index page or by URL, so the refusal is translated into a
      * flash error rather than a 500. There is no field to hang it on.
      *
+     * The wording itself is pinned below (fix round 2): it is the only one of
+     * the five refusal messages that names the obstacle to the user, so a
+     * reword, truncation or emptying of it is the one most worth catching —
+     * `assertSessionHas('error')` alone would still pass for any of those.
+     *
      * @return array<string, array{0: string}>
      */
     public static function undeletableUnitCases(): array
@@ -355,7 +360,7 @@ class UnitControllerTest extends TestCase
 
         $this->delete(route('units.destroy', $unit))
             ->assertRedirect(route('units.index'))
-            ->assertSessionHas('error')
+            ->assertSessionHas('error', "{$unit->name} cannot be removed while a unit sits under it or anyone has ever been deployed to it.")
             ->assertSessionMissing('success');
 
         $this->assertModelExists($unit);

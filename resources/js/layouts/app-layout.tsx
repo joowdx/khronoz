@@ -17,6 +17,26 @@ import type { BreadcrumbItem as Crumb, SharedProps } from '@/types';
  * the bar cannot see its own scroll offset, and the rule appearing on scroll
  * is what tells the reader the bar is floating over content.
  *
+ * **The page's horizontal padding (`px-8 pb-12`) lives on `#main-content`
+ * itself, not on a wrapper `<div>` around `{children}`.** It used to be the
+ * wrapper's (fix round 2: this is what made `PageHeader`'s `sticky left-0`
+ * a no-op). A `position: sticky; left: 0` element only re-pins against its
+ * nearest ancestor that IS the scroll container — nest it inside even one
+ * plain `<div>` between it and `#main-content`, and the browser never
+ * applies the horizontal correction at all, no matter the div's own width:
+ * MEASURED (reproduced in an isolated static page with no app CSS at all)
+ * that a sticky-left element inside such a wrapper travels the *entire*
+ * scroll distance, as if `left` were never set, while the identical element
+ * one level up — a direct child of the scrolling element — pins correctly.
+ * Vertical (`top`) stickiness does not have this problem, which is why it
+ * went unnoticed until the shell started scrolling sideways (I7, fix round
+ * 1). `<header>` (`page-header.tsx`) must stay a direct child of this div,
+ * and this div is therefore what carries the padding a wrapper used to.
+ * Trailing padding (`pb-12`, and `px-8` on the far side of a horizontal
+ * scroll) is still honoured correctly by the browser on the scrolling
+ * element itself — verified in the same isolated page — so nothing here
+ * trades one defect for another.
+ *
  * Overlays are not parented here: Radix portals every menu, sheet and dialog
  * out of the scroller, which is the only reason they do not scroll away from
  * their triggers (§9.4 trap 5). Do not disable that.
@@ -70,9 +90,12 @@ export default function AppLayout({
 
                         setStuck((previous) => (previous === next ? previous : next));
                     }}
-                    className="group/scroll relative min-h-0 flex-1 overflow-auto"
+                    // The padding belongs here, not on a wrapper around
+                    // {children} — see the docblock above: a sticky-left
+                    // PageHeader nested one div deeper never re-pins at all.
+                    className="group/scroll relative min-h-0 flex-1 overflow-auto px-8 pb-12"
                 >
-                    <div className="px-8 pb-12">{children}</div>
+                    {children}
                 </div>
                 <Toaster position="bottom-right" />
             </SidebarInset>
