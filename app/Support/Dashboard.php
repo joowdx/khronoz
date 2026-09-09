@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
@@ -15,19 +16,11 @@ class Dashboard
     /**
      * Determine whether the given user may view the operational dashboards.
      *
-     * TODO: replace the allow list with the platform-agency check from
-     * docs/design/02-access.md rule 3 once `Agency` and `User.role` exist.
+     * Anyone may look locally; outside local, only a superuser of the
+     * platform agency may (docs/design/02-access.md rule 3).
      */
     public static function allows(?Authenticatable $user): bool
     {
-        if (app()->environment('local')) {
-            return true;
-        }
-
-        return $user !== null && in_array(
-            $user->email,
-            config('dashboard.emails'),
-            strict: true,
-        );
+        return app()->environment('local') || ($user instanceof User && $user->isPlatform());
     }
 }

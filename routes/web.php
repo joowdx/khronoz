@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
 use App\Http\Controllers\UserController;
@@ -7,26 +8,12 @@ use App\Http\Controllers\UserInviteController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', fn () => Inertia::render('welcome', [
-    'packages' => [
-        'inertiajs/inertia-laravel',
-        'laravel/head',
-        'laravel/horizon',
-        'laravel/octane',
-        'laravel/passport',
-        'laravel/sanctum',
-        'laravel/scout',
-        'laravel/socialite',
-        'laravel/telescope',
-    ],
-]))->name('home')
+Route::get('/', fn () => Inertia::render('welcome'))->name('home')
     ->withHead(title: 'Welcome')
     ->metadata(['ssr' => true]);
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Placeholder until Task 10 builds the real dashboard; proves SetTenant
-    // and the shared agency/agencies props end to end for every signed-in user.
-    Route::get('dashboard', fn () => Inertia::render('dashboard'))->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     // Any authenticated user holding users.manage may invite and manage the
     // colleagues of their own tenant; UserPolicy enforces that permission per

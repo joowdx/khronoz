@@ -1,23 +1,17 @@
-interface WelcomeProps {
-    packages: string[];
-}
+import { Link } from '@inertiajs/react';
+import { Button } from '@/components/ui/button';
+import { login } from '@/routes';
 
-export default function Welcome({ packages }: WelcomeProps) {
+export default function Welcome() {
     return (
-        <main className="mx-auto max-w-2xl px-6 py-16">
+        <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-16">
             <h1 className="text-2xl font-semibold tracking-tight">khronoz</h1>
-            <p className="mt-2 text-sm text-neutral-500">
-                Inertia + React is wired up. This page is a real Inertia response, resolved from{' '}
-                <code>resources/js/pages</code>.
+            <p className="text-muted-foreground mt-2 text-sm">
+                Scheduling and Daily Time Record for Philippine government HR offices.
             </p>
-
-            <ul className="mt-8 grid gap-1 text-sm">
-                {packages.map((name) => (
-                    <li key={name} className="font-mono text-neutral-600">
-                        {name}
-                    </li>
-                ))}
-            </ul>
+            <Button asChild className="mt-8 w-fit">
+                <Link href={login()}>Sign in</Link>
+            </Button>
         </main>
     );
 }

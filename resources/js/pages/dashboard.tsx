@@ -1,20 +1,43 @@
-import { usePage } from '@inertiajs/react';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Link, usePage } from '@inertiajs/react';
+import { PageHeader } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { index as agenciesIndex } from '@/routes/platform/agencies';
 import type { SharedProps } from '@/types';
 
-// Placeholder: proves SetTenant and the shared `agency` prop render end to
-// end for a signed-in user. Task 10 replaces this with the real dashboard.
-export default function Dashboard() {
+interface DashboardCounts {
+    users: number;
+    agencies?: number;
+}
+
+export default function Dashboard({ counts }: { counts: DashboardCounts }) {
     const { agency } = usePage<SharedProps>().props;
+
+    const manageAgencies = agency?.platform && (
+        <Button asChild variant="outline">
+            <Link href={agenciesIndex()}>Manage agencies</Link>
+        </Button>
+    );
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Dashboard' }]}>
+            <PageHeader title="Dashboard" description={agency?.name} actions={manageAgencies} />
             <Card>
-                <CardHeader>
-                    <CardTitle>Dashboard</CardTitle>
-                    <CardDescription>Signed in to {agency?.name ?? 'the platform'}.</CardDescription>
-                </CardHeader>
+                <CardContent>
+                    <dl className="divide-border divide-y text-sm">
+                        <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                            <dt className="text-muted-foreground">Users</dt>
+                            <dd className="font-medium tabular-nums">{counts.users}</dd>
+                        </div>
+                        {typeof counts.agencies === 'number' && (
+                            <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                                <dt className="text-muted-foreground">Agencies</dt>
+                                <dd className="font-medium tabular-nums">{counts.agencies}</dd>
+                            </div>
+                        )}
+                    </dl>
+                </CardContent>
             </Card>
         </AppLayout>
     );
