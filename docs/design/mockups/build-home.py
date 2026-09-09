@@ -420,8 +420,8 @@ def page():
           arrived and is certified by the employee, then verified by the supervisor. A wrong
           timelog is voided with a reason, never deleted.</p>
         <ul class="facts">
-          <li>Two pairs a day when an agency punches breaks: slot <b>1</b> prints in the
-            AM columns and slot <b>2</b> in the PM, whatever the clock says.</li>
+          <li>Every punch prints in the column its own clock time falls in, so a
+            <b>22:00</b> arrival is a PM arrival and its <b>06:00</b> out lands the next morning.</li>
           <li>A month cannot lock while an out is still pending, so a night shift on the
             <b>30</b>th holds September open until its 06:00 arrives.</li>
         </ul>

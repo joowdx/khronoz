@@ -249,6 +249,7 @@ UNIQUE (agency_id, name)
 FOREIGN KEY (origin_id) REFERENCES shifts (id) ON DELETE SET NULL      -- trigger origin_is_platform: the origin's agency must be the platform row
 CHECK (required >= 0)
 CHECK (flex >= 0)
+CHECK (color BETWEEN 1 AND 8)                                       -- roster grid ramp index, stored not derived (04-scheduling.md rule 8)
 CHECK (slots_valid(slots))                                          -- shape, order, past-24 cap; function below
 CHECK (NOT remote OR jsonb_array_length(slots) = 0)                 -- a remote shift has no slots
 CHECK (jsonb_array_length(slots) > 0 OR remote OR required = 0)     -- Off credits nothing
@@ -326,7 +327,7 @@ FOREIGN KEY (user_id) REFERENCES users (id)
 UNIQUE (id, employee_id)                                          -- target for the workday FK
 CHECK ((starts IS NULL) = (ends IS NULL))
 CHECK (starts IS NULL OR ends > starts)
-CHECK (type IN ('leave', 'business', 'travel', 'cto', 'pass', 'emergency'))
+CHECK (type IN ('leave', 'business', 'travel', 'cto', 'pass', 'personal', 'emergency'))   -- personal is recorded and printed but excuses nothing (README decision 19)
 ```
 
 ### overtimes
