@@ -122,6 +122,13 @@ class UserControllerTest extends TestCase
             ->assertSessionHasErrors('email');
     }
 
+    /**
+     * The middleware-order tripwire: User::resolveRouteBindingQuery's
+     * agency_id filter is only observable when it must exclude a row, so a
+     * cross-tenant lookup is the only shape that can detect SetTenant
+     * running after SubstituteBindings — a same-tenant lookup would resolve
+     * to the same row whether or not the filter is even applied.
+     */
     public function test_editing_a_user_of_another_agency_is_not_found(): void
     {
         $stranger = User::factory()->create();
@@ -130,7 +137,16 @@ class UserControllerTest extends TestCase
             ->get(route('users.edit', $stranger))->assertNotFound();
     }
 
-    /** Guards the middleware order: a binding resolved before SetTenant would 404 here. */
+    /**
+     * Proves a legitimate ManageUsers holder can reach a colleague's edit
+     * page, so this catches a broken authorization check or an unregistered
+     * UserPolicy wrongly denying them (200 flipping to 403). It does not
+     * guard the SetTenant/SubstituteBindings ordering: an unfiltered
+     * {user} binding still resolves this same-tenant colleague to the same
+     * row, so that regression would slip past here too — see
+     * test_editing_a_user_of_another_agency_is_not_found for the test that
+     * actually catches it.
+     */
     public function test_editing_a_colleague_renders(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -155,6 +171,16 @@ class UserControllerTest extends TestCase
         $this->assertEqualsCanonicalizing(['organization.manage'], $colleague->permissions->map->value->all());
     }
 
+    /** Same cross-tenant binding protection as the edit route, exercised through update instead. */
+    public function test_updating_a_user_of_another_agency_is_not_found(): void
+    {
+        $stranger = User::factory()->create();
+
+        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+            ->put(route('users.update', $stranger), ['name' => 'Someone Else', 'permissions' => []])
+            ->assertNotFound();
+    }
+
     public function test_admins_cannot_remove_themselves(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -171,6 +197,20 @@ class UserControllerTest extends TestCase
             ->assertRedirect(route('users.index'))->assertSessionHas('success');
 
         $this->assertModelMissing($colleague);
+    }
+
+    /**
+     * Same cross-tenant binding protection as the edit route, exercised
+     * through destroy instead. $stranger belongs to another agency, so
+     * this is the binding's 404, not UserPolicy::delete's separate 403 for
+     * removing oneself (see test_admins_cannot_remove_themselves).
+     */
+    public function test_destroying_a_user_of_another_agency_is_not_found(): void
+    {
+        $stranger = User::factory()->create();
+
+        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+            ->delete(route('users.destroy', $stranger))->assertNotFound();
     }
 
     public function test_resend_invite_notifies_the_user_again(): void
@@ -195,5 +235,14 @@ class UserControllerTest extends TestCase
             ->assertRedirect()->assertSessionHas('error');
 
         Notification::assertNothingSent();
+    }
+
+    /** Same cross-tenant binding protection as the edit route, exercised through invite instead. */
+    public function test_inviting_a_user_of_another_agency_is_not_found(): void
+    {
+        $stranger = User::factory()->create();
+
+        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+            ->post(route('users.invite', $stranger))->assertNotFound();
     }
 }
