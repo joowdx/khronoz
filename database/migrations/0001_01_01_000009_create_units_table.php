@@ -68,11 +68,13 @@ return new class extends Migration
         // trigger would be dead code that a self-parent test appears to cover
         // while really exercising units_parent_not_self above.
         //
-        // INSERT is listed anyway: it costs one CTE that returns nothing for a
-        // new id, and it closes the hole an explicitly-supplied id would open.
+        // INSERT is listed anyway: a single-row INSERT is safe (above), but a
+        // multi-row INSERT can close a cycle within one statement, and only
+        // an end-of-statement constraint trigger can see every row it produced.
         DB::unprepared(<<<'SQL'
-            CREATE TRIGGER units_acyclic
-                BEFORE INSERT OR UPDATE OF parent_id ON units
+            CREATE CONSTRAINT TRIGGER units_acyclic
+                AFTER INSERT OR UPDATE OF parent_id ON units
+                DEFERRABLE INITIALLY IMMEDIATE
                 FOR EACH ROW EXECUTE FUNCTION units_acyclic();
 
             CREATE TRIGGER agency_not_platform

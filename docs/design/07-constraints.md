@@ -63,9 +63,12 @@ FOREIGN KEY (parent_id, agency_id) REFERENCES units (id, agency_id)
 FOREIGN KEY (head_id, agency_id)   REFERENCES employees (id, agency_id)
 UNIQUE (agency_id, code)
 CHECK (parent_id IS DISTINCT FROM id)
--- trigger units_acyclic, BEFORE INSERT OR UPDATE OF parent_id: walk NEW.parent_id upward with a
---   recursive CTE; raise if NEW.id is reached. Without UPDATE the trigger is unreachable: a cycle
---   is made by repointing an existing row, not by inserting a leaf.
+-- constraint trigger units_acyclic, AFTER INSERT OR UPDATE OF parent_id, DEFERRABLE INITIALLY
+--   IMMEDIATE: walk NEW.parent_id upward with a recursive CTE; raise if NEW.id is reached. AFTER
+--   and deferrable, not BEFORE, because a BEFORE ... FOR EACH ROW trigger fires before its own row
+--   exists and can't see other rows from the same statement, letting a multi-row INSERT close a
+--   cycle undetected. UPDATE OF parent_id covers the other reachable violation, repointing an
+--   existing row; a single-row INSERT can't close a cycle on its own.
 ```
 
 ### employees
