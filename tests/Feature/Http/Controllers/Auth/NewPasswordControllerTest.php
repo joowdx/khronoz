@@ -32,7 +32,7 @@ class NewPasswordControllerTest extends TestCase
             'email' => $user->email,
             'password' => 'a-new-password',
             'password_confirmation' => 'a-new-password',
-        ])->assertRedirect(route('login'))->assertSessionHas('status', 'Your password has been reset.');
+        ])->assertRedirect(route('login'))->assertSessionHas('status', 'Your password is set. Sign in with it.');
 
         $this->assertTrue(Hash::check('a-new-password', $user->fresh()->password));
     }
@@ -47,7 +47,7 @@ class NewPasswordControllerTest extends TestCase
             'email' => $user->email,
             'password' => 'a-new-password',
             'password_confirmation' => 'a-new-password',
-        ])->assertSessionHasErrors(['email' => 'This password reset token is invalid.']);
+        ])->assertSessionHasErrors(['email' => 'That reset link has expired. Ask for a new one.']);
 
         $this->assertSame($originalPassword, $user->fresh()->password);
     }

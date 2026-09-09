@@ -3,29 +3,40 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { Slot } from 'radix-ui';
 
+/**
+ * Buttons carry no shadow — the design's only shadow belongs to the four
+ * layers that float. Focus comes from the one ring in app.css's base layer.
+ *
+ * | variant     | design         | reads as                                  |
+ * | ----------- | -------------- | ----------------------------------------- |
+ * | default     | .btn--primary  | accent fill, white text, 600              |
+ * | outline     | .btn           | white fill, --input border, ink text, 500 |
+ * | secondary   | .btn (filled)  | neutral fill, no border                   |
+ * | ghost       | .btn--ghost    | no fill, no border                        |
+ * | destructive | .btn--fault    | fault text, fault-soft on hover           |
+ * | link        | .lnk           | accent text, underline on hover           |
+ */
 const buttonVariants = cva(
-    "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    "inline-flex shrink-0 items-center justify-center gap-[7px] rounded-lg text-[13px] leading-[18px] font-medium whitespace-nowrap transition-[color,background-color,border-color] disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     {
         variants: {
             variant: {
-                default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+                default:
+                    'bg-primary border border-primary text-primary-foreground font-semibold hover:bg-primary-hover hover:border-primary-hover active:bg-primary-hover',
+                outline: 'bg-background border-input text-foreground border hover:bg-row-hover active:bg-side-hover',
+                secondary: 'bg-secondary text-secondary-foreground border border-transparent hover:bg-side-hover',
+                ghost: 'border border-transparent bg-transparent hover:bg-row-hover active:bg-side-hover',
                 destructive:
-                    'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40',
-                outline:
-                    'border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
-                secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-                ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-                link: 'text-primary underline-offset-4 hover:underline',
+                    'text-destructive hover:bg-destructive-soft active:bg-destructive-soft border border-transparent bg-transparent',
+                link: 'text-acc-text h-auto p-0 font-medium underline-offset-2 hover:underline',
             },
             size: {
-                default: 'h-9 px-4 py-2 has-[>svg]:px-3',
-                xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-                sm: 'h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5',
-                lg: 'h-10 rounded-md px-6 has-[>svg]:px-4',
-                icon: 'size-9',
-                'icon-xs': "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-                'icon-sm': 'size-8',
-                'icon-lg': 'size-10',
+                sm: 'h-8 px-3',
+                default: 'h-9 px-3.5',
+                lg: 'h-11 px-4 text-sm leading-5',
+                icon: 'size-9 p-0',
+                'icon-sm': 'size-8 p-0',
+                'icon-lg': 'size-11 p-0',
             },
         },
         defaultVariants: {

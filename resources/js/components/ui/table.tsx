@@ -1,29 +1,50 @@
-'use client';
-
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { ChevronUpIcon } from 'lucide-react';
 
+/**
+ * Rules, not boxes: a 36px head separated by --border, 44px rows separated by
+ * the softer --rule, and no shadow or outer frame. The head's background sits
+ * on each `th` rather than on the `thead`, because a sticky `thead` paints
+ * nothing — only its cells do — and rows would show through as they scroll
+ * underneath.
+ */
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
     return (
         <div data-slot="table-container" className="relative w-full overflow-x-auto">
-            <table data-slot="table" className={cn('w-full caption-bottom text-sm', className)} {...props} />
+            <table
+                data-slot="table"
+                className={cn('w-full border-separate border-spacing-0 text-sm', className)}
+                {...props}
+            />
         </div>
     );
 }
 
-function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
-    return <thead data-slot="table-header" className={cn('[&_tr]:border-b', className)} {...props} />;
+/**
+ * `sticky` pins the head under the app bar. It is opt-in because it only
+ * works inside the shell's own scroller — on a page that scrolls in the
+ * window it would pin the head to the viewport instead.
+ */
+function TableHeader({ className, sticky = false, ...props }: React.ComponentProps<'thead'> & { sticky?: boolean }) {
+    return (
+        <thead
+            data-slot="table-header"
+            className={cn(sticky && '[&_th]:sticky [&_th]:top-[var(--bar-h)] [&_th]:z-10', className)}
+            {...props}
+        />
+    );
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
-    return <tbody data-slot="table-body" className={cn('[&_tr:last-child]:border-0', className)} {...props} />;
+    return <tbody data-slot="table-body" className={cn('[&_tr:last-child_td]:border-b-0', className)} {...props} />;
 }
 
 function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
     return (
         <tfoot
             data-slot="table-footer"
-            className={cn('bg-muted/50 border-t font-medium [&>tr]:last:border-b-0', className)}
+            className={cn('[&_td]:border-border [&_td]:border-t [&_td]:font-medium', className)}
             {...props}
         />
     );
@@ -34,7 +55,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
         <tr
             data-slot="table-row"
             className={cn(
-                'hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors',
+                'hover:[&>td]:bg-row-hover aria-selected:[&>td]:bg-acc-tint data-[state=selected]:[&>td]:bg-acc-tint',
                 className,
             )}
             {...props}
@@ -42,12 +63,15 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     );
 }
 
-function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
+/** `numeric` right-aligns the column and swaps the caret to the label's left. */
+function TableHead({ className, numeric = false, ...props }: React.ComponentProps<'th'> & { numeric?: boolean }) {
     return (
         <th
             data-slot="table-head"
+            data-numeric={numeric ? '' : undefined}
             className={cn(
-                'text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+                'bg-background text-muted-foreground border-border h-9 border-b px-3 text-left align-middle text-xs leading-4 font-semibold whitespace-nowrap first:pl-6 last:pr-6',
+                numeric && 'text-right tabular-nums',
                 className,
             )}
             {...props}
@@ -55,12 +79,43 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     );
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
+/**
+ * The sortable head is a real <button> inside the <th>, so it is reachable and
+ * operable from the keyboard (2.1.1) and announces its own name; the sort
+ * direction belongs to the column, so `aria-sort` goes on the <th> (4.1.2).
+ * The caret only appears on hover or once the column is the sorted one, and at
+ * 12px it never competes with the label.
+ */
+function TableSortButton({ className, children, ...props }: React.ComponentProps<'button'>) {
+    return (
+        <button
+            type="button"
+            data-slot="table-sort-button"
+            className={cn(
+                'inline-flex h-9 items-center gap-1.5 border-0 bg-transparent p-0 text-xs leading-4 font-semibold text-inherit',
+                'hover:text-foreground',
+                '[[aria-sort]_&]:text-foreground',
+                '[[data-numeric]_&]:flex-row-reverse',
+                '[&>svg]:text-edge-soft [&>svg]:size-3 [&>svg]:shrink-0 [&>svg]:opacity-0 hover:[&>svg]:opacity-100',
+                '[[aria-sort]_&>svg]:text-acc-text [[aria-sort]_&>svg]:opacity-100',
+                '[[aria-sort=descending]_&>svg]:rotate-180',
+                className,
+            )}
+            {...props}
+        >
+            {children}
+            <ChevronUpIcon aria-hidden="true" />
+        </button>
+    );
+}
+
+function TableCell({ className, numeric = false, ...props }: React.ComponentProps<'td'> & { numeric?: boolean }) {
     return (
         <td
             data-slot="table-cell"
             className={cn(
-                'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+                'border-rule h-11 border-b px-3 align-middle whitespace-nowrap first:pl-6 last:pr-6',
+                numeric && 'text-right tabular-nums',
                 className,
             )}
             {...props}
@@ -70,8 +125,8 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
 
 function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
     return (
-        <caption data-slot="table-caption" className={cn('text-muted-foreground mt-4 text-sm', className)} {...props} />
+        <caption data-slot="table-caption" className={cn('text-muted-foreground mt-4 text-xs', className)} {...props} />
     );
 }
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+export { Table, TableHeader, TableBody, TableFooter, TableHead, TableSortButton, TableRow, TableCell, TableCaption };

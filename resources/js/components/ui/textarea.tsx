@@ -1,12 +1,16 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+/** The Input geometry, grown to a block: same border, radius, ring and states. */
 function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
     return (
         <textarea
             data-slot="textarea"
             className={cn(
-                'border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:ring-destructive/40 flex field-sizing-content min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+                'border-input bg-background text-foreground placeholder:text-muted-foreground field-sizing-content flex min-h-20 w-full rounded-lg border px-3 py-2 text-sm leading-5 transition-[color,background-color,border-color]',
+                'hover:border-foreground focus-visible:hover:border-ring',
+                'aria-invalid:border-destructive aria-invalid:hover:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:outline-destructive',
+                'disabled:bg-rule disabled:text-muted-foreground disabled:border-edge-soft disabled:cursor-not-allowed',
                 className,
             )}
             {...props}

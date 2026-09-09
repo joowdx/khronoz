@@ -4,13 +4,13 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 
 /**
  * Read the `--primary` token instead of hardcoding the light palette's hex
- * value, so the progress bar tracks whichever theme is active rather than
- * always painting the light-mode colour. getPropertyValue never throws, but
+ * value, so the progress bar tracks whichever accent and mode are active
+ * rather than always painting one of them. getPropertyValue never throws, but
  * can come back empty — before the stylesheet has loaded, or with no
- * `document` at all — so fall back to that same light-mode literal.
+ * `document` at all — so fall back to the shipped default, violet at light.
  */
 function progressColor(): string {
-    const fallback = '#0b6b5d';
+    const fallback = '#6d28d9';
 
     if (typeof document === 'undefined') {
         return fallback;

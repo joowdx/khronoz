@@ -3,18 +3,22 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { Toggle as TogglePrimitive } from 'radix-ui';
 
+/**
+ * A standalone two-state control. The segmented control is a different thing
+ * with its own geometry — see components/ui/toggle-group.
+ */
 const toggleVariants = cva(
-    "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none hover:bg-muted hover:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    "inline-flex items-center justify-center gap-[7px] rounded-lg text-[13px] leading-[18px] font-medium whitespace-nowrap transition-[color,background-color,border-color] disabled:pointer-events-none disabled:opacity-45 data-[state=on]:bg-acc-soft data-[state=on]:text-acc-text data-[state=on]:font-semibold [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     {
         variants: {
             variant: {
-                default: 'bg-transparent',
-                outline: 'border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground',
+                default: 'bg-transparent hover:bg-row-hover',
+                outline: 'border-input bg-background border hover:bg-row-hover',
             },
             size: {
-                default: 'h-9 min-w-9 px-2',
-                sm: 'h-8 min-w-8 px-1.5',
-                lg: 'h-10 min-w-10 px-2.5',
+                sm: 'h-8 min-w-8 px-2',
+                default: 'h-9 min-w-9 px-2.5',
+                lg: 'h-11 min-w-11 px-3',
             },
         },
         defaultVariants: {

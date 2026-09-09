@@ -38,7 +38,7 @@ class AgencyControllerTest extends TestCase
 
         $this->actingAs(User::factory()->platform()->create())
             ->post(route('platform.agencies.store'), ['code' => 'doh', 'name' => 'Dup'])
-            ->assertSessionHasErrors(['code' => 'The code has already been taken.']);
+            ->assertSessionHasErrors(['code' => 'Already taken']);
     }
 
     public function test_edit_renders_the_agency_being_edited(): void

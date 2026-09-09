@@ -35,13 +35,21 @@ class LoginRequest extends FormRequest
      * The message never distinguishes a wrong password from an unknown
      * email (`__('auth.failed')` both times), so a login attempt cannot be
      * used to discover which emails have an account.
+     *
+     * Both failures below are reported under `form`, not `email`. Neither
+     * belongs to a field: rules() has already established that the email is
+     * present and well formed, so marking that input invalid would be a lie,
+     * and the design renders a failure that belongs to no field as the banner
+     * above the fields with no control's border changed. Keeping the key off
+     * every field name is what lets the login page tell the two apart —
+     * `errors.email` stays genuinely field-level.
      */
     public function authenticate(): void
     {
         $credentials = $this->only('email', 'password');
 
         if (! Auth::attempt($credentials, $this->boolean('remember'))) {
-            throw ValidationException::withMessages(['email' => __('auth.failed')]);
+            throw ValidationException::withMessages(['form' => __('auth.failed')]);
         }
 
         // InviteUser gives an invited user an unguessable random password, so
@@ -53,7 +61,7 @@ class LoginRequest extends FormRequest
         if (Auth::user()->invited_at !== null && Auth::user()->email_verified_at === null) {
             Auth::logout();
 
-            throw ValidationException::withMessages(['email' => 'This invitation has not been accepted yet. Use the link in your email.']);
+            throw ValidationException::withMessages(['form' => __('auth.invited')]);
         }
     }
 }

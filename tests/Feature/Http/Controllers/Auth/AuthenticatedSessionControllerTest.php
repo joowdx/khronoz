@@ -28,7 +28,7 @@ class AuthenticatedSessionControllerTest extends TestCase
 
         $this->from(route('login'))->post(route('login'), ['email' => $user->email, 'password' => 'nope'])
             ->assertRedirect(route('login'))
-            ->assertSessionHasErrors(['email' => 'These credentials do not match our records.']);
+            ->assertSessionHasErrors(['form' => 'That email and password do not match. Check both and try again, or reset your password.']);
         $this->assertGuest();
     }
 
@@ -43,7 +43,7 @@ class AuthenticatedSessionControllerTest extends TestCase
     {
         $this->from(route('login'))->post(route('login'), ['email' => 'nobody@agency.gov.ph', 'password' => 'nope'])
             ->assertRedirect(route('login'))
-            ->assertSessionHasErrors(['email' => 'These credentials do not match our records.']);
+            ->assertSessionHasErrors(['form' => 'That email and password do not match. Check both and try again, or reset your password.']);
         $this->assertGuest();
     }
 
@@ -52,7 +52,7 @@ class AuthenticatedSessionControllerTest extends TestCase
         $user = User::factory()->invited()->create();
 
         $this->post(route('login'), ['email' => $user->email, 'password' => 'password'])
-            ->assertSessionHasErrors('email');
+            ->assertSessionHasErrors(['form' => 'This invitation has not been accepted yet. Use the link in your email, or ask your HR office to send it again.']);
         $this->assertGuest();
     }
 

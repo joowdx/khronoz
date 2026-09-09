@@ -19,8 +19,8 @@ export default defineConfig({
             ssr: 'resources/js/ssr.tsx',
             refresh: true,
             fonts: [
-                bunny('Public Sans', {
-                    weights: [400, 500, 600, 700],
+                bunny('Plus Jakarta Sans', {
+                    weights: [400, 500, 600, 700, 800],
                 }),
             ],
         }),

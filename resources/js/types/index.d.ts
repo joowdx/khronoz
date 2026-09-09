@@ -62,3 +62,6 @@ export interface BreadcrumbItem {
     title: string;
     href?: string;
 }
+
+/** The three colour-mode choices. `system` follows the OS and keeps following it. */
+export type Appearance = 'light' | 'dark' | 'system';

@@ -1,14 +1,20 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+/**
+ * The design's panel: a 12px-radius border on the sheet surface, and no
+ * shadow — hierarchy comes from type and rules, not from lift. A panel groups
+ * things that belong together; it is not the default wrapper for a page's
+ * content, and a page of them reads as a form kit rather than a product.
+ *
+ * Padding belongs to the parts (header, content, footer), not to the frame,
+ * so a panel can hold a table that runs edge to edge.
+ */
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
     return (
         <div
             data-slot="card"
-            className={cn(
-                'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
-                className,
-            )}
+            className={cn('bg-card text-card-foreground border-border flex flex-col rounded-xl border', className)}
             {...props}
         />
     );
@@ -19,7 +25,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
         <div
             data-slot="card-header"
             className={cn(
-                '@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6',
+                'border-border @container/card-header flex min-h-[52px] items-center gap-3 border-b px-6 py-3 has-data-[slot=card-action]:justify-between',
                 className,
             )}
             {...props}
@@ -28,30 +34,37 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
 }
 
 function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
-    return <div data-slot="card-title" className={cn('leading-none font-semibold', className)} {...props} />;
+    return <div data-slot="card-title" className={cn('text-sm leading-5 font-semibold', className)} {...props} />;
 }
 
 function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
-    return <div data-slot="card-description" className={cn('text-muted-foreground text-sm', className)} {...props} />;
-}
-
-function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
     return (
         <div
-            data-slot="card-action"
-            className={cn('col-start-2 row-span-2 row-start-1 self-start justify-self-end', className)}
+            data-slot="card-description"
+            className={cn('text-muted-foreground text-xs leading-4', className)}
             {...props}
         />
     );
 }
 
+function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
+    return <div data-slot="card-action" className={cn('ml-auto flex items-center gap-2', className)} {...props} />;
+}
+
 function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
-    return <div data-slot="card-content" className={cn('px-6', className)} {...props} />;
+    return <div data-slot="card-content" className={cn('p-5', className)} {...props} />;
 }
 
 function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
     return (
-        <div data-slot="card-footer" className={cn('flex items-center px-6 [.border-t]:pt-6', className)} {...props} />
+        <div
+            data-slot="card-footer"
+            className={cn(
+                'text-muted-foreground border-border flex min-h-12 items-center gap-3 border-t px-6 py-3 text-[13px] leading-[18px] tabular-nums',
+                className,
+            )}
+            {...props}
+        />
     );
 }
 
