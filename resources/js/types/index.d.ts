@@ -21,6 +21,26 @@ export interface AuthUser {
     platform: boolean;
     employee_id: string | null;
 }
+export interface PermissionGroupEntry {
+    value: Permission;
+    label: string;
+}
+/**
+ * Matches UserResource. `permissions` stays a flat array like AuthUser's,
+ * for the same reason; `permission_groups` is the second, additive, grouped
+ * representation Task 9 adds for display (the users list's access tooltip).
+ */
+export interface User {
+    id: string;
+    name: string;
+    email: string;
+    permissions: Permission[];
+    permission_groups: Record<string, PermissionGroupEntry[]>;
+    platform: boolean;
+    employee_id: string | null;
+    invited_at: string | null;
+    email_verified_at: string | null;
+}
 export interface Agency {
     id: string;
     code: string;

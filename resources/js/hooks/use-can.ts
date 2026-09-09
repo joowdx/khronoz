@@ -4,7 +4,10 @@ import type { Permission, SharedProps } from '@/types';
 // Mirrors Permission::implies() in app/Enums/Permission.php: every entry there
 // needs the matching entry here, or a permission the backend gate grants
 // silently stays hidden in the browser. Keep the two in step.
-const implied: Partial<Record<Permission, Permission>> = {
+//
+// Exported so permission-picker.tsx can derive its own implied-view checking
+// and disabling from this same map, rather than duplicating it a third time.
+export const implied: Partial<Record<Permission, Permission>> = {
     'organization.manage': 'organization.view',
     'scheduling.manage': 'scheduling.view',
     'calendar.manage': 'calendar.view',

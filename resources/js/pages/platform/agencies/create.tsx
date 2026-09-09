@@ -10,7 +10,9 @@ import AppLayout from '@/layouts/app-layout';
 
 export default function Create() {
     return (
-        <AppLayout breadcrumbs={[{ title: 'Platform' }, { title: 'Agencies', href: index().url }, { title: 'Add agency' }]}>
+        <AppLayout
+            breadcrumbs={[{ title: 'Platform' }, { title: 'Agencies', href: index().url }, { title: 'Add agency' }]}
+        >
             <PageHeader title="Add agency" />
             <Card>
                 <CardContent>
