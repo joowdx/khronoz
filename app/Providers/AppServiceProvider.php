@@ -2,15 +2,18 @@
 
 namespace App\Providers;
 
+use App\Enums\Permission;
 use App\Models\Client;
 use App\Models\Code;
 use App\Models\Device;
 use App\Models\Refresh;
 use App\Models\Secret;
 use App\Models\Token;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Inertia\Inertia;
 use Laravel\Head\Enums\OgType;
@@ -44,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureTokens();
         $this->configureHead();
         $this->configureInertia();
+        $this->configureAuthorization();
     }
 
     /**
@@ -99,5 +103,20 @@ class AppServiceProvider extends ServiceProvider
             ->colorScheme('light dark')
             ->og(siteName: config('app.name'), type: OgType::Website)
             ->searchableByRobots());
+    }
+
+    /**
+     * One gate ability per Permission, named by its value (e.g. `users.manage`)
+     * so `$user->can('users.manage')` works. Gate::before short-circuits every
+     * check for a platform user without granting them permissions they do not
+     * hold in the column — superuser is the platform flag, not a permission.
+     */
+    protected function configureAuthorization(): void
+    {
+        Gate::before(fn (User $user) => $user->isPlatform() ? true : null);
+
+        foreach (Permission::cases() as $permission) {
+            Gate::define($permission->value, fn (User $user) => $user->allows($permission));
+        }
     }
 }

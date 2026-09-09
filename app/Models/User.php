@@ -2,20 +2,26 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Permission;
+use App\Models\Scopes\NotPlatformScope;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Scout\Searchable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['agency_id', 'employee_id', 'name', 'email', 'password', 'permissions', 'invited_at'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasUlids, Notifiable, Searchable;
@@ -29,8 +35,34 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'invited_at' => 'datetime',
             'password' => 'hashed',
+            'permissions' => AsEnumCollection::of(Permission::class),
         ];
+    }
+
+    /** Stored lower-cased: the unique index is on lower(email) and the password broker compares exact strings. */
+    protected function email(): Attribute
+    {
+        return Attribute::make(set: fn (string $value) => Str::lower(trim($value)));
+    }
+
+    /** No tenant scope on User: authentication resolves users before any tenant exists (Task 6 explains). */
+    public function agency(): BelongsTo
+    {
+        return $this->belongsTo(Agency::class)->withoutGlobalScope(NotPlatformScope::class);
+    }
+
+    /** A user of the platform agency is a superuser (docs/design/02-access.md rule 3). */
+    public function isPlatform(): bool
+    {
+        return (bool) $this->agency?->platform;
+    }
+
+    /** Whether this user holds $permission directly, or holds one that implies it. */
+    public function allows(Permission $permission): bool
+    {
+        return $this->permissions->contains(fn (Permission $held) => $held->grants($permission));
     }
 
     /**

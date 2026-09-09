@@ -2,7 +2,9 @@
 
 namespace Tests;
 
+use App\Enums\Permission;
 use App\Models\Agency;
+use App\Models\User;
 use Closure;
 use Database\Seeders\PlatformSeeder;
 use Illuminate\Database\QueryException;
@@ -57,6 +59,10 @@ abstract class TestCase extends BaseTestCase
      * later command until a rollback, and DB::transaction() nested inside the
      * per-test transaction already open here compiles to a SAVEPOINT, so its
      * automatic rollback on the caught exception undoes only $statement.
+     *
+     * Takes no $attempts argument and must not gain one: retrying $statement
+     * would re-run a statement this method expects to fail, not recover from
+     * a transient error.
      */
     protected function assertDatabaseRefuses(string $sqlstate, Closure $statement): void
     {
@@ -69,5 +75,30 @@ abstract class TestCase extends BaseTestCase
         }
 
         $this->fail("expected the database to refuse with SQLSTATE {$sqlstate}");
+    }
+
+    /**
+     * Log in as a fresh superuser of the platform agency (docs/design/02-
+     * access.md rule 3). $enter is reserved for Task 6: once the tenant scope
+     * exists, it will let a platform user act as though inside a chosen
+     * agency; accepting it here now means that body change touches no caller.
+     */
+    protected function actingAsPlatform(?Agency $enter = null): User
+    {
+        $user = User::factory()->platform()->create();
+
+        $this->actingAs($user);
+
+        return $user;
+    }
+
+    /** Log in as a fresh staff user of $agency holding exactly $permissions. */
+    protected function actingAsAgency(Agency $agency, Permission ...$permissions): User
+    {
+        $user = User::factory()->forAgency($agency)->permissions(...$permissions)->create();
+
+        $this->actingAs($user);
+
+        return $user;
     }
 }
