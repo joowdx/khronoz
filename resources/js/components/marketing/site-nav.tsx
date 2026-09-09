@@ -66,7 +66,7 @@ export function SiteNav() {
                     <div className="flex items-center gap-[18px]">
                         <Link
                             href={login()}
-                            className="text-acc-text hidden rounded-lg py-0.5 text-sm leading-5 font-medium underline-offset-2 hover:underline md:block"
+                            className="text-acc-text rounded-lg py-0.5 text-sm leading-5 font-medium underline-offset-2 hover:underline"
                         >
                             Sign in
                         </Link>

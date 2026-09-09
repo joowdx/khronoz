@@ -141,7 +141,7 @@ export default function Home({ demo }: { demo: string }) {
                             <p className={LEAD_IN}>
                                 Terminals connect by push, by pull, or by file import. Every sync records what it
                                 received, accepted and skipped, and the clock drift it saw. A timelog whose device id
-                                matches nobody stays visible as unresolved until the enrolment is fixed.
+                                matches nobody stays visible as unresolved until the enrollment is fixed.
                             </p>
                             <p className={cn(LEAD_IN, 'pt-3.5')}>
                                 The month prints as CS Form 48, with AM and PM columns, an undertime column, and a day
@@ -151,8 +151,8 @@ export default function Home({ demo }: { demo: string }) {
                             </p>
                             <ul className="mt-5 max-w-[520px] border-t pl-0 md:mt-[26px]">
                                 <li className={FACT}>
-                                    Every punch prints in the column its own clock time falls in, so a <b>22:00</b>{' '}
-                                    arrival is a PM arrival and its <b>06:00</b> out lands the next morning.
+                                    The form has four time columns, so a shift with a break fills them in order and a{' '}
+                                    <b>⁺¹</b> marks every punch that landed after midnight.
                                 </li>
                                 <li className={FACT}>
                                     A month cannot lock while an out is still pending, so a night shift on the <b>30</b>

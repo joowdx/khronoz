@@ -414,14 +414,14 @@ def page():
         <h2 class="h2">From the terminal to CS Form 48</h2>
         <p class="feat-p">Terminals connect by push, by pull, or by file import. Every sync
           records what it received, accepted and skipped, and the clock drift it saw. A timelog
-          whose device id matches nobody stays visible as unresolved until the enrolment is fixed.</p>
+          whose device id matches nobody stays visible as unresolved until the enrollment is fixed.</p>
         <p class="feat-p">The month prints as CS Form 48, with AM and PM columns, an undertime
           column, and a day marker on a punch that landed later. It locks when the last out has
           arrived and is certified by the employee, then verified by the supervisor. A wrong
           timelog is voided with a reason, never deleted.</p>
         <ul class="facts">
-          <li>Every punch prints in the column its own clock time falls in, so a
-            <b>22:00</b> arrival is a PM arrival and its <b>06:00</b> out lands the next morning.</li>
+          <li>The form has four time columns, so a shift with a break fills them in order
+            and a <b>&#8314;&#185;</b> marks every punch that landed after midnight.</li>
           <li>A month cannot lock while an out is still pending, so a night shift on the
             <b>30</b>th holds September open until its 06:00 arrives.</li>
         </ul>

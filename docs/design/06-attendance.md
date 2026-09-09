@@ -119,10 +119,9 @@ The form is one renderer of the ledger view, not the storage. Its fixed columns 
 
 | Slots in the shift | Printed as |
 |---|---|
-| any number | each punch in the column its own clock time falls in, AM before 12:00 and PM from 12:00; the side comes from the punch `kind`, an `in` is an arrival and an `out` a departure. The two sides of one pair may land in different halves of the form |
-| 2 pairs | the ordinary daytime case: slot 1 fills the AM pair, slot 2 the PM pair. A pair whose clock times say otherwise follows the clock, not the slot number |
-| 1 pair | 08:00–17:00 prints an AM arrival and a PM departure; 22:00–06:00 prints a PM arrival and an AM departure `06:00⁺¹`; the two unused columns stay blank |
-| 3 or more | first in and last out on the form, placed by the same rule, the rest in the slot-labelled layout |
+| 1 pair | each side in the column its own clock time falls in, AM before 12:00 and PM from 12:00, with the side taken from the punch `kind`: 08:00–17:00 prints an AM arrival and a PM departure, 22:00–06:00 prints a PM arrival and an AM departure `06:00⁺¹`. The two unused columns stay blank |
+| 2 pairs | by clock when the four punches fall in four different columns, which is the ordinary day, 08:00–12:00 and 13:00–17:00. When they do not, because both pairs sit in the same half of the day, the four columns are positional: slot 1 takes the first pair of columns, slot 2 the second. An afternoon shift of 14:00–18:00 and 19:02–22:00, and a night shift of 22:00–02:00⁺¹ and 03:00⁺¹–06:00⁺¹, both print this way |
+| 3 or more | first in and last out only, placed by the 1 pair rule. The form has four time columns and cannot hold more; the intermediate punches stay in the ledger view |
 | a punch dated after the workday | the time with a day marker, `06:00⁺¹`, `08:00⁺²` |
 | whole-day exemption | the exemption `type`, or its `reference` when the exemption carries an order number, across the four time columns |
 | partial exemption | the punches as usual, with the excused side marked |
@@ -131,7 +130,7 @@ The form is one renderer of the ledger view, not the storage. Its fixed columns 
 | Off day inside a duty that started earlier | blank, status `off`; the hours are on the start day |
 | undertime column | tardy plus undertime minutes of the workday |
 
-Placement by clock time (decision 23) supersedes the earlier rule that a one-pair shift printed its arrival in the first column and its departure in the last, which put a 22:00 arrival in the AM column. The paper form asks for a time under a heading, not for slot 1 and slot 2, so the heading is read literally.
+Placement by clock time (decision 23) supersedes the earlier rule that a one-pair shift printed its arrival in the first column and its departure in the last, which put a 22:00 arrival in the AM column. The paper form asks for a time under a heading, so the heading is read literally wherever the day's punches allow it. They do not always allow it: the form carries four time columns, and two pairs inside one half of the day cannot be split across headings that do not exist, so those fall back to the positional layout. Every punch that belongs to a later date carries its day marker either way, which is what removes the ambiguity the headings then create.
 
 September of a night-shift nurse, last rows:
 
