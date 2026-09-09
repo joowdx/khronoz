@@ -11,11 +11,14 @@ use App\Models\Secret;
 use App\Models\Token;
 use App\Models\User;
 use App\Tenancy\Tenant;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Laravel\Head\Enums\OgType;
 use Laravel\Head\Facades\Head;
@@ -53,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureHead();
         $this->configureInertia();
         $this->configureAuthorization();
+        $this->configureRateLimiting();
     }
 
     /**
@@ -123,5 +127,16 @@ class AppServiceProvider extends ServiceProvider
         foreach (Permission::cases() as $permission) {
             Gate::define($permission->value, fn (User $user) => $user->allows($permission));
         }
+    }
+
+    /**
+     * Keyed by email plus IP rather than either alone: an IP-only key would
+     * let one attacker lock out every account behind a shared network, and
+     * an email-only key would let an attacker distributed across IPs still
+     * brute-force a single account.
+     */
+    protected function configureRateLimiting(): void
+    {
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(Str::lower($request->string('email')).'|'.$request->ip()));
     }
 }

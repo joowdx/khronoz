@@ -1,7 +1,8 @@
-import { usePage } from '@inertiajs/react';
-import { UserRound } from 'lucide-react';
+import { Form, usePage } from '@inertiajs/react';
+import { LogOut, UserRound } from 'lucide-react';
+import { destroy } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import type { SharedProps } from '@/types';
 
 export function NavUser() {
@@ -24,7 +25,15 @@ export function NavUser() {
                         <span className="text-sidebar-foreground/70 truncate text-xs">{user?.email ?? ''}</span>
                     </div>
                 </SidebarMenuButton>
-                {/* Task 7 adds a logout <Form action={logout()}> button here. */}
+                {user && (
+                    <Form {...destroy.form()}>
+                        {({ processing }) => (
+                            <SidebarMenuAction type="submit" title="Log out" disabled={processing}>
+                                <LogOut />
+                            </SidebarMenuAction>
+                        )}
+                    </Form>
+                )}
             </SidebarMenuItem>
         </SidebarMenu>
     );

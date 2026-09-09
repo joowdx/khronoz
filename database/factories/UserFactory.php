@@ -43,6 +43,11 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
+            // Same reasoning as employee_id above: UserResource (Task 7) reads this
+            // on every authenticated request via the shared `auth.user` prop, so any
+            // plain User::factory()->create() needs it set, not omitted. invited()
+            // is the only state that gives it a real value.
+            'invited_at' => null,
             'password' => static::$password ??= Hash::make('password'),
             'permissions' => [],
             'remember_token' => Str::random(10),

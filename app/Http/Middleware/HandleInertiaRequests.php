@@ -2,8 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\Permission;
 use App\Http\Resources\AgencyResource;
+use App\Http\Resources\UserResource;
 use App\Models\Agency;
 use App\Tenancy\Tenant;
 use Illuminate\Http\Request;
@@ -35,11 +35,6 @@ class HandleInertiaRequests extends Middleware
     /**
      * Define the props that are shared by default.
      *
-     * `auth` is shaped by hand rather than an API resource: UserResource does
-     * not exist until Task 7, and resources/js/types/index.d.ts's AuthUser
-     * expects `permissions` as plain permission values and a `platform` flag
-     * that is not a database column, so the model cannot just be dumped.
-     *
      * @see https://inertiajs.com/shared-data
      *
      * @return array<string, mixed>
@@ -49,21 +44,16 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => fn () => ($user = $request->user()) ? [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'permissions' => $user->permissions->map(fn (Permission $permission) => $permission->value)->all(),
-                    'platform' => $user->isPlatform(),
-                    'employee_id' => $user->employee_id,
-                ] : null,
+                'user' => fn () => $request->user() ? UserResource::make($request->user())->resolve() : null,
             ],
             'agency' => fn () => ($agency = $this->tenant->agency()) ? AgencyResource::make($agency)->resolve() : null,
             'agencies' => fn () => $request->user()?->isPlatform() ? AgencyResource::collection(Agency::orderBy('name')->get())->resolve() : [],
-            'flash' => fn () => [
+            // index.d.ts declares success/error optional (`success?: string`),
+            // not nullable, so an unset key must be absent, not sent as null.
+            'flash' => fn () => array_filter([
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
-            ],
+            ], fn (mixed $value): bool => $value !== null),
         ];
     }
 }
