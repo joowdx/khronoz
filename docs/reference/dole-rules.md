@@ -1,8 +1,8 @@
 # 09 — DOLE rules that touch time
 
-Reviewed 2026-09-10, then corrected the same day after an adversarial cross-review by a second model caught two substantive errors (section F and the telework note) and five omissions.
+Reviewed 2026-09-10, then corrected the same day after an adversarial cross-review by a second model caught two substantive errors (section F and the telework note) and five omissions. **A third-lineage review the same day caught one more, and it was a real one:** section G had the signature requirement backwards. Rule X §7 was then read again in primary text and the correction verified — see the record row and item 4 below.
 
-**What was read in primary text:** Labor Code Arts. 83, 84, 85, 88, 91, 92, 93 (lawphil's copy of PD 442); DOLE's own **Handbook on Workers' Statutory Monetary Benefits, 2024 Edition**, extracted from PDF and read as text (night shift differential, overtime, holiday pay, premium pay, coverage exclusions); and the **Omnibus Rules Implementing the Labor Code, Book III, Rule I §§3–6 and Rule X** (hours worked, waiting time, training attendance, and employment records).
+**What was read in primary text:** Labor Code Arts. 83, 84, 85, 88, 91, 92, 93 (lawphil's copy of PD 442); DOLE's own **Handbook on Workers' Statutory Monetary Benefits, 2024 Edition**, extracted from PDF and read as text (night shift differential, overtime, holiday pay, premium pay, coverage exclusions); and the **Omnibus Rules Implementing the Labor Code, Book III, Rule I §§3–6 and Rule X** (hours worked, waiting time, training attendance, and employment records), **re-read on 2026-09-10 for Rule X §§6–7 and Rule I §5(b)** to settle the signature grain and the on-call test.
 
 `bwc.dole.gov.ph`, `dole.gov.ph`, the ILO NATLEX mirror and the Supreme Court e-library all refuse automated fetches, so a few items rest on secondary sources. Marks: **★** not read in primary text by anyone; **☆** not read by the author but independently cross-checked by the review. Both must be confirmed against the printed issuance before the rule is coded.
 
@@ -149,16 +149,17 @@ There is no statutory private-sector counterpart to EO 66 s. 2012 or to the Omni
 |---|---|
 | Individual daily time record | **Required**, by one of three means: a bundy clock on which the employee punches an individual card; a timekeeper who times every employee in and out in a record book; or "furnishing the employees individually with a daily time record form in which they can note the time of their respective arrival and departure from work" |
 | Payrolls | must show rate of pay, amount due for regular work, amount due for overtime, deductions, and amount actually paid |
-| Signature or thumbmark | on the **payroll**, not the time record: "Every employee in the payroll shall sign or place his thumbmark … at the end of the line opposite his name" |
+| Signature or thumbmark | on **both**, and this file previously had it backwards. §7 requires the individual time record itself to bear "the signature or thumbmark of the employee concerned **for each daily entry therein**"; §6 separately requires one on the payroll, "at the end of the line opposite his name" |
 | Retention | "preserved for at least **three (3) years** from the date of the last entry" |
 | Custody | kept on file in chronological order in or about the premises where the employee is employed, "open to inspection and verification by the Department of Labor and Employment" |
 | The exception | "Managerial employees, officers or members of the managerial staff, as well as non-agricultural field personnel, need not be required to keep individual time records, **provided that a record of their daily attendance is kept and maintained by the employer**" |
 
-Three things this changes:
+Four things this changes:
 
 1. **`employees.exempt` does not mean "no record".** It means no *individual* time record; a daily attendance record is still owed. The flag's meaning in `../design/01-organization.md` should be read as "no DTR expected", never "outside the system".
 2. **khronoz has no retention policy and now needs one.** Three years from the last entry is a product requirement, and it interacts with `RemoveEmployee`'s soft delete and with whatever the eventual purge story is.
 3. The private DTR template is free in *layout* only. It must carry arrival and departure times per day and be printable for an inspection.
+4. **A private time record needs a per-day signature or thumbmark**, not one signature per sheet. §7's words are "for each daily entry therein", so the attestation grain on the private template is the day, not the month — which is the opposite grain from CS Form 48's single certification and is a renderer and schema question, not a formatting one. The corrected reading came from the third-lineage review and is verified in §7's primary text.
 
 Overtime for a private employer is authorised by the employer rather than by a written authority with a DBM circular behind it, so the overtime-authority row JC 2 s. 2015 requires is optional here.
 
@@ -172,9 +173,12 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 | `suspension_charge` | `true` | `false` | M6 |
 | `dtr_template` | `"form48"` | `"plain"` | M7 |
 | `rest_day_after` | `null` | `6` | **M3**, schedule validation |
-| `overtime_after` | 8 | 8, or **12** under a compliant CWW | M6 |
+| `overtime_after` | the prescribed shift length, 8 by default | 8, or **12** under a compliant CWW | M6 |
 | `overtime_after_weekly` | none | **48** | M6 |
+| `night_from` | `18:00` | `22:00` | M6, frozen into the workday snapshot — decision 33 |
 | `retention_years` | — | **3** | M8 |
+
+**`overtime_after` is a fallback, not the authority.** A flat agency-level 8 is wrong the moment a shift is longer than eight hours by design: under Res. 2600838 a CSC agency on a compressed week works a 10-hour day, and a hospital shift runs 12, and JC 2 s. 2015 §8.2.2 starts overtime after the *prescribed* hours rather than after eight. An engine reading only the agency setting would manufacture two hours of overtime on every ordinary CWW day. The prescribed length lives in the resolved shift, which `06-attendance.md` already freezes into the workday snapshot, so the setting is the default a shift inherits and the snapshot is what the deriver reads. Raised by the third-lineage review.
 
 `rest_day_after` can be bounded — `NULL OR BETWEEN 1 AND 6`, so an agency may be stricter than statute (a CBA might) but never looser. `null` must stay legal because a CSC agency is genuinely not under Art. 91, and since the regime itself is deliberately not stored, no constraint can tell a lawful CSC null from a private employer nulling it to escape. **khronoz enforces the rule an agency configures; it does not adjudicate which law binds them.**
 
@@ -192,13 +196,15 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 | 6 | Coincident holidays must not collapse: the resolver reads all rows for a date, never the first | M4 |
 | 7 | **Record retention: 3 years from the last entry**, and a purge story that respects it | M8, and it constrains `RemoveEmployee` |
 | 8 | `employees.exempt` means "no individual time record", not "no record" — a daily attendance record is still owed | wording in `01-organization.md` |
-| 9 | Hours-worked doctrine (section B): required pre/post-shift activity, waiting time, on-call, and non-voluntary training are worked minutes | M6's deriver |
+| 9 | Hours-worked doctrine (section B): required pre/post-shift activity, waiting time, on-call, and non-voluntary training are worked minutes — on-call only when mobility is restricted, Rule I §5(b) | M6's deriver |
+| 10 | **A per-day signature or thumbmark on the private time record** (Rule X §7, "for each daily entry therein") — a different attestation grain from CS Form 48 | M7's template, and the schema behind it |
+| 11 | `overtime_after` is the default a shift inherits, never what the deriver reads — the prescribed shift length in the workday snapshot is | M6 |
 
 ## Sources
 
 - Labor Code (PD 442), Arts. 83–94: https://lawphil.net/statutes/presdecs/pd1974/pd_442_1974.html
 - DOLE **Handbook on Workers' Statutory Monetary Benefits, 2024 Edition** (read as text): https://bwc.dole.gov.ph/wp-content/uploads/2024/10/Workers-Statutory-Monetary-Benefits-Handbook-2024-Edition.pdf — mirror actually fetched: https://www.alburolaw.com/wp-content/uploads/2025/07/2024-Workers-Statutory-Monetary-Benefits-Handbook.pdf
-- Omnibus Rules Implementing the Labor Code, Book III, **Rule I §§3–6** and **Rule X** (read): https://library.laborlaw.ph/omnibus-rules-labor-code-book-3/
+- Omnibus Rules Implementing the Labor Code, Book III, **Rule I §§3–6** and **Rule X** (read): https://library.laborlaw.ph/omnibus-rules-labor-code-book-3/ — **Rule X §§6–7 and Rule I §5(b) re-read verbatim from this copy on 2026-09-10.** `chanrobles.com` and the ILO NATLEX PDF both return 403; this mirror is the one that answers.
 - DOLE Department Advisory 02 s. 2004, compressed workweek ☆: https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/11/40740 (refused fetch), https://dole.gov.ph/news/department-advisory-no-02-04-implementation-of-compressed-workweek-schemes/ (403), summary at https://jur.ph/law/summary/implementation-of-compressed-workweek-schemes
 - DOLE holiday pay rules ☆: https://dole.gov.ph/news/dole-issues-pay-rules-for-regular-holidays-special-non-working-days-in-2024/
 - RA 11165 Telecommuting Act: https://lawphil.net/statutes/repacts/ra2018/ra_11165_2018.html; DO 237 s. 2022 ★: https://dole.gov.ph/news/dole-expands-wfh-assures-standards-in-alternate-workplace/
@@ -211,5 +217,8 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 1. **DO 237 s. 2022** (revised Telecommuting Act IRR) is unread. It governs compensable hours for telework and the field-personnel boundary, so it reaches the deriver.
 2. **RA 10151 / DO 119-12** night worker provisions are unread; the pregnant-and-nursing night worker rules are `Exemption`-shaped.
 3. **DA 02-04's printed text** is still unread by the author, though the cross-review confirmed the 12/48 figures. They drive `overtime_after` and `overtime_after_weekly`.
+4. **Cross-midnight premium attribution is undecided, and it is a "which minutes count" rule.** `../design/06-attendance.md` gives every minute of a shift to the workday of its *start* date. Holiday and rest-day premiums plausibly attach instead to the calendar day on which each hour was actually rendered, so a 22:00 Sunday → 06:00 Monday shift into a regular holiday would split six hours off into the holiday. The mechanism to answer it already exists — decision 33 established that any other boundary is derivable from `actual_at` — but the design nowhere says day *status* is calendar-day-derived, and a workday dated Sunday has no representation of Monday's holiday. Raised by the third-lineage review; **the legal premise is not read in primary text** ★ and must be before M6 codes it.
+5. **Successive regular holidays** ★. Two adjacent regular holidays are said to interact: absent unpaid on the workday before the first forfeits both, unless the employee works the first. That is a multi-day dependency in day-status derivation, and section D's condition currently reads only "the previous workday". Raised by the third-lineage review, unverified.
+6. **Government DTR retention still has no figure**, here or in `csc-rules.md`, so `retention_years` is blank for CSC. The third-lineage review offered RA 9470 and the NAP General Records Disposition Schedule at **five years, or until audited and cleared by COA** ★. Plausible and load-bearing for M8's purge story, but neither statute nor schedule has been read.
 4. Sector-specific hour laws (health workers under RA 7305 have a CSC counterpart; private hospitals, security agencies and BPO night work may carry their own issuances) are entirely unexamined.
 5. Whether any of the above moved after 2024 was not checked. The CSC side of this project moved three times between 2022 and 2026.

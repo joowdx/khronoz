@@ -1,6 +1,8 @@
 # 08 — CSC rules that touch time
 
-Reviewed 2026-09-08; **cross-reviewed 2026-09-10** by a second model, which found the file stale on the RACCS, corrected three rules and added the eight items in section I. Corrections carry ☆ (not read in primary text by the author, but independently checked). Primary text was read for: CSC Resolution 2600838 (18 Jun 2026), CSC Resolution 2400837 and MC 01 s. 2025, CSC-DBM Joint Circular 2 s. 2015, the IRR of RA 11701, the CSC Ramadan advisory (11 Mar 2024), and EO 66 s. 2012. Everything else rests on CSC press releases, the Official Gazette, or secondary summaries because csc.gov.ph and csguide.org block automated fetches. Those items carry ★ and must be checked against the printed issuance before the rule is coded.
+Reviewed 2026-09-08; **cross-reviewed 2026-09-10** by a second model, which found the file stale on the RACCS, corrected three rules and added the eight items in section I. Corrections carry ☆ (not read in primary text by the author, but independently checked). Primary text was read for: CSC Resolution 2600838 (18 Jun 2026), CSC Resolution 2400837 and MC 01 s. 2025, CSC-DBM Joint Circular 2 s. 2015, the IRR of RA 11701, the CSC Ramadan advisory (11 Mar 2024), EO 66 s. 2012, and **RA 7305 §§15 and 18** (read 2026-09-10).
+
+**A third-lineage review on 2026-09-10 found the on-call rule wrong twice over** — cited to §18, which is night-shift differential and does not contain it, and framed as a categorical regime split when the private test is conditional. RA 7305 §15 and Book III Rule I §5(b) were then read in primary text and the section rewritten. That review also affirmed all five remaining ☆ claims, but it reported every one of fifteen claims as verified against a primary source while showing no fetches, so its affirmations changed no mark; only the findings it got *right* about this file's own text were actionable, and those are now in. Everything else rests on CSC press releases, the Official Gazette, or secondary summaries because csc.gov.ph and csguide.org block automated fetches. Those items carry ★ and must be checked against the printed issuance before the rule is coded.
 
 Scope: what the engine must compute. Leave balances in days and pesos are payroll's job; khronoz outputs minutes, occurrences, and day fractions.
 
@@ -202,11 +204,22 @@ The 2025 RACCS carries **loafing** — frequent unauthorized absence from duty d
 
 Beyond the 30-continuous-working-day rule (§63), the 2025 RACCS allows dropping from the rolls for **substantial AWOL three times in six months**, even where no single run reaches 30 days. A "days since last approved attendance" counter is not sufficient to surface it.
 
-### On-call time is treated oppositely in the two regimes
+### On-call time diverges between the regimes, but conditionally
 
-**RA 7305 §18 (public health workers): on-call time does not count as hours worked**, though it earns on-call pay. The private sector's Book III Rule I §5 counts waiting time as working time where waiting is integral to the work or the employee is required to wait (`dole-rules.md` section B).
+**Corrected 2026-09-10 after a third-lineage review; both halves of the earlier claim were wrong** — the citation and the framing. Both replacements below are read in primary text.
 
-So an on-call hour is worked time for a private hospital's nurse and not worked time for a government hospital's. This is the sharpest single divergence found so far and it lands directly on the deriver, not on payroll. RA 7305 also requires overtime and rest-day status to be separately recorded against an 8/40 baseline.
+**RA 7305 §15**, not §18: "The normal hours of work of any public health worker shall not exceed eight (8) hours a day or forty (40) hours a week… the time when a public health worker is placed on 'On Call' status shall not be considered as hours worked but shall entitle the public health worker to an 'On Call' pay equivalent to fifty percent (50%) of his/her regular wage." The section number is not a detail: §18 is night-shift differential in both its limbs and says nothing about on-call, so the earlier citation pointed at a provision that does not contain the rule.
+
+**The private rule is not the categorical opposite.** Book III Rule I §5(b): "An employee who is required to remain on call in the employer's premises or so close thereto that he cannot use the time effectively and gainfully for his own purpose shall be considered as working while on call. An employee who is not required to leave word at his home or with company officials where he may be reached is not working while on call." Private on-call is worked time **only where mobility is restricted**. The earlier text reached for §5(a), the waiting-time rule, which is a different rule and does not settle on-call at all.
+
+So the divergence is real but narrow, and it lands on exactly one case:
+
+| The nurse is | Private (Rule I §5(b)) | Government health worker (RA 7305 §15) |
+|---|---|---|
+| premises-bound, cannot use the time | **worked time** | **not worked time** — 50% on-call pay instead |
+| merely reachable at home | not worked time | not worked time |
+
+The deriver therefore needs a per-agency on-call rule, but it is a rule about restricted mobility rather than a flat regime switch, and only the first row differs. RA 7305 §15 also fixes the 8/40 baseline that overtime and rest-day status are recorded against.
 
 ### Teachers: six hours is a classroom cap, not a workday
 
@@ -232,9 +245,11 @@ Not a minutes or day-status rule and must not become one. It does constrain how 
 
 | # | Item | Where |
 |---|---|---|
-| 1 | On-call is worked time under the Labor Code and **not** under RA 7305 — a per-agency rule on the deriver, not a shared default | M6 |
+| 1 | On-call is worked time under the Labor Code **only where mobility is restricted** (Rule I §5(b)) and never under RA 7305 §15, which pays 50% instead — a per-agency rule about premises-binding, not a flat regime switch | M6 |
 | 2 | Classroom-instruction minutes are a distinct quantity from attendance minutes for RA 4670 employees | unmodelled; decide before M6 |
 | 3 | Continuous statutory leave (RA 11210) spans non-workdays and is not a per-workday exemption | M4, `05-calendar.md` |
 | 4 | Travel, office order and certificate of appearance are documented day statuses, not gaps | M4 |
 | 5 | Flexiplace days still owe attendance verification, not only an accomplishment report | M6, corrects `06-attendance.md` |
 | 6 | A ledger must stay correctable after the fact, because a punch is not proof of work | already satisfied by lock-then-attest |
+| 7 | **Mandatory overtime rest breaks need a deduction rule.** JC 2 s. 2015 §10.2 is cited for a one-hour break every three continuous overtime hours, and §8.2.1 for overtime being "exclusive of time for lunch and rest". Where an employee renders multi-hour overtime with no intermediate out/in punches, the deriver must decide whether those hours come off the compensable excess automatically ★ | M6 |
+| 8 | **`overtime_after` cannot be a flat agency number.** Res. 2600838's 10-hour CWW day and a 12-hour hospital shift both start overtime after the *prescribed* hours (JC 2 s. 2015 §8.2.2), so a setting of 8 would manufacture overtime on every ordinary CWW day. The prescribed length belongs to the resolved shift in the workday snapshot | M6, and `../reference/dole-rules.md` section H |
