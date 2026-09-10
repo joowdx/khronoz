@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToAgency;
+use App\Models\Concerns\CoversDates;
 use Database\Factories\RosterFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
@@ -30,7 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Roster extends Model
 {
     /** @use HasFactory<RosterFactory> */
-    use BelongsToAgency, HasFactory, HasUlids;
+    use BelongsToAgency, CoversDates, HasFactory, HasUlids;
 
     /** @return array<string, string> */
     protected function casts(): array

@@ -152,6 +152,21 @@ class Employee extends Model
         return $this->hasOne(Deployment::class)->whereNotNull('parent_id')->coveringToday();
     }
 
+    public function rosters(): HasMany
+    {
+        return $this->hasMany(Roster::class);
+    }
+
+    /**
+     * The one roster covering today — what this person is expected to work
+     * right now. At most one, by rosters_no_overlap, and date-bounded on both
+     * sides for the reason currentDeployment is.
+     */
+    public function currentRoster(): HasOne
+    {
+        return $this->hasOne(Roster::class)->coveringToday();
+    }
+
     public function user(): HasOne
     {
         return $this->hasOne(User::class);
