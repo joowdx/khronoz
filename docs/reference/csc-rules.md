@@ -1,6 +1,6 @@
 # 08 — CSC rules that touch time
 
-Reviewed 2026-09-08. Primary text was read for: CSC Resolution 2600838 (18 Jun 2026), CSC Resolution 2400837 and MC 01 s. 2025, CSC-DBM Joint Circular 2 s. 2015, the IRR of RA 11701, the CSC Ramadan advisory (11 Mar 2024), and EO 66 s. 2012. Everything else rests on CSC press releases, the Official Gazette, or secondary summaries because csc.gov.ph and csguide.org block automated fetches. Those items carry ★ and must be checked against the printed issuance before the rule is coded.
+Reviewed 2026-09-08; **cross-reviewed 2026-09-10** by a second model, which found the file stale on the RACCS, corrected three rules and added the eight items in section I. Corrections carry ☆ (not read in primary text by the author, but independently checked). Primary text was read for: CSC Resolution 2600838 (18 Jun 2026), CSC Resolution 2400837 and MC 01 s. 2025, CSC-DBM Joint Circular 2 s. 2015, the IRR of RA 11701, the CSC Ramadan advisory (11 Mar 2024), and EO 66 s. 2012. Everything else rests on CSC press releases, the Official Gazette, or secondary summaries because csc.gov.ph and csguide.org block automated fetches. Those items carry ★ and must be checked against the printed issuance before the rule is coded.
 
 Scope: what the engine must compute. Leave balances in days and pesos are payroll's job; khronoz outputs minutes, occurrences, and day fractions.
 
@@ -13,15 +13,15 @@ Scope: what the engine must compute. Leave balances in days and pesos are payrol
 | Default hours | 8:00–12:00 and 1:00–5:00, Monday to Friday | same |
 | Flexible hours | allowed at the agency head's discretion, weekly hours never reduced | Rule XVII §6 |
 | Fewer than 5 days or shifting | allowed if 40 hours are kept and 8:00–5:00 service is continuous all week, upon representation with CSC | Rule XVII §7 |
-| Offsetting | tardiness or absence cannot be offset by working beyond hours | Rule XVII §9 ★ |
-| Grace period | none in CSC rules; any grace is an agency choice | MC 21 s. 1991 ★, MC 06 s. 2022 |
+| Offsetting | tardiness or absence cannot be offset by working beyond hours — **but not absolutely**: approved compensatory service outside regular hours (except Sunday) may offset non-attendance or undertime, so distinguish unapproved self-offsetting from authorised compensatory service | Rule XVII §9 ★, exception in MC 14 s. 1999 ☆ |
+| Grace period | none created by CSC rules. **Not simply "an agency choice"**: a genuine flexible schedule changes when lateness begins, but a lenient grace policy on a *fixed* schedule needs legal authority and cannot be assumed ☆ | MC 21 s. 1991 ★, MC 06 s. 2022 |
 | Special laws | teachers (RA 4670, 6 classroom hours) and health workers (RA 7305) have their own shapes | Rule XVII §5 "except those covered by special laws" |
 | Hourly rate | monthly basic salary ÷ 22 ÷ 8 | JC 2 s. 2015 §9.3, RA 11701 IRR |
 | Semester | January to June, July to December | CSC usage in MC 04 s. 1991, MC 16 s. 2010 |
 
 ## B. Flexible work arrangements
 
-Chain of issuances: CSC MC 06 s. 2022 (Resolution 2200209, 18 May 2022) → MC 01 s. 2025 (Resolution 2400837, 19 Sep 2024, effective 11 Dec 2024) → Resolution 2600838 (18 Jun 2026, retroactive to 6 Mar 2026). Office of the President MC 114 s. 2026 (6 Mar 2026) orders a four-day onsite week "through compressed workweek or a designated common day for work-from-home arrangement", effective 9 Mar 2026 until lifted.
+Chain of issuances: CSC MC 06 s. 2022 (Resolution 2200209, 18 May 2022) → MC 01 s. 2025 (Resolution 2400837, 19 Sep 2024, effective 11 Dec 2024) → Resolution 2600838 (18 Jun 2026, retroactive to 6 Mar 2026). Office of the President MC 114 s. 2026 (6 Mar 2026) orders a four-day onsite week "through compressed workweek or a designated common day for work-from-home arrangement", effective 9 Mar 2026 until lifted. **Still in force as of 10 Sep 2026** (cross-review), and Resolution 2600838 is not superseded. Scope correction: MC 114 *directs* national government agencies and GOCCs; LGUs, constitutional bodies and SUCs are **encouraged**, not compelled ☆ — so it is not a blanket "all government offices" rule. MC 114 also requires attendance verification, not only performance monitoring.
 
 Every FWA is "mutually agreed upon in writing by the officials or employees and their supervisors subject to the approved agency internal guidelines" (Resolution 2400837 §V.A.3). Agencies must assure "continuous delivery of services from 8:00 AM to 5:00 PM, including lunch break, throughout the workweek".
 
@@ -64,7 +64,7 @@ Minimum onsite staff when full staffing is not possible. Skeleton force under 24
 ### Tardiness
 
 - Arrival after the scheduled start, regardless of minutes. One occurrence per day.
-- Habitual: "ten (10) times a month for at least two (2) months in a semester or at least two (2) consecutive months during the year" (MC 04 s. 1991, reiterated in MC 01 s. 2017 ★ and the 2017 RACCS).
+- Habitual: "ten (10) times a month for at least two (2) months in a semester or at least two (2) consecutive months during the year" (MC 04 s. 1991, reiterated in MC 01 s. 2017 ★ and the **2025 RACCS**, CSC MC 12 s. 2025, which replaced the 2017 RACCS ☆ — the threshold survives unchanged, its controlling source and surrounding procedure do not).
 - Absent in the morning counts as tardy (MC 17 s. 2010).
 - Deducted from vacation leave by actual minutes, never from sick leave (Omnibus Rules on Leave §34, MC 41 s. 1998 as amended by MC 14 s. 1999; Resolution 2600838 §2.6).
 - Staying late does not cancel it (Rule XVII §9). Overtime "shall not be used to offset undertime" (JC 2 s. 2015 §10.4).
@@ -120,7 +120,7 @@ The CSC table appended to the Omnibus Rules on Leave converts on a 480-minute da
 
 - COC = overtime hours × 1.0 on scheduled workdays, × 1.5 on weekends, holidays, scheduled days off.
 - At most 40 hours accrued a month; balance never above 120 hours.
-- CTO in blocks of 4 or 8 hours, up to 5 consecutive days per availment.
+- CTO in blocks of 4 or 8 hours, up to 5 consecutive days per availment — **not universal**: agencies on alternative schedules make parallel half-day and full-day adjustments, so a 10-hour compressed-workweek day cannot be hard-coded to 4/8 ☆.
 - Not convertible to cash, cannot offset tardiness or undertime, unused credits expire at the end of the following year.
 - Evidence: office order stating date, time and purpose; Certificate of COC Earned signed by the head of office.
 
@@ -130,7 +130,9 @@ The CSC table appended to the Omnibus Rules on Leave converts on a 480-minute da
 - "Not exceeding twenty percent (20%) of the hourly basic rate"; public health workers not below 10%. HBR = monthly basic ÷ 22 ÷ 8.
 - Division chief and below, including OICs, any appointment status. Excluded: those whose "regular schedule of work fall between 6 a.m. to 6 p.m.", uniformed and on-call 24-hour personnel, job order and contract of service.
 - Partial overlap pays only "the hour/s of work performed between 6 p.m. and 6 a.m.".
-- Hours beyond the shift "shall be compensated in accordance with the rules and regulations on overtime". Whether the differential stacks on overtime hours is in the JC text I could not fetch ★.
+- Hours beyond the shift "shall be compensated in accordance with the rules and regulations on overtime".
+- **The differential does NOT stack on overtime hours** ☆ — resolved by the cross-review against JC 1 s. 2023 Annex C, Example D, which computes NSD for the prescribed 6 p.m.–2 a.m. eight-hour shift and then computes 2 a.m.–5 a.m. separately as overtime. This file previously left the question open.
+- **Except public health workers**, who have a special-law rule: RA 7305 §18(b) gives regular wage + overtime + an additional 10% of the overtime rate for qualifying 10 p.m.–6 a.m. overtime ★. So "no stacking" is the general-government rule, not a universal one.
 
 ## E. Calendar events
 
@@ -183,3 +185,52 @@ Moved to `../design/README.md`, section "Pending deltas from the CSC review".
 - CSC MC 02 s. 2012: https://www.csguide.org/items/show/694
 - RA 10028: https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/2/18122
 - Proclamation 1006 (2026 holidays): https://pco.gov.ph/issuances/proclamation-no-1006-declaring-the-regular-holidays-and-special-non-working-days-for-the-year-2026/
+
+## I. Cross-review additions, 2026-09-10 ☆
+
+Eight rules the 2026-09-08 pass missed. None was read in primary text by the author.
+
+### A punch is not proof of worked time
+
+The 2025 RACCS carries **loafing** — frequent unauthorized absence from duty during regular hours *despite* an attendance entry. The engine cannot treat a matched in/out pair as conclusive evidence that the day was worked, and no computation this project performs can detect it. It is a supervisory finding, so the design consequence is only that a ledger must remain correctable by an authorised user after the fact, which `06-attendance.md`'s lock-then-attest order already allows.
+
+### A second route out of the rolls
+
+Beyond the 30-continuous-working-day rule (§63), the 2025 RACCS allows dropping from the rolls for **substantial AWOL three times in six months**, even where no single run reaches 30 days. A "days since last approved attendance" counter is not sufficient to surface it.
+
+### On-call time is treated oppositely in the two regimes
+
+**RA 7305 §18 (public health workers): on-call time does not count as hours worked**, though it earns on-call pay. The private sector's Book III Rule I §5 counts waiting time as working time where waiting is integral to the work or the employee is required to wait (`dole-rules.md` section B).
+
+So an on-call hour is worked time for a private hospital's nurse and not worked time for a government hospital's. This is the sharpest single divergence found so far and it lands directly on the deriver, not on payroll. RA 7305 also requires overtime and rest-day status to be separately recorded against an 8/40 baseline.
+
+### Teachers: six hours is a classroom cap, not a workday
+
+**RA 4670**: the six hours is a cap on *actual classroom instruction*, not a six-hour working day. Up to eight teaching hours is possible with statutory additional pay. `csc-rules.md` section A already flags RA 4670 as a special law with "its own shape"; the shape is that **classroom-teaching minutes are a separate quantity from attendance minutes**, which no current model expresses.
+
+### Maternity leave is a day-status rule, not a balance
+
+**RA 11210**: 105 continuous days for live birth, 60 for miscarriage or emergency termination, 15 additional paid days for a qualified solo parent, and an optional 30 unpaid days. Because the period is **continuous**, it spans non-workdays and cannot be entered as a run of ordinary scheduled absences. It is closer to a suspension of the roster than to an exemption per workday — worth settling before Milestone 4 designs `exemptions`.
+
+### Field and official-business days need a verifiable record, not a blank
+
+MC 21 s. 1991 covers field and water-based personnel too: they owe a verifiable attendance record rather than an empty day. Travel orders, office orders and certificates of appearance should therefore be **supported statuses** producing a documented day, not gaps. This mirrors the correction made to `dole-rules.md` section G, where field personnel are excused only from an *individual* time record and never from a record.
+
+### No biometric mandate, but a verifiability requirement
+
+CSC has no general biometric-only mandate. MC 21 is technology-neutral while requiring a verifiable record of actual arrival and departure, so a biometric feed must yield a compliant certified attendance record — the certification, not the device, is what the rule asks for. And flexiplace does **not** eliminate attendance documentation: MC 114 s. 2026 requires attendance verification alongside performance monitoring, so `06-attendance.md`'s treatment of flexiplace days as accomplishment-report-only is incomplete.
+
+### RA 11313 is a constraint on monitoring, not a computation rule
+
+Not a minutes or day-status rule and must not become one. It does constrain how digital monitoring and workplace communications are handled, which touches any future WFH monitoring feature rather than the deriver.
+
+### Design items this section adds
+
+| # | Item | Where |
+|---|---|---|
+| 1 | On-call is worked time under the Labor Code and **not** under RA 7305 — a per-agency rule on the deriver, not a shared default | M6 |
+| 2 | Classroom-instruction minutes are a distinct quantity from attendance minutes for RA 4670 employees | unmodelled; decide before M6 |
+| 3 | Continuous statutory leave (RA 11210) spans non-workdays and is not a per-workday exemption | M4, `05-calendar.md` |
+| 4 | Travel, office order and certificate of appearance are documented day statuses, not gaps | M4 |
+| 5 | Flexiplace days still owe attendance verification, not only an accomplishment report | M6, corrects `06-attendance.md` |
+| 6 | A ledger must stay correctable after the fact, because a punch is not proof of work | already satisfied by lock-then-attest |
