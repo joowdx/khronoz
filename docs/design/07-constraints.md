@@ -377,7 +377,8 @@ FOREIGN KEY (schedule_id, agency_id) REFERENCES schedules (id, agency_id)
 FOREIGN KEY (shift_id, agency_id)    REFERENCES shifts (id, agency_id)
 UNIQUE (schedule_id, position)
 CHECK (position >= 0)
--- constraint trigger turns_complete, DEFERRABLE INITIALLY DEFERRED, on turns and on schedules UPDATE OF length:
+-- constraint trigger turns_complete, DEFERRABLE INITIALLY DEFERRED,
+--   on turns INSERT OR UPDATE OR DELETE, and on schedules INSERT OR UPDATE OF length:
 --   count(*) = schedules.length AND max(position) = schedules.length - 1
 
 -- teams (Milestone 3)
@@ -389,6 +390,26 @@ anchor date NOT NULL
 ```
 
 Deferred means a schedule and its turns are written in one transaction and checked at commit.
+
+`turns_complete` covers **INSERT** on `schedules` as well as `UPDATE OF length`, which an earlier
+version of this file did not. Measured before adding it: a schedule created with no turns at all was
+accepted and then never checked again, since nothing had changed on `turns` and the length had never
+been updated — so an unresolvable schedule could sit in the table permanently and
+`(D - anchor) mod length` would land on a position with no row. Deferral is what makes covering
+INSERT free, because a real create writes the schedule and its turns in one transaction. `DELETE` on
+`turns` is covered for the mirror reason: removing one turn from a complete cycle would otherwise
+leave that same silent gap.
+
+Testing it needs `SET CONSTRAINTS ALL IMMEDIATE` **inside** the closure. `assertDatabaseRefuses`
+runs each statement in a SAVEPOINT and releasing a SAVEPOINT does not run deferred checks — they
+fire at the outer COMMIT, which a test never reaches — so without that statement a test of this
+constraint passes against a completely absent one. Note also that it lasts for the whole
+transaction, so forcing it inside a loop makes every later schedule INSERT fire before its own turns
+exist; build the fixtures first and force the check once.
+
+`turns` carries `agency_id` like every other table, which the entity diagram in `04-scheduling.md`
+omits for brevity: it is what makes both of its FKs paired, so a turn can never put a shift of one
+agency into a schedule of another.
 
 Slot shape is a database check too. Times are `HH:MM` with hours past 24 rolling into the next days, capped at 72:00; pairs must be ordered and must not overlap; `window` is `[before <= 0, after >= 0]`.
 
