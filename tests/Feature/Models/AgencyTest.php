@@ -11,6 +11,48 @@ use Tests\TestCase;
 
 class AgencyTest extends TestCase
 {
+    /**
+     * agencies_rest_day_after_bounded. Art. 91 guarantees 24 consecutive hours
+     * of rest after every N consecutive normal work days, and no reading of it
+     * puts N outside 1 to 6 — stricter is lawful, looser is not (decision 32).
+     *
+     * **Null must stay legal**, as an absent key and as an explicit JSON null,
+     * because a civil-service agency is genuinely not under Art. 91: it works
+     * 40 hours over 5 days by rule, so the weekly rest day never binds. Since
+     * decision 32 deliberately does not store which regime an agency is under,
+     * no constraint can tell a lawful null from an evasive one.
+     *
+     * Every refusal is 23514 and never 22P02: the CHECK compares jsonb values
+     * rather than casting to int, so a string or a fraction is refused by the
+     * constraint rather than blowing up in a cast whose SQLSTATE would be a
+     * different error entirely.
+     */
+    public function test_rest_day_after_is_bounded_to_the_week(): void
+    {
+        $agency = Agency::factory()->create();
+
+        foreach ([0, 7, -1, 1.5, '3', true, []] as $illegal) {
+            $this->assertDatabaseRefuses('23514', fn () => DB::table('agencies')
+                ->where('id', $agency->id)
+                ->update(['settings' => json_encode(['rest_day_after' => $illegal])]));
+        }
+
+        foreach (range(1, 6) as $legal) {
+            DB::table('agencies')->where('id', $agency->id)
+                ->update(['settings' => json_encode(['rest_day_after' => $legal])]);
+
+            $this->assertSame($legal, $agency->fresh()->settings['rest_day_after']);
+        }
+
+        // An explicit null, and an absent key: both legal, and both mean the
+        // rule does not bind.
+        DB::table('agencies')->where('id', $agency->id)->update(['settings' => json_encode(['rest_day_after' => null])]);
+        $this->assertNull($agency->fresh()->settings['rest_day_after']);
+
+        DB::table('agencies')->where('id', $agency->id)->update(['settings' => '{}']);
+        $this->assertSame([], $agency->fresh()->settings);
+    }
+
     public function test_platform_row_is_seeded_once(): void
     {
         $this->assertTrue(Agency::platform()->platform);

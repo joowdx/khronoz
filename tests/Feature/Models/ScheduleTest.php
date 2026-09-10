@@ -128,6 +128,18 @@ class ScheduleTest extends TestCase
      * INSERT is on the trigger and not only UPDATE OF length — measured, a
      * turn-less schedule was otherwise accepted and then never re-checked),
      * and a length widened without adding the turn it now needs.
+     *
+     * No `SET CONSTRAINTS ALL DEFERRED` reset is needed between the two, and
+     * that is measured rather than assumed: assertDatabaseRefuses() runs its
+     * closure in a SAVEPOINT, and the setting **is** rolled back with that
+     * savepoint, so each closure starts deferred again. It matters because if
+     * it leaked, the second closure's own `withTurns()` create would raise
+     * P0001 on the schedule INSERT before its turns existed — and this test
+     * would pass on the wrong exception while asserting nothing about
+     * UPDATE OF length. An external reviewer asserted the opposite from
+     * memory on 2026-09-11; a direct probe (SET IMMEDIATE inside a savepoint,
+     * roll back, then insert a turn-less schedule) showed the insert accepted,
+     * i.e. deferred again.
      */
     public function test_a_schedule_must_have_a_complete_set_of_turns(): void
     {

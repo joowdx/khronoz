@@ -29,6 +29,33 @@ return new class extends Migration
         DB::statement('CREATE UNIQUE INDEX agencies_platform ON agencies (platform) WHERE platform');
         DB::statement("ALTER TABLE agencies ADD CONSTRAINT agencies_settings_object CHECK (jsonb_typeof(settings) = 'object')");
 
+        // `rest_day_after` is the one settings key that can be bounded at all
+        // (decision 32): Art. 91 guarantees 24 consecutive hours of rest after
+        // every N consecutive normal work days, and no reading of it puts N
+        // outside 1 to 6 — stricter is lawful, looser is not.
+        //
+        // **Null must stay legal**, both as an absent key and as an explicit
+        // JSON null, because a civil-service agency is genuinely not under
+        // Art. 91: it works 40 hours over 5 days by rule, so the weekly rest
+        // day never binds. Since decision 32 deliberately does not store which
+        // regime an agency is under, no constraint can tell a lawful null from
+        // an evasive one, and this one does not try.
+        //
+        // Compared as jsonb rather than cast to int, which is why there is no
+        // `jsonb_typeof(...) = 'number'` guard: `(settings->>'k')::int` raises
+        // 22P02 on a non-numeric string, and Postgres does not guarantee the
+        // evaluation order of AND operands within one CHECK, so a guard could
+        // be evaluated second and the cast would surface 22P02 where this owes
+        // 23514. Enumerating the six legal jsonb values is total, needs no
+        // guard, and refuses 1.5 and the string "3" for free.
+        DB::statement(<<<'SQL'
+            ALTER TABLE agencies ADD CONSTRAINT agencies_rest_day_after_bounded CHECK (
+                settings -> 'rest_day_after' IS NULL
+                OR settings -> 'rest_day_after' = 'null'::jsonb
+                OR settings -> 'rest_day_after' IN ('1'::jsonb, '2'::jsonb, '3'::jsonb, '4'::jsonb, '5'::jsonb, '6'::jsonb)
+            )
+        SQL);
+
         // A CHECK constraint cannot compare NEW against OLD, so "platform cannot
         // change after insert" needs a trigger; the DELETE branch rides the same
         // function since both guard the platform row for the same reason.
