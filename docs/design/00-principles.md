@@ -40,7 +40,7 @@ Three tiers. Only the middle one is data an agency can see and copy.
    | Constant | Civil service | Labor Code |
    | --- | --- | --- |
    | work week | 40 hours over 5 days | **no statutory week**; 8 ordinary hours a day and 24 continuous hours' rest after 6 consecutive work days |
-   | night window | 18:00–06:00 (RA 11701) | **22:00–06:00** (Art. 86) |
+   | night window | 18:00–06:00 (RA 11701) | **22:00–06:00** (Art. 86) — selected by `settings.night_from`, decision 33; `06:00` is the end in both |
    | overtime threshold | JC 2 s. 2015 gates: on-time arrival, 2-hour minimum, 12-hour cap | 8 hours a day, or **12** under a compliant compressed week, with a **48-hour weekly ceiling** |
    | premium multipliers | 1.25 and 1.5 | 1.25 ordinary, 1.30 rest/special day, 2.00 regular holiday, compounding |
    | compensatory credit | COC 1.0 and 1.5, 40-hour monthly and 120-hour balance caps | none |
