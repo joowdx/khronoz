@@ -83,7 +83,7 @@ erDiagram
 
 1. A holiday owned by the platform agency applies to every agency. Local holidays carry their agency. Lookup is `agency_id IN (own, platform)`.
 2. `declared_at` on holidays and suspensions is the moment the declaration took effect. Workdays before it are not recomputed by the declaration (Res. 2600838 §2.5); a compressed-week fallback applies to turns after it. The timekeeper may enter the memo's own time.
-3. A suspension on a workgroup applies to every employee deployed under it or its descendants on that date.
+3. A suspension on a workgroup applies to every employee whose **operative** deployment on that date is under it or its descendants — the movement if one covers the date, otherwise the substantive placement (01-organization.md rule 7, decision 31). Not "every employee deployed under it": during a detail both rows are open, so that wording would let a closure declared on the mother workgroup excuse a day the person actually worked in the receiving one.
 4. Exemptions replace the old `am / pm / full` with times, so a Friday prayer 10:00–14:00 that crosses noon, a two-hour pass slip and a 40-minute lactation break are all one shape. AM and PM are just times.
 5. Exemptions and overtime authorities are timekeeper-entered in v1 from the office order or approved form, `approved_at` set on entry. Filing and approval workflows are phase 2.
 6. Overtime authority gates from JC 2 s. 2015 are constants, not settings: the employee must have arrived on time, rendered at least two hours beyond the shift on a workday, and at most twelve hours on a rest day or holiday. Overtime never offsets undertime (§10.4). Payroll applies 1.25 and 1.5, or COC 1.0 and 1.5, from the `mode` and whether the date was a scheduled workday.

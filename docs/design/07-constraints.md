@@ -106,18 +106,41 @@ returning false, so an unguarded bound could surface `22023` where `employees_ta
 ### deployments
 
 ```sql
+UNIQUE (id, employee_id)                                             -- target for the parent FK below
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
 FOREIGN KEY (workgroup_id, agency_id)     REFERENCES workgroups (id, agency_id)
+FOREIGN KEY (parent_id, employee_id) REFERENCES deployments (id, employee_id)
 CHECK (ends IS NULL OR ends >= starts)
 EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
+    WHERE (parent_id IS NULL)                                        -- deployments_no_overlap
+EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
+    WHERE (parent_id IS NOT NULL)                                    -- deployments_no_overlapping_movements
+TRIGGER deployments_nested  BEFORE INSERT OR UPDATE OF parent_id, starts, ends
 ```
 
-The exclusion forbids any overlap, which implies at most one open deployment.
+Two partial exclusions, not one (decision 31). Each forbids overlap *within its class*, so an
+employee has at most one substantive placement and at most one movement per date, and at most
+one open row of each. A movement may overlap the substantive placement it departs from — that
+nesting is a reassignment or detail — but never another movement.
+
+Partition on `parent_id IS NULL`, never on any label: partitioning by a movement's *kind* would
+let a "detail" and a "reassignment" overlap each other, which is wrong.
+
+`UNIQUE (id, employee_id)` exists only so `(parent_id, employee_id)` can pair against it. That
+makes "the parent is the same employee" structural rather than a trigger — the same device the
+whole file uses for `(x_id, agency_id)`. What still needs `deployments_nested` (P0001) is
+cross-row and cannot be a CHECK: a movement's range must sit inside its parent's, and a
+movement's parent must itself be substantive, so there is no detail from a detail.
 
 Decision 28 removes the former employment-window gap: employees has no separate hire or
-separation dates. These deployment ranges **are** the employment history, so there is no
-parent window to contain them. The exclusion constraint permits rehire after a gap and
-refuses two open rows or two ranges sharing the same day.
+separation dates. These deployment ranges **are** the employment history. The exclusion
+constraints permit rehire after a gap and refuse two open substantive rows or two substantive
+ranges sharing the same day.
+
+Note for whoever implements decision 30: these ranges are access control, not only history, so
+a corrupted range grants a workgroup records it must not see. Every write must be conditional
+(`WHERE ... AND ends IS NULL`, or an expected-value predicate) rather than a read followed by an
+update — no constraint here would refuse a stale rewrite.
 
 ### users
 
