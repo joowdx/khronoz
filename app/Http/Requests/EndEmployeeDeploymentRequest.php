@@ -65,12 +65,28 @@ class EndEmployeeDeploymentRequest extends FormRequest
                 return;
             }
 
-            $starts = $this->route('employee')->deployments()
+            $placement = $this->route('employee')->deployments()
                 ->whereKey($this->validated('deployment'))
-                ->value('starts');
+                ->first(['starts', 'ends']);
 
-            if ($starts !== null && $this->date('ends')->lt($starts)) {
+            if ($placement === null) {
+                return;
+            }
+
+            if ($this->date('ends')->lt($placement->starts)) {
                 $validator->errors()->add('ends', 'Before the current placement began.');
+            }
+
+            // `expects` must be the row's own current `ends`, or the controller's
+            // predicate would miss and report "changed while you were looking at
+            // it" for a request that was simply wrong about the row — a message
+            // that would be a lie. An adversarial review on 2026-09-11 caught
+            // exactly that overclaim. Checking it here does not make the
+            // predicate redundant: this catches a stale or fabricated form, and
+            // the predicate still catches a change that lands between this
+            // validation and the write.
+            if ($this->date('expects')?->toDateString() !== $placement->getRawOriginal('ends')) {
+                $validator->errors()->add('ends', 'This placement changed since the form was opened. Reload and try again.');
             }
         }];
     }

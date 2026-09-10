@@ -472,9 +472,12 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertSame($elsewhere->id, $replacement->workgroup_id);
 
         // The stale submission now lands. It must affect nothing.
+        // The request layer now answers first: `expects` no longer matches the
+        // row's `ends`, so this is a field error telling the clerk to reload,
+        // rather than the generic flash it used to be. The controller's
+        // predicate remains behind it for a change that lands after validation.
         $this->patch(route('employees.deployments.update', $employee), $stale)
-            ->assertRedirect(route('employees.show', $employee))
-            ->assertSessionHas('error');
+            ->assertSessionHasErrors('ends');
 
         $this->assertSame('2026-01-31', $placement->fresh()->ends->toDateString());
         $this->assertNull($replacement->fresh()->ends, 'the replacement must not be touched');
@@ -498,9 +501,10 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->patch(route('employees.deployments.update', $employee), $payload)->assertSessionHas('success');
         $this->assertSame('2026-06-30', $placement->fresh()->ends->toDateString());
 
-        // Replaying the same form, whose `expects` is still null.
+        // Replaying the same form, whose `expects` is still null while the row
+        // now carries a date.
         $this->patch(route('employees.deployments.update', $employee), [...$payload, 'ends' => '2026-09-30'])
-            ->assertSessionHas('error');
+            ->assertSessionHasErrors('ends');
 
         $this->assertSame('2026-06-30', $placement->fresh()->ends->toDateString());
     }
@@ -552,6 +556,39 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertSame('2026-05-31', $reassignment->fresh()->ends->toDateString());
     }
 
+    /**
+     * The flash that reports a lost race, which validation can no longer
+     * reach: `expects` is now checked against the row before the write, so the
+     * only way to the controller's own zero-rows branch is a change landing
+     * *between* that check and the UPDATE.
+     *
+     * Driven by binding a request that skips `after()` — the same device
+     * test_end_placement_translates_a_database_refusal_independently_of_validation
+     * uses — because a genuine interleaving cannot be produced from a single
+     * test process. Without this, the branch would be unreachable code that
+     * looks covered.
+     */
+    public function test_a_change_landing_after_validation_reports_a_lost_race(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01', 'ends' => null]);
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+        $this->app->bind(EndEmployeeDeploymentRequest::class, fn () => new class extends EndEmployeeDeploymentRequest
+        {
+            public function after(): array
+            {
+                return [];
+            }
+        });
+
+        // `expects` names a value the row does not hold, standing in for a
+        // change committed after validation passed.
+        $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => '2026-01-01', 'ends' => '2026-06-30',
+        ])->assertRedirect(route('employees.show', $placement->employee_id))->assertSessionHas('error');
+
+        $this->assertNull($placement->fresh()->ends, 'the row must be untouched');
+    }
+
     /** @return array<string, array{0: mixed}> */
     public static function invalidEndDates(): array
     {
@@ -591,7 +628,7 @@ class EmployeeDeploymentControllerTest extends TestCase
 
         $this->patch(route('employees.deployments.update', $placement->employee_id), [
             'deployment' => $placement->id, 'expects' => null, 'ends' => '2025-06-30',
-        ])->assertRedirect(route('employees.show', $placement->employee_id))->assertSessionHas('error');
+        ])->assertSessionHasErrors('ends');
 
         $this->assertSame('2024-12-31', $placement->fresh()->ends->toDateString());
     }
