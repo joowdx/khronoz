@@ -474,11 +474,18 @@ declared_at timestamp(0) NOT NULL
 
 -- exemptions
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
-FOREIGN KEY (user_id) REFERENCES users (id)
+FOREIGN KEY (user_id) REFERENCES users (id)                        -- single, not paired, for the reason suspensions.user_id is
 UNIQUE (id, employee_id)                                          -- target for the workday FK
+until date NULL                                                    -- last day, INCLUSIVE; null is one day and NOT an open end (README decision 37)
+CHECK (until IS NULL OR until > date)                              -- strict, so null is the one canonical spelling of a single day
+CHECK (until IS NULL OR starts IS NULL)                            -- a multi-day exemption is whole days; hours across 105 days is never meant
 CHECK ((starts IS NULL) = (ends IS NULL))
 CHECK (starts IS NULL OR ends > starts)
 CHECK (type IN ('leave', 'business', 'travel', 'cto', 'pass', 'personal', 'emergency'))   -- personal is recorded and printed but excuses nothing (README decision 19)
+approved_at timestamp(0) NOT NULL                                  -- v1 sets it on entry (05-calendar.md rule 5); filing workflows are phase 2
+-- no exclusion over (employee_id, the range), deliberately: a morning pass and an afternoon CTO are one
+-- ordinary day. Milestone 6 stamps one workdays.exemption_id per day and picks by precedence.
+-- Concerns\CoversDates must NOT be used on this table: null `until` is one day, null `ends` is no end.
 ```
 
 ### overtimes

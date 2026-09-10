@@ -230,7 +230,7 @@ The deriver therefore needs a per-agency on-call rule, but it is a rule about re
 
 ### Maternity leave is a day-status rule, not a balance
 
-**RA 11210**: 105 continuous days for live birth, 60 for miscarriage or emergency termination, 15 additional paid days for a qualified solo parent, and an optional 30 unpaid days. Because the period is **continuous**, it spans non-workdays and cannot be entered as a run of ordinary scheduled absences. It is closer to a suspension of the roster than to an exemption per workday — worth settling before Milestone 4 designs `exemptions`.
+**RA 11210**: 105 continuous days for live birth, 60 for miscarriage or emergency termination, 15 additional paid days for a qualified solo parent, and an optional 30 unpaid days. Because the period is **continuous**, it spans non-workdays and cannot be entered as a run of ordinary scheduled absences. It is closer to a suspension of the roster than to an exemption per workday. **Settled as decision 37**: one `exemptions` row carrying `until` as its inclusive last day, not a roster-level construct and not a separate table — the roster is a person's schedule and a leave is not a change of schedule, and a second table would need a second FK on `workdays`.
 
 ### Field and official-business days need a verifiable record, not a blank
 
