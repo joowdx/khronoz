@@ -40,7 +40,7 @@ class EmployeePolicy
     /**
      * Determine whether the user can update the model.
      *
-     * Also the ability MoveEmployeeRequest authorizes against: moving an
+     * Also the ability DeployEmployeeRequest authorizes against: moving an
      * employee to a new workgroup is a change to that employee, not a distinct
      * resource of its own.
      */

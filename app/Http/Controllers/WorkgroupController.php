@@ -196,7 +196,7 @@ class WorkgroupController extends Controller
      * refused, so a translation that only catches the exception would report
      * a tidy validation error on a connection nothing else can use. Outside a
      * transaction Postgres' autocommit hides that; inside one — the test
-     * suite, or any future caller that opens one — it does not. MoveEmployee
+     * suite, or any future caller that opens one — it does not. TransferEmployee
      * already transacts for its own reasons, which is why the same
      * translation in EmployeeDeploymentController needs nothing here.
      */

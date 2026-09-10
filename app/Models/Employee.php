@@ -108,34 +108,48 @@ class Employee extends Model
     }
 
     /**
-     * The one open *substantive* placement — where the plantilla item sits.
-     * At most one, by deployments_no_overlap, which is partial on
-     * `parent_id IS NULL`.
+     * The *substantive* placement covering today — where the plantilla item
+     * sits right now.
      *
-     * The `parent_id` half of that predicate is not decoration: since
-     * decision 31 a reassigned employee has two open rows, so "the open
-     * deployment" is ambiguous without it and this hasOne would return
-     * whichever the database handed back first. Decision 31's own table is
-     * emphatic that the three consumers of the nesting resolve it
-     * differently and must not be collapsed into one "operative placement"
-     * helper — this relation is the *substantive* answer, which is what
-     * `head`, a transfer and a removal each want. A work suspension wants the
-     * operative row instead (05-calendar.md rule 3, Milestone 5) and gets its
-     * own accessor when it arrives.
+     * Two halves of the predicate, each load-bearing for its own reason.
+     *
+     * `parent_id IS NULL` because a reassigned employee has two rows covering
+     * the same day since decision 31, so "the deployment" is otherwise
+     * ambiguous and this hasOne would return whichever the database handed
+     * back first. Decision 31's own table is emphatic that the three
+     * consumers of the nesting resolve it differently and must not be
+     * collapsed into one "operative placement" helper — this relation is the
+     * *substantive* answer, which is what `head`, a transfer and a removal
+     * each want. A work suspension wants the operative row instead
+     * (05-calendar.md rule 3, Milestone 5) and gets its own accessor then.
+     *
+     * Covering **today**, rather than the older "`ends IS NULL`". A
+     * placement may be fixed-term — contractual, casual, co-terminous — so a
+     * row that is perfectly current can already carry an `ends`, and asking
+     * for the open one would have reported no workgroup at all for those
+     * people. Note what cannot be substituted: "has not ended yet"
+     * (`ends IS NULL OR ends >= today`) is *not* at most one, because a
+     * placement ending in June and its successor starting in July both
+     * satisfy it. Covering a single date is at most one, and
+     * deployments_no_overlap is what guarantees that — this hasOne is only
+     * sound with the date bound on both sides.
+     *
+     * A row closed on today is still current today; `ends` is inclusive.
      */
     public function currentDeployment(): HasOne
     {
-        return $this->hasOne(Deployment::class)->whereNull('parent_id')->whereNull('ends');
+        return $this->hasOne(Deployment::class)->whereNull('parent_id')->coveringToday();
     }
 
     /**
-     * The one open reassignment, if the person is currently detailed
-     * elsewhere. At most one, by deployments_no_overlapping_movements — nobody
-     * is detailed to two places at once.
+     * The reassignment covering today, if the person is detailed elsewhere
+     * right now. At most one, by deployments_no_overlapping_movements —
+     * nobody is detailed to two places at once — and date-bounded for the
+     * same reason currentDeployment is.
      */
     public function currentReassignment(): HasOne
     {
-        return $this->hasOne(Deployment::class)->whereNotNull('parent_id')->whereNull('ends');
+        return $this->hasOne(Deployment::class)->whereNotNull('parent_id')->coveringToday();
     }
 
     public function user(): HasOne

@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToAgency;
+use Carbon\CarbonInterface;
 use Database\Factories\DeploymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -58,6 +61,30 @@ class Deployment extends Model
     public function workgroup(): BelongsTo
     {
         return $this->belongsTo(Workgroup::class);
+    }
+
+    /**
+     * Rows whose range covers $date — at most one per class, since
+     * deployments_no_overlap and deployments_no_overlapping_movements each
+     * forbid two rows of their own class sharing a day. `ends` is inclusive
+     * (the ranges are built '[]'), so a row closed on $date still covers it.
+     *
+     * A scope rather than three inline predicates, because getting it wrong
+     * in one place is a silent correctness bug: "has not ended yet" looks
+     * equivalent and is not at most one.
+     */
+    #[Scope]
+    protected function covering(Builder $query, CarbonInterface $date): void
+    {
+        $query->where('starts', '<=', $date)
+            ->where(fn (Builder $ended) => $ended->whereNull('ends')->orWhere('ends', '>=', $date));
+    }
+
+    /** `covering(today())`, the overwhelmingly common case. */
+    #[Scope]
+    protected function coveringToday(Builder $query): void
+    {
+        $query->covering(today());
     }
 
     /** The substantive placement this row is a reassignment from; null on a placement itself. */

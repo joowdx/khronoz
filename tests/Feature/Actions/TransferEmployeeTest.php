@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Actions;
 
-use App\Actions\MoveEmployee;
+use App\Actions\TransferEmployee;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
@@ -11,7 +11,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
-class MoveEmployeeTest extends TestCase
+class TransferEmployeeTest extends TestCase
 {
     public function test_opens_the_first_deployment_for_an_employee_with_none(): void
     {
@@ -20,7 +20,7 @@ class MoveEmployeeTest extends TestCase
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
 
-        $deployment = app(MoveEmployee::class)->handle($employee, $workgroup, Carbon::parse('2026-01-01'));
+        $deployment = app(TransferEmployee::class)->handle($employee, $workgroup, Carbon::parse('2026-01-01'));
 
         $this->assertSame($workgroup->id, $deployment->workgroup_id);
         $this->assertSame($employee->id, $deployment->employee_id);
@@ -47,7 +47,7 @@ class MoveEmployeeTest extends TestCase
             'ends' => null,
         ]);
 
-        $new = app(MoveEmployee::class)->handle($employee->fresh(), $workgroupB, Carbon::parse('2026-03-15'));
+        $new = app(TransferEmployee::class)->handle($employee->fresh(), $workgroupB, Carbon::parse('2026-03-15'));
 
         $this->assertSame('2026-03-14', $original->fresh()->ends->toDateString());
         $this->assertSame($workgroupB->id, $new->workgroup_id);
@@ -60,7 +60,7 @@ class MoveEmployeeTest extends TestCase
      * between this and a silently corrupt double-booking (R16). The fixture
      * is a *closed*, historical deployment lying in the range the new open
      * deployment would cover. currentDeployment (whereNull ends) does not
-     * see a closed row, so MoveEmployee has no "close" step to run first —
+     * see a closed row, so TransferEmployee has no "close" step to run first —
      * only the database's own deployments_no_overlap catches the collision,
      * exactly the case the action is written to let happen rather than
      * pre-empt.
@@ -87,7 +87,7 @@ class MoveEmployeeTest extends TestCase
             'ends' => '2025-09-01',
         ]);
 
-        $this->assertDatabaseRefuses('23P01', fn () => app(MoveEmployee::class)->handle($employee->fresh(), $workgroupB, Carbon::parse('2025-07-01')));
+        $this->assertDatabaseRefuses('23P01', fn () => app(TransferEmployee::class)->handle($employee->fresh(), $workgroupB, Carbon::parse('2025-07-01')));
 
         // The historical row survives untouched.
         $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'starts' => '2025-06-01', 'ends' => '2025-09-01']);
@@ -126,7 +126,7 @@ class MoveEmployeeTest extends TestCase
         // already open here — compiles to a SAVEPOINT and rolls back
         // automatically once the QueryException is caught. That would undo
         // the close by the *test harness itself*, regardless of whether
-        // MoveEmployee::handle() wraps its own work in a transaction — so an
+        // TransferEmployee::handle() wraps its own work in a transaction — so an
         // assertDatabaseRefuses version of this test would pass even with
         // DB::transaction() deleted from handle(), proving nothing about the
         // one thing this test exists to check. Catching by hand instead
@@ -137,7 +137,7 @@ class MoveEmployeeTest extends TestCase
         // marks the whole per-test transaction aborted (25P02) and the same
         // read errors instead of passing.
         try {
-            app(MoveEmployee::class)->handle($employee->fresh(), $foreignWorkgroup, Carbon::parse('2026-06-01'));
+            app(TransferEmployee::class)->handle($employee->fresh(), $foreignWorkgroup, Carbon::parse('2026-06-01'));
             $this->fail('expected the paired FK to refuse a workgroup from another agency');
         } catch (QueryException $e) {
             $this->assertSame('23503', $e->getCode());

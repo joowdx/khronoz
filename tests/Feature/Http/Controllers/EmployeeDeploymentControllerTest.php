@@ -8,6 +8,7 @@ use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
+use Carbon\CarbonImmutable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -56,7 +57,7 @@ class EmployeeDeploymentControllerTest extends TestCase
 
     /**
      * The exclusion constraint, not this test, decides the overlap — see
-     * MoveEmployee's docblock and MoveEmployeeTest::test_refuses_an_overlap
+     * TransferEmployee's docblock and TransferEmployeeTest::test_refuses_an_overlap
      * for why a *closed*, historical deployment lying in the new range is
      * the only shape that reaches deployments_no_overlap through this
      * action. This test proves the controller translates that constraint's
@@ -91,7 +92,7 @@ class EmployeeDeploymentControllerTest extends TestCase
 
     /**
      * A move dated on or before the open deployment's own start.
-     * MoveEmployee closes that row at `starts - 1`, which leaves
+     * TransferEmployee closes that row at `starts - 1`, which leaves
      * `ends < starts` and `deployments_dates_ordered` (a CHECK, 23514)
      * refuses the UPDATE. That is the refusal a real user hits: the sheet
      * used to offer every date back to the hire date, so for someone hired in
@@ -177,6 +178,172 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertSame('2025-06-30', $placement->fresh()->ends->toDateString());
         $this->assertSame(2, $employee->deployments()->count());
         $this->assertSame('2026-01-01', $employee->fresh()->currentDeployment->starts->toDateString());
+    }
+
+    /**
+     * The `reassignment` flag is the whole discriminator (decision 35), and
+     * this is the property that distinguishes the two verbs: the substantive
+     * placement stays open, because the plantilla item never left.
+     */
+    public function test_reassignment_opens_a_nested_row_and_leaves_the_placement_open(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-02-01 08:00:00'));
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+        $elsewhere = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Civil Security Unit']);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => $elsewhere->id,
+            'starts' => '2026-03-01',
+            'ends' => '2026-05-31',
+            'reassignment' => true,
+        ])->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+
+        $this->assertNull($placement->fresh()->ends, 'a reassignment must not close the placement');
+        $this->assertDatabaseHas('deployments', [
+            'employee_id' => $employee->id,
+            'workgroup_id' => $elsewhere->id,
+            'parent_id' => $placement->id,
+            'starts' => '2026-03-01',
+            'ends' => '2026-05-31',
+        ]);
+        $this->assertSame(2, $employee->deployments()->count());
+    }
+
+    /**
+     * The same payload without the flag is a transfer, and closes the
+     * placement the day before. Asserted against the reassignment test above
+     * so the flag is the only difference between them.
+     */
+    public function test_the_same_payload_without_the_flag_closes_the_placement(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-02-01 08:00:00'));
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+        $elsewhere = Workgroup::factory()->create(['agency_id' => $agency->id]);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => $elsewhere->id,
+            'starts' => '2026-03-01',
+        ])->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+
+        $this->assertSame('2026-02-28', $placement->fresh()->ends->toDateString());
+        $this->assertNull($employee->fresh()->currentDeployment->parent_id);
+    }
+
+    /**
+     * No open placement means no parent to nest under, and nothing in the
+     * schema can refuse it — the row would be written as a valid substantive
+     * placement, so a reassignment would silently become a transfer. The
+     * request catches it before ReassignEmployee has to raise.
+     */
+    public function test_reassignment_is_refused_when_there_is_no_open_placement(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => $workgroup->id,
+            'starts' => '2026-03-01',
+            'reassignment' => true,
+        ])->assertSessionHasErrors('reassignment');
+
+        $this->assertSame(0, $employee->deployments()->count());
+    }
+
+    /**
+     * A reassignment cannot begin before the placement it departs from.
+     *
+     * The message is asserted, not just the field, and that is deliberate:
+     * deployments_nested refuses this too, and the controller translates its
+     * P0001 onto the same `starts` key — so a bare assertSessionHasErrors
+     * passes whichever layer answered and would not notice the request check
+     * disappearing (MEASURED: removing it left this test green). Validation
+     * is meant to win here, before any write is attempted; the trigger is the
+     * backstop for a concurrent change, exactly as
+     * EndEmployeeDeploymentRequest documents for its own date check.
+     */
+    public function test_reassignment_cannot_start_before_its_placement(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-02-01 08:00:00'));
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $elsewhere = Workgroup::factory()->create(['agency_id' => $agency->id]);
+
+        $this->post(route('employees.deployments.store', $placement->employee), [
+            'workgroup_id' => $elsewhere->id,
+            'starts' => '2025-06-01',
+            'reassignment' => true,
+        ])->assertSessionHasErrors(['starts' => 'Before the current placement began.']);
+
+        $this->assertSame(1, $placement->employee->deployments()->count());
+    }
+
+    /**
+     * A reassignment cannot outlive a fixed-term placement, and an
+     * open-ended one always would — a null upper bound is unbounded, and a
+     * closed range cannot contain it.
+     */
+    public function test_reassignment_cannot_outlive_a_fixed_term_placement(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-02-01 08:00:00'));
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => '2026-06-30']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $elsewhere = Workgroup::factory()->create(['agency_id' => $agency->id]);
+
+        $this->post(route('employees.deployments.store', $placement->employee), [
+            'workgroup_id' => $elsewhere->id,
+            'starts' => '2026-03-01',
+            'ends' => '2026-07-31',
+            'reassignment' => true,
+        ])->assertSessionHasErrors('ends');
+
+        $this->post(route('employees.deployments.store', $placement->employee), [
+            'workgroup_id' => $elsewhere->id,
+            'starts' => '2026-03-01',
+            'reassignment' => true,
+        ])->assertSessionHasErrors('ends');
+
+        $this->assertSame(1, $placement->employee->deployments()->count());
+    }
+
+    /**
+     * A transfer may record a fixed term. The placement is then current
+     * today while already carrying an `ends`, which is exactly the case
+     * Employee::currentDeployment's date predicate exists for — "the open
+     * row" would have reported no workgroup for this person.
+     */
+    public function test_a_transfer_may_record_a_fixed_term_placement(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-03-01 08:00:00'));
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => $workgroup->id,
+            'starts' => '2026-01-01',
+            'ends' => '2026-12-31',
+        ])->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+
+        $current = $employee->fresh()->currentDeployment;
+
+        $this->assertNotNull($current, 'a fixed-term placement covering today is still the current one');
+        $this->assertSame('2026-12-31', $current->ends->toDateString());
     }
 
     /** @return array<string, array{0: mixed}> */

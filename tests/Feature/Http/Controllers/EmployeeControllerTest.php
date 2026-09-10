@@ -689,7 +689,18 @@ class EmployeeControllerTest extends TestCase
 
         $this->assertDatabaseHas('deployments', ['id' => $placement->id, 'ends' => '2026-09-10']);
         $this->assertSoftDeleted('employees', ['id' => $placement->employee_id]);
-        $this->assertNull(Employee::withTrashed()->findOrFail($placement->employee_id)->currentDeployment);
+
+        // Closed on its last day, inclusive — so it still covers today, and
+        // currentDeployment still finds it. That is the point of the
+        // relation's predicate: "the placement covering this date", not "the
+        // row with no end", which a fixed-term placement would fail. It stops
+        // being current tomorrow.
+        $trashed = Employee::withTrashed()->findOrFail($placement->employee_id);
+        $this->assertSame($placement->id, $trashed->currentDeployment->id);
+
+        $this->travelTo(CarbonImmutable::parse('2026-09-11 00:30:00'));
+        $this->assertNull($trashed->fresh()->currentDeployment);
+        $this->travelTo(CarbonImmutable::parse('2026-09-10 00:30:00'));
         $this->get(route('workgroups.index'))->assertInertia(fn (Assert $page) => $page
             ->where('workgroups.0.people_count', 1)->where('workgroups.0.deployments_count', 2));
     }
