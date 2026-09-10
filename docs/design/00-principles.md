@@ -41,7 +41,7 @@ Three tiers. Only the middle one is data an agency can see and copy.
    | --- | --- | --- |
    | work week | 40 hours over 5 days | **no statutory week**; 8 ordinary hours a day and 24 continuous hours' rest after 6 consecutive work days |
    | night window | 18:00–06:00 (RA 11701) | **22:00–06:00** (Art. 86) — selected by `settings.night_from`, decision 33; `06:00` is the end in both |
-   | overtime threshold | JC 2 s. 2015 gates: on-time arrival, 2-hour minimum, 12-hour cap | 8 hours a day, or **12** under a compliant compressed week, with a **48-hour weekly ceiling** |
+   | overtime gates and limits | JC 2 s. 2015: on-time arrival and a two-hour minimum are conditions for overtime **with pay** (§10.1), not the threshold that makes a minute overtime; the twelve-hour figure caps overtime *pay* on rest days, holidays and special non-working days, with the excess converting to CTO (§10.5) — it is not a general cap | no gating instrument at all; a **48-hour weekly ceiling** under a compliant compressed week (DA 02-04) |
    | premium multipliers | 1.25 and 1.5 | 1.25 ordinary, 1.30 rest/special day, 2.00 regular holiday, compounding |
    | compensatory credit | COC 1.0 and 1.5, 40-hour monthly and 120-hour balance caps | none |
    | habitual thresholds | 10 occurrences, 2 months, 2.5 days, 3 months; semester boundaries | **none** — no statutory occurrence counting exists |
@@ -52,6 +52,8 @@ Three tiers. Only the middle one is data an agency can see and copy.
    | record retention | no CSC figure found | **3 years** from the last entry |
 
    The night window is the sharpest of these: four hours a night, and it changes which minutes are *classified* as night work, not merely what they are paid. A night-hours total is therefore not portable between regimes.
+
+   **The daily overtime threshold is deliberately not in this table** (decision 34). It is the resolved shift's prescribed duration — tier 2 data, frozen into each workday's snapshot — because it varies *within* one agency: a compressed-week office runs a ten-hour day under Res. 2600838 while its standard staff run eight, and JC 2 s. 2015 §8.2.2 starts overtime only beyond the prescribed hours of the shift. `settings.overtime_after` is the default a new shift inherits, never what the deriver reads. What remains a regime constant is the row above — the gates and limits applied to minutes already identified as excess.
 2. **Platform default rows**, owned by the platform agency, read-only to agencies. National holidays are read directly, `agency_id IN (own, platform)`. Shifts and schedules are copied: onboarding copies the whole set into the new agency, later additions are copied from the Defaults screen, and every copy carries `origin_id` so the UI can show when a copy has diverged and refresh it on request. The set: shifts Standard 8–5, the seven flexitime options, CWW 7–6 and 8–7, Ramadan 7:30–3:30, Off, Remote; schedules Standard week, CWW Mon–Thu, CWW Tue–Fri, CWW Wed off, CWW Mon–Thu with a remote Friday. Rostering needs the copy, which the paired FK enforces.
 3. **Agency settings.** Which schedules are rostered, the off day, grace minutes (default 0 — and **not** a free choice: CSC creates no grace period, and a lenient grace policy on a *fixed* schedule needs legal authority, though a genuine flexible schedule changes when lateness begins), trust of device state, remote day, overtime internal rules inside JC 2 s. 2015, pass slip conventions, workgroup-level suspensions, local holidays, and the regime keys of decision 32 that select tier 1b.
 
