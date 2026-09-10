@@ -25,15 +25,35 @@ One rule: **variation between agencies is data, invariants are code.** Onboardin
 5. **A type column when the shape is the same, a table when it differs.** `Holiday.type`, `Exemption.type`, `Workgroup.kind` are columns. `Suspension` is its own table because it has a time range and a workgroup scope that holidays do not.
 6. **Bounded flexibility.** Agencies choose within the law. They cannot define new workday statuses, new formulas, or new fields in v1. Extra inert data goes in a `meta` json that no rule reads.
 7. **Single database, `agency_id` on every table with paired foreign keys, a global scope keyed to the user's agency.** Platform users act inside a chosen agency, so the scope has one code path (02-access.md rule 3). Row-level security is available later without a schema change.
-8. **Constants change by deploy with a date.** When CSC changes a threshold, the rules module gets a new value with an effectivity date, and workdays before that date keep computing under the old one.
+8. **Constants change by deploy with a date.** When the law an agency is under changes a threshold, the rules module gets a new value with an effectivity date, and workdays before that date keep computing under the old one. "The law an agency is under" is not one law: most of tier 1 below is Civil Service Commission arithmetic and has a different value, or no value, under the Labor Code (`../reference/csc-rules.md` and `dole-rules.md`).
 
 ## Three tiers of configuration
 
 Three tiers. Only the middle one is data an agency can see and copy.
 
-1. **Constants in code.** 480-minute day, 40-hour week, 7:00–19:00 flexitime band, 18:00–06:00 night window, the overtime gates (on-time arrival, 2-hour minimum, 12-hour cap), 1.25 and 1.5 multipliers, COC 1.0 and 1.5 with 40 and 120 caps, habitual thresholds (10 occurrences, 2 months, 2.5 days, 3 months), half-day rules, no offsetting, semester boundaries, 22-day month. These change when the law changes, which is a code change with a date, not a setting. They live in one constants class, with the CSC minutes-to-days conversion table seeded from the printed values because printed rounding is what auditors compare against.
+1. **Constants in code, in two sets** (revised by decision 32 — the original single set assumed every agency was under civil service rules). Both change by deploy with a date, never by a setting, and both live in the constants module; what an agency configures is *which regime's set applies to it*, never a value inside a set.
+
+   **1a. Universal.** The 480-minute ordinary day — 8 hours under both Rule XVII §5 and Labor Code Art. 83.
+
+   **1b. Regime constants**, selected by the agency's configured settings (decision 32) and **not** shared:
+
+   | Constant | Civil service | Labor Code |
+   | --- | --- | --- |
+   | work week | 40 hours over 5 days | **no statutory week**; 8 ordinary hours a day and 24 continuous hours' rest after 6 consecutive work days |
+   | night window | 18:00–06:00 (RA 11701) | **22:00–06:00** (Art. 86) |
+   | overtime threshold | JC 2 s. 2015 gates: on-time arrival, 2-hour minimum, 12-hour cap | 8 hours a day, or **12** under a compliant compressed week, with a **48-hour weekly ceiling** |
+   | premium multipliers | 1.25 and 1.5 | 1.25 ordinary, 1.30 rest/special day, 2.00 regular holiday, compounding |
+   | compensatory credit | COC 1.0 and 1.5, 40-hour monthly and 120-hour balance caps | none |
+   | habitual thresholds | 10 occurrences, 2 months, 2.5 days, 3 months; semester boundaries | **none** — no statutory occurrence counting exists |
+   | offsetting | tardiness and absence cannot be self-offset, **but** approved compensatory service may offset undertime | undertime not offset by overtime on another day, no exception |
+   | flexitime band | 7:00–19:00 | set by agreement, no statutory band |
+   | hourly-rate divisor | 22-day month | by wage basis |
+   | half-day and day fractions | CSC minutes-to-days table, seeded from the printed values because printed rounding is what auditors compare against | none |
+   | record retention | no CSC figure found | **3 years** from the last entry |
+
+   The night window is the sharpest of these: four hours a night, and it changes which minutes are *classified* as night work, not merely what they are paid. A night-hours total is therefore not portable between regimes.
 2. **Platform default rows**, owned by the platform agency, read-only to agencies. National holidays are read directly, `agency_id IN (own, platform)`. Shifts and schedules are copied: onboarding copies the whole set into the new agency, later additions are copied from the Defaults screen, and every copy carries `origin_id` so the UI can show when a copy has diverged and refresh it on request. The set: shifts Standard 8–5, the seven flexitime options, CWW 7–6 and 8–7, Ramadan 7:30–3:30, Off, Remote; schedules Standard week, CWW Mon–Thu, CWW Tue–Fri, CWW Wed off, CWW Mon–Thu with a remote Friday. Rostering needs the copy, which the paired FK enforces.
-3. **Agency settings.** Which schedules are rostered, the off day, grace minutes (default 0), trust of device state, remote day, overtime internal rules inside JC 2 s. 2015, pass slip conventions, workgroup-level suspensions, local holidays.
+3. **Agency settings.** Which schedules are rostered, the off day, grace minutes (default 0 — and **not** a free choice: CSC creates no grace period, and a lenient grace policy on a *fixed* schedule needs legal authority, though a genuine flexible schedule changes when lateness begins), trust of device state, remote day, overtime internal rules inside JC 2 s. 2015, pass slip conventions, workgroup-level suspensions, local holidays, and the regime keys of decision 32 that select tier 1b.
 
 
 ## Onboarding test

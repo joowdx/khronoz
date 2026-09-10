@@ -132,7 +132,7 @@ The CSC table appended to the Omnibus Rules on Leave converts on a 480-minute da
 - Partial overlap pays only "the hour/s of work performed between 6 p.m. and 6 a.m.".
 - Hours beyond the shift "shall be compensated in accordance with the rules and regulations on overtime".
 - **The differential does NOT stack on overtime hours** ☆ — resolved by the cross-review against JC 1 s. 2023 Annex C, Example D, which computes NSD for the prescribed 6 p.m.–2 a.m. eight-hour shift and then computes 2 a.m.–5 a.m. separately as overtime. This file previously left the question open.
-- **Except public health workers**, who have a special-law rule: RA 7305 §18(b) gives regular wage + overtime + an additional 10% of the overtime rate for qualifying 10 p.m.–6 a.m. overtime ★. So "no stacking" is the general-government rule, not a universal one.
+- **Except public health workers**, who have a special-law rule: RA 7305 §18(b) gives regular wage + overtime + an additional 10% of the overtime rate for qualifying overtime ★. **Note the window differs from the rest of this section**: RA 7305 (1992) uses **10 p.m.–6 a.m.**, predating RA 11701 (2022) and its 6 p.m.–6 a.m. window, and nothing read here says RA 11701 widened it for this purpose. So a government hospital may have to classify night minutes on *two* boundaries — 6 p.m. for the differential and 10 p.m. for the RA 7305 overtime premium. Unresolved and flagged: it is the strongest argument that the night boundary must be a value the engine looks up rather than a constant it compiles in.
 
 ## E. Calendar events
 
