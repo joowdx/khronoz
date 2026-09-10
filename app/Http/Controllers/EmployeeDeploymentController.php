@@ -6,11 +6,13 @@ use App\Actions\ReassignEmployee;
 use App\Actions\TransferEmployee;
 use App\Http\Requests\DeployEmployeeRequest;
 use App\Http\Requests\EndEmployeeDeploymentRequest;
+use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -145,5 +147,52 @@ class EmployeeDeploymentController extends Controller
         }
 
         return redirect()->route('employees.show', $employee)->with('success', 'Placement ended.');
+    }
+
+    /**
+     * Correct a wrongly recorded deployment by removing it; the right one is
+     * then created afresh (decision 35). There is deliberately no PATCH: the
+     * row was never true, so there is nothing to preserve, and principle 2's
+     * "a change is a new range" does not apply to a mistake.
+     *
+     * A hard delete, and `Deployment` carries no SoftDeletes precisely so
+     * that this is one. A soft delete is an UPDATE, so the row would keep its
+     * range, go on occupying the timeline the exclusion constraints index,
+     * and refuse its own replacement with 23P01.
+     *
+     * | SQLSTATE | Constraint | Reached by |
+     * | --- | --- | --- |
+     * | 23001 | deployments_parent_id_employee_id_foreign | deleting a placement that still has a reassignment nested under it — RESTRICT is stated explicitly on that FK for this reason |
+     *
+     * Gated by EmployeePolicy::update, the same ability every other write on
+     * this employee's placements uses; the route's ->scopeBindings() has
+     * already made a deployment of another employee a 404.
+     *
+     * Owed to Milestone 6 (06-attendance.md, open item 5): a deployment
+     * overlapping a locked or attested ledger month must refuse every write,
+     * this one included. It cannot be built until `ledgers` exists, and until
+     * then nothing reads a deployment range, so deletion is unconditionally
+     * safe.
+     */
+    public function destroy(Employee $employee, Deployment $deployment): RedirectResponse
+    {
+        Gate::authorize('update', $employee);
+
+        try {
+            // Wrapped for the same reason update() is: a refusal aborts the
+            // transaction it runs in, so without a savepoint of its own the
+            // caught 23001 would leave the surrounding transaction poisoned
+            // (25P02) and every later statement in it would fail.
+            DB::transaction(fn () => $deployment->delete());
+        } catch (QueryException $e) {
+            throw match ($e->getCode()) {
+                '23001' => ValidationException::withMessages([
+                    'deployment' => ['Remove the reassignment nested under this placement first.'],
+                ]),
+                default => $e,
+            };
+        }
+
+        return redirect()->route('employees.show', $employee)->with('success', 'Deployment removed.');
     }
 }

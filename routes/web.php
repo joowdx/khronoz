@@ -44,6 +44,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('employees', EmployeeController::class);
         Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
         Route::patch('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'update'])->name('employees.deployments.update');
+        // Correction, not amendment: a wrongly recorded deployment is deleted
+        // and the right one created afresh (decision 35). Collection-level
+        // PATCH above ends the open placement — a different operation on a
+        // row the caller does not name — so this one is member-level and
+        // ->scoped() ties {deployment} to {employee}, making another
+        // employee's row a 404 rather than something this route can delete.
+        Route::delete('employees/{employee}/deployments/{deployment}', [EmployeeDeploymentController::class, 'destroy'])
+            ->scopeBindings()
+            ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
     });
 

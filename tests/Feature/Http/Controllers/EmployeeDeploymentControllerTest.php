@@ -346,6 +346,94 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertSame('2026-12-31', $current->ends->toDateString());
     }
 
+    /**
+     * Correction is a delete and re-create (decision 35). The row was never
+     * true, so the point of this test is that it is *gone* — not closed, not
+     * soft-deleted — and that the corrected row can then occupy the same
+     * dates, which a soft delete would have made impossible: the tombstone
+     * would still occupy the timeline deployments_no_overlap indexes and
+     * refuse its own replacement with 23P01.
+     */
+    public function test_a_mistyped_deployment_is_deleted_and_recreated_on_the_same_dates(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+        $intended = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Records Section']);
+
+        $this->delete(route('employees.deployments.destroy', [$employee, $placement]))
+            ->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+
+        $this->assertDatabaseMissing('deployments', ['id' => $placement->id]);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => $intended->id,
+            'starts' => '2026-01-01',
+        ])->assertSessionHas('success');
+
+        $this->assertSame($intended->id, $employee->fresh()->currentDeployment->workgroup_id);
+        $this->assertSame(1, $employee->deployments()->count());
+    }
+
+    /**
+     * The delete side of the paired self-FK, which is written RESTRICT
+     * explicitly for this: a placement with a reassignment nested under it
+     * cannot go first, or the reassignment would be orphaned. Surfaced as a
+     * message naming what to remove, not a 500.
+     */
+    public function test_a_placement_with_a_reassignment_cannot_be_deleted_first(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $reassignment = Deployment::factory()->under($placement)->create(['starts' => '2026-03-01', 'ends' => '2026-05-31']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+
+        $this->delete(route('employees.deployments.destroy', [$employee, $placement]))
+            ->assertSessionHasErrors('deployment');
+
+        $this->assertDatabaseHas('deployments', ['id' => $placement->id]);
+
+        // Innermost first works.
+        $this->delete(route('employees.deployments.destroy', [$employee, $reassignment]))->assertSessionHas('success');
+        $this->delete(route('employees.deployments.destroy', [$employee, $placement]))->assertSessionHas('success');
+
+        $this->assertSame(0, $employee->deployments()->count());
+    }
+
+    /**
+     * ->scopeBindings() on the route: another employee's deployment is not a
+     * row this endpoint can reach, even for a user who may update both
+     * employees. Without the scoping, {deployment} would resolve globally and
+     * the only protection would be the policy on the wrong employee.
+     */
+    public function test_a_deployment_of_another_employee_is_not_found(): void
+    {
+        $mine = Deployment::factory()->create();
+        $agency = Agency::findOrFail($mine->agency_id);
+        $theirs = Deployment::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->delete(route('employees.deployments.destroy', [$mine->employee_id, $theirs->id]))->assertNotFound();
+
+        $this->assertDatabaseHas('deployments', ['id' => $theirs->id]);
+    }
+
+    /** Deleting a deployment is a change to that employee, so it needs the same ability as every other write here. */
+    public function test_deleting_a_deployment_requires_the_organization_permission(): void
+    {
+        $placement = Deployment::factory()->create();
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->delete(route('employees.deployments.destroy', [$placement->employee_id, $placement->id]))->assertForbidden();
+
+        $this->assertDatabaseHas('deployments', ['id' => $placement->id]);
+    }
+
     /** @return array<string, array{0: mixed}> */
     public static function invalidEndDates(): array
     {
