@@ -130,12 +130,16 @@ UNIQUE (id, employee_id)                                             -- target f
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
 FOREIGN KEY (workgroup_id, agency_id)     REFERENCES workgroups (id, agency_id)
 FOREIGN KEY (parent_id, employee_id) REFERENCES deployments (id, employee_id)
+    ON DELETE RESTRICT ON UPDATE RESTRICT                            -- stated, not inherited; Blueprint does not default to it
 CHECK (ends IS NULL OR ends >= starts)
+CHECK (parent_id IS DISTINCT FROM id)                                -- deployments_parent_not_self
 EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
     WHERE (parent_id IS NULL)                                        -- deployments_no_overlap
 EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
     WHERE (parent_id IS NOT NULL)                                    -- deployments_no_overlapping_movements
-TRIGGER deployments_nested  BEFORE INSERT OR UPDATE OF parent_id, starts, ends
+CONSTRAINT TRIGGER deployments_nested                                -- AFTER, not BEFORE; see below
+    AFTER INSERT OR UPDATE OF parent_id, starts, ends
+    DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW
 ```
 
 Two partial exclusions, not one (decision 31). Each forbids overlap *within its class*, so an
@@ -152,6 +156,39 @@ whole file uses for `(x_id, agency_id)`. What still needs `deployments_nested` (
 cross-row and cannot be a CHECK: a movement's range must sit inside its parent's, and a
 movement's parent must itself be substantive, so there is no detail from a detail.
 
+`deployments_nested` is an **AFTER constraint trigger**, `DEFERRABLE INITIALLY IMMEDIATE`. An
+earlier version of this file said `BEFORE`, which is wrong for the reason Ruling P12 already
+established for `workgroups_acyclic`: a `BEFORE … FOR EACH ROW` trigger fires before its own row
+exists and cannot see the other rows of its own statement, so one multi-row `INSERT` of two
+mutually-parented rows would close a cycle no check ever ran against. `INITIALLY IMMEDIATE` keeps
+it at end-of-statement rather than commit, which is what leaves it catchable by
+`assertDatabaseRefuses`.
+
+Both rules are enforced from **both directions**, and containment's second direction is not
+optional: checked only on the child, it is breakable by the one action that writes here —
+`TransferEmployee` closes the open placement, and nothing else would stop a movement outliving it.
+The parent lookup pairs on `employee_id` and stays silent when it finds nothing, the same shape as
+`agency_not_platform()` on a nonexistent agency; were it on `id` alone, a `parent_id` naming another
+employee's row would raise `P0001` here instead of `23503` from the paired FK, and that FK's insert
+side would have no reachable violation.
+
+**"No detail from a detail" is a theorem, not an axiom, and knowing which matters.** Nesting
+requires containment; two movements of one employee that contain one another necessarily overlap;
+`deployments_no_overlapping_movements` refuses overlapping movements before the trigger is
+consulted. So the trigger's two "the parent must itself be substantive" limbs have no reachable
+violation — measured, by neutralising each in turn — and are depth rather than the guard, kept for
+the same reason `workgroups` keeps both `workgroups_parent_not_self` and `workgroups_acyclic`.
+Repartitioning that exclusion constraint, or making it deferrable, promotes them to load-bearing.
+
+Correction is a **DELETE and re-create**, never a re-date and never a soft delete (decision 35).
+That is what the explicit `ON DELETE RESTRICT` on the self-FK is for: a placement with a movement
+under it refuses deletion with `23001` until the movement goes first. `Deployment` carries no
+`SoftDeletes` and must not acquire it — a soft delete is an `UPDATE`, so the row would keep its
+range, go on occupying the timeline these exclusions index, and refuse its own replacement with
+`23P01`. This self-FK is also the **only** foreign key in the schema pointing at `deployments`, and
+by decision 35 permanently so: `ledgers` refuses a `deployment_id`, and rosters, workdays and
+attestations reference it nowhere.
+
 Decision 28 removes the former employment-window gap: employees has no separate hire or
 separation dates. These deployment ranges **are** the employment history. The exclusion
 constraints permit rehire after a gap and refuse two open substantive rows or two substantive
@@ -161,6 +198,13 @@ Note for whoever implements decision 30: these ranges are access control, not on
 a corrupted range grants a workgroup records it must not see. Every write must be conditional
 (`WHERE ... AND ends IS NULL`, or an expected-value predicate) rather than a read followed by an
 update — no constraint here would refuse a stale rewrite.
+
+Owed to Milestone 6, and unbuildable before it: a trigger refusing **any write** — insert, re-date
+or delete — to a deployment overlapping a locked or attested ledger month. The hazard has no
+foreign key and cannot have one, since decision 30's visibility predicate reads these ranges by
+*overlap* and attestations sit on ledgers carrying no `deployment_id`. Until `ledgers` and
+`attestations` exist, deletion is unconditionally safe; once they do, delete-as-correction
+(decision 35) is the write that needs the guard most.
 
 ### users
 

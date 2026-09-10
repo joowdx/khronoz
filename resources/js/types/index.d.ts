@@ -114,10 +114,16 @@ export interface Workgroup {
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.
+ *
+ * `parent_id` null is the substantive placement, where the plantilla item
+ * sits; set means this row is a reassignment nested inside that placement,
+ * which stays open because the item never left (decision 31). There is no
+ * type field — the presence of a parent is the whole fact.
  */
 export interface Deployment {
     id: string;
     workgroup?: Workgroup | null;
+    parent_id: string | null;
     starts: string;
     ends: string | null;
 }

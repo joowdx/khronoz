@@ -107,10 +107,35 @@ class Employee extends Model
         return $this->hasMany(Deployment::class);
     }
 
-    /** The one open placement (ends IS NULL). At most one, by deployments_no_overlap. */
+    /**
+     * The one open *substantive* placement — where the plantilla item sits.
+     * At most one, by deployments_no_overlap, which is partial on
+     * `parent_id IS NULL`.
+     *
+     * The `parent_id` half of that predicate is not decoration: since
+     * decision 31 a reassigned employee has two open rows, so "the open
+     * deployment" is ambiguous without it and this hasOne would return
+     * whichever the database handed back first. Decision 31's own table is
+     * emphatic that the three consumers of the nesting resolve it
+     * differently and must not be collapsed into one "operative placement"
+     * helper — this relation is the *substantive* answer, which is what
+     * `head`, a transfer and a removal each want. A work suspension wants the
+     * operative row instead (05-calendar.md rule 3, Milestone 5) and gets its
+     * own accessor when it arrives.
+     */
     public function currentDeployment(): HasOne
     {
-        return $this->hasOne(Deployment::class)->whereNull('ends');
+        return $this->hasOne(Deployment::class)->whereNull('parent_id')->whereNull('ends');
+    }
+
+    /**
+     * The one open reassignment, if the person is currently detailed
+     * elsewhere. At most one, by deployments_no_overlapping_movements — nobody
+     * is detailed to two places at once.
+     */
+    public function currentReassignment(): HasOne
+    {
+        return $this->hasOne(Deployment::class)->whereNotNull('parent_id')->whereNull('ends');
     }
 
     public function user(): HasOne

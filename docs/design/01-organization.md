@@ -76,6 +76,10 @@ Agency A                          Agency B                  Agency C
 
    The parent is the same employee for free — `UNIQUE (id, employee_id)` plus a paired FK on `(parent_id, employee_id)`, the same trick as `(x_id, agency_id)`. A movement's range sits inside its parent's, and a movement's parent is itself substantive (no detail from a detail); both are triggers, because both are cross-row.
 
+   **Two verbs write here, and a third does not exist** (decision 35). `TransferEmployee` is the item moving: it closes the open substantive row at `starts - 1` and opens a new one, which is also what an initial placement and a rehire after a gap are. `ReassignEmployee` is the person moving while the item stays: it closes nothing and inserts a row with `parent_id` set. Both arrive at `POST employees/{employee}/deployments`, where a boolean `reassignment` chooses between them — **the parent is never sent**, because it is always the employee's own open substantive placement and the server already holds it.
+
+   **A mistake is deleted, not corrected.** There is no PATCH: a wrongly recorded deployment was never true, so `DELETE employees/{employee}/deployments/{deployment}` removes it and the right row is created afresh. `Deployment` therefore carries no `SoftDeletes` and must never acquire it — a soft delete is an `UPDATE`, so the row would keep its range, go on occupying the timeline the exclusion constraints index, and refuse its own replacement with `23P01`. A placement with a movement still nested under it refuses deletion (`23001`) until the movement goes first.
+
    **Three consumers read this nesting differently, and they must not be collapsed into one "operative placement" notion:**
 
    | Consumer | Resolves from |

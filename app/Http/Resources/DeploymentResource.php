@@ -29,6 +29,11 @@ class DeploymentResource extends JsonResource
         return [
             'id' => $this->id,
             'workgroup' => $this->whenLoaded('workgroup', fn ($workgroup) => WorkgroupResource::make($workgroup)->resolve()),
+            // Sent as the id and not a boolean, even though only its
+            // presence is ever read: the deployment history table needs to
+            // indent a reassignment under the placement it departs from, and
+            // that needs the parent's identity, not just the fact of one.
+            'parent_id' => $this->parent_id,
             'starts' => $this->starts?->toDateString(),
             'ends' => $this->ends?->toDateString(),
         ];

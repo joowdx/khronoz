@@ -66,6 +66,11 @@ class EmployeeDeploymentController extends Controller
      * End the placement on its last day, inclusive. Unlike a move, this
      * opens no replacement row, so ends is the supplied day, not day - 1.
      *
+     * `whereNull('parent_id')` narrows this to the *substantive* row: since
+     * decision 31 a reassigned employee has two open deployments, and without
+     * it this one statement would end the open reassignment as well as the
+     * placement — silently, since both match "the open one for this employee".
+     *
      * The open-row guard is part of the UPDATE, never a model read followed
      * by save(): re-dating a closed deployment violates no constraint, so
      * the application is the only guard against a stale close rewriting
@@ -82,7 +87,7 @@ class EmployeeDeploymentController extends Controller
     public function update(EndEmployeeDeploymentRequest $request, Employee $employee): RedirectResponse
     {
         try {
-            $closed = DB::transaction(fn () => $employee->deployments()->whereNull('ends')
+            $closed = DB::transaction(fn () => $employee->deployments()->whereNull('parent_id')->whereNull('ends')
                 ->update(['ends' => $request->date('ends')]));
         } catch (QueryException $e) {
             throw match ($e->getCode()) {

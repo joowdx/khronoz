@@ -36,9 +36,34 @@ class DeploymentFactory extends Factory
             'workgroup_id' => fn (array $attributes) => Workgroup::factory()->create([
                 'agency_id' => $attributes['agency_id'],
             ])->id,
+            'parent_id' => null,
             'starts' => fake()->dateTimeBetween('-5 years', 'now'),
             'ends' => null,
         ];
+    }
+
+    /**
+     * A reassignment nested inside $placement (decision 31): the person works
+     * elsewhere while the plantilla item stays put.
+     *
+     * Takes the parent's agency, employee and range wholesale rather than
+     * generating its own. The agency and employee are structural — the paired
+     * FK (parent_id, employee_id) refuses any other employee, and
+     * (employee_id, agency_id) any other agency — while the range default
+     * matches the parent's exactly because deployments_nested requires
+     * containment and `daterange @>` is inclusive, so equal ranges are the
+     * widest legal default. Override starts/ends at the call site to test
+     * containment itself.
+     */
+    public function under(Deployment $placement): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'agency_id' => $placement->agency_id,
+            'employee_id' => $placement->employee_id,
+            'parent_id' => $placement->id,
+            'starts' => $placement->starts,
+            'ends' => $placement->ends,
+        ]);
     }
 
     /** Currently active: no end date. The default already, named for readability at the call site. */
