@@ -456,7 +456,8 @@ roster and never the team. A trigger could hold the two equal; it is deliberatel
 
 ```sql
 -- holidays
-UNIQUE (agency_id, date, name)
+UNIQUE (agency_id, date, name)                                     -- two holidays may share a date; the same one may not repeat
+name NOT NULL                                                      -- load-bearing: NULLS DISTINCT would let unnamed rows pile up on one date
 CHECK (type IN ('regular', 'special', 'working', 'local'))
 declared_at timestamp(0) NOT NULL                                  -- prospective application, Res. 2600838 §2.5
 
