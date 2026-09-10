@@ -5,6 +5,7 @@ namespace Tests\Feature\Models;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -101,6 +102,43 @@ class DeploymentTest extends TestCase
         // Ending the same day it started: accepted.
         $sameDay = Deployment::factory()->create(['starts' => '2026-01-10', 'ends' => '2026-01-10']);
         $this->assertDatabaseHas('deployments', ['id' => $sameDay->id]);
+    }
+
+    /**
+     * The factory's own bug rather than the schema's. closed() computed
+     * `ends` from the *definition's* default `starts` — a state closure only
+     * ever sees the attributes accumulated before it, and create([...]) is
+     * appended as the last state — so overriding `starts` alone put `ends`
+     * before it and deployments_dates_ordered refused the row with 23514,
+     * which reads as a schema bug with no schema cause.
+     *
+     * Five years out rather than a literal date: the pre-fix ceiling was
+     * `now`, so anchoring the override to today is what makes this fail
+     * deterministically today and still fail deterministically in 2030.
+     */
+    public function test_closed_ends_on_or_after_a_start_date_the_caller_overrides(): void
+    {
+        $starts = CarbonImmutable::today()->addYears(5)->toDateString();
+
+        $deployment = Deployment::factory()->closed()->create(['starts' => $starts]);
+
+        $this->assertGreaterThanOrEqual($starts, $deployment->ends->toDateString());
+    }
+
+    /**
+     * closed() means *departed*, not merely "carries an end date", and that
+     * distinction is load-bearing: WorkgroupController::heads() offers
+     * whereHas('currentDeployment'), which is coveringToday(), so an `ends` of
+     * today or later leaves the person current and back in the head picker
+     * that two WorkgroupControllerTest cases expect them gone from. `ends` is
+     * inclusive, which is why the ceiling is yesterday rather than today.
+     */
+    public function test_closed_ends_before_today_when_it_started_in_the_past(): void
+    {
+        $deployment = Deployment::factory()->closed()->create(['starts' => '2020-03-01']);
+
+        $this->assertGreaterThanOrEqual('2020-03-01', $deployment->ends->toDateString());
+        $this->assertLessThanOrEqual(CarbonImmutable::yesterday()->toDateString(), $deployment->ends->toDateString());
     }
 
     /**

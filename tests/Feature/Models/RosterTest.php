@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Roster;
 use App\Models\Schedule;
 use App\Models\Team;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -179,6 +180,27 @@ class RosterTest extends TestCase
 
         $sameDay = Roster::factory()->create(['starts' => '2026-01-10', 'ends' => '2026-01-10']);
         $this->assertDatabaseHas('rosters', ['id' => $sameDay->id]);
+    }
+
+    /**
+     * The factory's own bug rather than the schema's, the twin of
+     * DeploymentTest's. closed() computed `ends` from the *definition's*
+     * default `starts` — a state closure only ever sees the attributes
+     * accumulated before it, and create([...]) is appended as the last state —
+     * so overriding `starts` alone put `ends` before it and
+     * rosters_dates_ordered refused the row with 23514.
+     *
+     * Five years out rather than a literal date: the pre-fix ceiling was
+     * `now + 1 year`, so a nearer literal would land before the override only
+     * *sometimes*, making the failure a coin toss rather than a proof.
+     */
+    public function test_closed_ends_on_or_after_a_start_date_the_caller_overrides(): void
+    {
+        $starts = CarbonImmutable::today()->addYears(5)->toDateString();
+
+        $roster = Roster::factory()->closed()->create(['starts' => $starts]);
+
+        $this->assertGreaterThanOrEqual($starts, $roster->ends->toDateString());
     }
 
     /**

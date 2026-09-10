@@ -202,4 +202,23 @@ class HolidayTest extends TestCase
 
         $this->assertSame($this->platform()->id, $holiday->agency_id);
     }
+
+    /**
+     * The same state-closure trap the two dates_ordered factories carried,
+     * with no constraint standing behind it: `holidays` ties `declared_at` to
+     * nothing, so an eagerly computed value produces a *silently wrong* row
+     * rather than a refusal. declaredAfter() means declared retroactively, and
+     * reading the definition's default `date` instead of the caller's turned
+     * it into a declaration sixty-odd days early — the exact inverse of the
+     * state's meaning, and why this is a value assertion rather than an
+     * assertDatabaseRefuses.
+     */
+    public function test_declared_after_is_two_days_after_a_date_the_caller_overrides(): void
+    {
+        $date = CarbonImmutable::today()->addYears(5);
+
+        $holiday = Holiday::factory()->declaredAfter()->create(['date' => $date->toDateString()]);
+
+        $this->assertSame($date->addDays(2)->toDateString(), $holiday->declared_at->toDateString());
+    }
 }

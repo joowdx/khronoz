@@ -66,11 +66,28 @@ class HolidayFactory extends Factory
         ]);
     }
 
-    /** Declared retroactively — the case `declared_at`'s prospectivity exists for. */
+    /**
+     * Declared retroactively — the case `declared_at`'s prospectivity exists
+     * for.
+     *
+     * The value is a **closure** for the reason DeploymentFactory::closed()
+     * spells out: a state closure sees only the attributes accumulated before
+     * it, and `create([...])` is appended as the last state, so a state
+     * reading `$attributes['date']` gets the definition's default. Note that
+     * the definition's own `declared_at` above is already a closure; this
+     * state contradicted it.
+     *
+     * Nothing in the schema catches this one. `holidays` ties `declared_at`
+     * to `date` with no constraint, so eagerly the state produced a *silently
+     * wrong* row rather than a refusal: against an overridden `date` it
+     * returned the default date plus two, i.e. a declaration sixty-odd days
+     * *before* the holiday — the exact inverse of what the state names. That
+     * is why its test asserts a value instead of a refusal.
+     */
     public function declaredAfter(): static
     {
         return $this->state(fn (array $attributes): array => [
-            'declared_at' => CarbonImmutable::parse($attributes['date'])->addDays(2),
+            'declared_at' => fn (array $merged): CarbonImmutable => CarbonImmutable::parse($merged['date'])->addDays(2),
         ]);
     }
 }
