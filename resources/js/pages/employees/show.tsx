@@ -18,7 +18,7 @@ import { flattenWorkgroups, workgroupPath } from '@/lib/workgroups';
 import { cn } from '@/lib/utils';
 import { edit, index } from '@/routes/employees';
 import { store, update } from '@/routes/employees/deployments';
-import type { Employee, Workgroup } from '@/types';
+import type { Deployment, Employee, Workgroup } from '@/types';
 
 /** Sections divided by a rule with 32 either side, never by a box (§1 rule 3) — the same rhythm the dashboard reads in. */
 function Stack({ children }: { children: ReactNode }) {
@@ -297,7 +297,7 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
 
             {manage && <MoveSheet employee={employee} workgroups={workgroups} open={moving} onOpenChange={setMoving} />}
             {manage && current && (
-                <EndSheet employee={employee} starts={current.starts} open={ending} onOpenChange={setEnding} />
+                <EndSheet employee={employee} placement={current} open={ending} onOpenChange={setEnding} />
             )}
         </AppLayout>
     );
@@ -439,18 +439,29 @@ function MoveSheet({
     );
 }
 
-/** Ending keeps the selected day in the placement and opens no replacement. */
+/**
+ * Ending keeps the selected day in the placement and opens no replacement.
+ *
+ * `deployment` and `expects` are hidden fields, and they are the reason this
+ * takes the whole placement rather than just its start date. The endpoint
+ * closes `WHERE id = :deployment AND ends IS NOT DISTINCT FROM :expects`, so
+ * a form rendered before someone else transferred or corrected this person
+ * affects nothing instead of closing whichever row happens to be open when it
+ * lands. `expects` is the row's `ends` as this page saw it — empty for an
+ * open placement.
+ */
 function EndSheet({
     employee,
-    starts,
+    placement,
     open,
     onOpenChange,
 }: {
     employee: Employee;
-    starts: string;
+    placement: Deployment;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const starts = placement.starts;
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent aria-describedby="end-what-happens">
@@ -464,6 +475,8 @@ function EndSheet({
                             <SheetHeader>
                                 <SheetTitle>End placement</SheetTitle>
                             </SheetHeader>
+                            <input type="hidden" name="deployment" value={placement.id} />
+                            <input type="hidden" name="expects" value={placement.ends ?? ''} />
                             <div className="min-h-0 flex-1 overflow-auto p-5">
                                 <SheetDescription id="end-what-happens" className="text-[13px] leading-[18px]">
                                     {employee.name}'s placement includes this last day. No new placement is opened, and

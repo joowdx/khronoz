@@ -9,6 +9,7 @@ use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -165,8 +166,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->withTenant(Agency::findOrFail($placement->agency_id));
         $employee = $placement->employee;
 
-        $this->patch(route('employees.deployments.update', $employee), ['ends' => '2025-06-30'])
-            ->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+        $this->patch(route('employees.deployments.update', $employee), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2025-06-30',
+        ])->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
 
         $this->assertSame('2025-06-30', $placement->fresh()->ends->toDateString());
         $this->assertNull($employee->fresh()->currentDeployment);
@@ -434,6 +436,122 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertDatabaseHas('deployments', ['id' => $placement->id]);
     }
 
+    /**
+     * The stale-close hole the 2026-09-10 adversarial review found, and the
+     * reason it is a security defect rather than a data-quality one: decision
+     * 30 makes deployment ranges access control, so closing the wrong row
+     * changes who can see that employee's records.
+     *
+     * The sequence is a clerk opening the end-placement sheet, someone else
+     * transferring the employee, and the first clerk then submitting. The old
+     * predicate named only the employee, so the submission closed whatever
+     * was open by then — the *replacement* placement, in a workgroup the
+     * first clerk never saw and never chose to end.
+     */
+    public function test_a_stale_end_request_cannot_close_the_replacement_placement(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-02-01 08:00:00'));
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+        $elsewhere = Workgroup::factory()->create(['agency_id' => $agency->id]);
+
+        // The sheet is rendered against the placement as it stands now.
+        $stale = ['deployment' => $placement->id, 'expects' => null, 'ends' => '2026-03-31'];
+
+        // Meanwhile, someone transfers the employee: the placement above is
+        // closed and a replacement opens.
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => $elsewhere->id,
+            'starts' => '2026-02-01',
+        ])->assertSessionHas('success');
+
+        $replacement = $employee->fresh()->currentDeployment;
+        $this->assertSame($elsewhere->id, $replacement->workgroup_id);
+
+        // The stale submission now lands. It must affect nothing.
+        $this->patch(route('employees.deployments.update', $employee), $stale)
+            ->assertRedirect(route('employees.show', $employee))
+            ->assertSessionHas('error');
+
+        $this->assertSame('2026-01-31', $placement->fresh()->ends->toDateString());
+        $this->assertNull($replacement->fresh()->ends, 'the replacement must not be touched');
+    }
+
+    /**
+     * The same guard against a concurrent *end* of the very row this form
+     * names: the id matches, but `ends` no longer does, so the second write
+     * is refused instead of silently replacing the first clerk's date.
+     */
+    public function test_a_second_end_request_does_not_overwrite_the_first(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+
+        $payload = ['deployment' => $placement->id, 'expects' => null, 'ends' => '2026-06-30'];
+
+        $this->patch(route('employees.deployments.update', $employee), $payload)->assertSessionHas('success');
+        $this->assertSame('2026-06-30', $placement->fresh()->ends->toDateString());
+
+        // Replaying the same form, whose `expects` is still null.
+        $this->patch(route('employees.deployments.update', $employee), [...$payload, 'ends' => '2026-09-30'])
+            ->assertSessionHas('error');
+
+        $this->assertSame('2026-06-30', $placement->fresh()->ends->toDateString());
+    }
+
+    /**
+     * Ending a placement must not end the reassignment nested inside it.
+     * Two independent guards meet here: the request's `exists` rule refuses a
+     * `deployment` that is a reassignment, and deployments_nested refuses a
+     * close that would strand one — translated onto `ends` rather than
+     * reaching the browser as a 500.
+     */
+    public function test_ending_a_placement_leaves_a_nested_reassignment_alone(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-02-01 08:00:00'));
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $reassignment = Deployment::factory()->under($placement)->create(['starts' => '2026-03-01', 'ends' => '2026-05-31']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $employee = $placement->employee;
+
+        // Closing before the reassignment ends would strand it.
+        $this->patch(route('employees.deployments.update', $employee), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2026-04-30',
+        ])->assertSessionHasErrors('ends');
+
+        // Closing after it is fine, and leaves the reassignment untouched.
+        $this->patch(route('employees.deployments.update', $employee), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2026-06-30',
+        ])->assertSessionHas('success');
+
+        $this->assertSame('2026-05-31', $reassignment->fresh()->ends->toDateString());
+        $this->assertSame('2026-06-30', $placement->fresh()->ends->toDateString());
+    }
+
+    /** A reassignment is not a placement: the end-placement form cannot name one. */
+    public function test_the_end_form_cannot_name_a_reassignment(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $reassignment = Deployment::factory()->under($placement)->create(['starts' => '2026-03-01', 'ends' => '2026-05-31']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+
+        $this->patch(route('employees.deployments.update', $placement->employee), [
+            'deployment' => $reassignment->id, 'expects' => '2026-05-31', 'ends' => '2026-04-30',
+        ])->assertSessionHasErrors('deployment');
+
+        $this->assertSame('2026-05-31', $reassignment->fresh()->ends->toDateString());
+    }
+
     /** @return array<string, array{0: mixed}> */
     public static function invalidEndDates(): array
     {
@@ -446,7 +564,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $placement = Deployment::factory()->create(['starts' => '2024-01-01']);
         $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
 
-        $response = $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => $ends]);
+        $response = $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => $ends,
+        ]);
         $response->assertSessionHasErrors($ends === '2023-12-31'
             ? ['ends' => 'Before the current placement began.'] : ['ends']);
         $this->assertNull($placement->fresh()->ends);
@@ -457,8 +577,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $placement = Deployment::factory()->create(['starts' => '2024-01-01']);
         $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
 
-        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2024-01-01'])
-            ->assertRedirect()->assertSessionHas('success');
+        $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2024-01-01',
+        ])->assertRedirect()->assertSessionHas('success');
 
         $this->assertSame('2024-01-01', $placement->fresh()->ends->toDateString());
     }
@@ -468,9 +589,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $placement = Deployment::factory()->closed()->create(['starts' => '2024-01-01', 'ends' => '2024-12-31']);
         $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
 
-        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2025-06-30'])
-            ->assertRedirect(route('employees.show', $placement->employee_id))
-            ->assertSessionHas('error', 'No open placement to end.');
+        $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2025-06-30',
+        ])->assertRedirect(route('employees.show', $placement->employee_id))->assertSessionHas('error');
 
         $this->assertSame('2024-12-31', $placement->fresh()->ends->toDateString());
     }
@@ -480,9 +601,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $employee = Employee::factory()->create();
         $this->actingAsAgency(Agency::findOrFail($employee->agency_id), Permission::ManageOrganization);
 
-        $this->patch(route('employees.deployments.update', $employee), ['ends' => '2025-06-30'])
-            ->assertRedirect(route('employees.show', $employee))
-            ->assertSessionHas('error', 'No open placement to end.');
+        $this->patch(route('employees.deployments.update', $employee), [
+            'deployment' => (string) Str::ulid(), 'expects' => null, 'ends' => '2025-06-30',
+        ])->assertSessionHasErrors('deployment');
 
         $this->assertSame(0, $employee->deployments()->count());
     }
@@ -492,8 +613,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $placement = Deployment::factory()->create();
         $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ViewOrganization);
 
-        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2026-09-10'])
-            ->assertForbidden();
+        $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2026-09-10',
+        ])->assertForbidden();
         $this->assertNull($placement->fresh()->ends);
     }
 
@@ -502,8 +624,9 @@ class EmployeeDeploymentControllerTest extends TestCase
         $placement = Deployment::factory()->create();
         $this->actingAsAgency(Agency::factory()->create(), Permission::ManageOrganization);
 
-        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2026-09-10'])
-            ->assertNotFound();
+        $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2026-09-10',
+        ])->assertNotFound();
     }
 
     /** Bypass only request validation to isolate the database-refusal translation and its savepoint. */
@@ -519,8 +642,9 @@ class EmployeeDeploymentControllerTest extends TestCase
             }
         });
 
-        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2023-12-31'])
-            ->assertSessionHasErrors(['ends' => 'Before the current placement began.']);
+        $this->patch(route('employees.deployments.update', $placement->employee_id), [
+            'deployment' => $placement->id, 'expects' => null, 'ends' => '2023-12-31',
+        ])->assertSessionHasErrors(['ends' => 'Before the current placement began.']);
 
         $this->assertNull($placement->fresh()->ends);
     }

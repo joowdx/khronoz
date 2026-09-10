@@ -66,10 +66,21 @@ class DatabaseSeeder extends Seeder
 
             $staff = Employee::factory()->create(['agency_id' => $agency->id]);
 
-            Deployment::factory()->open()->create([
+            $placement = Deployment::factory()->open()->create([
                 'agency_id' => $agency->id,
                 'employee_id' => $staff->id,
                 'workgroup_id' => $division->id,
+            ]);
+
+            // One employee on a reassignment, so the profile has a nested row
+            // to render without one being created by hand every time the
+            // database is reset (decision 31). The substantive placement above
+            // stays open, which is the whole point of the arrangement, and
+            // the range sits inside it as deployments_nested requires.
+            Deployment::factory()->under($placement)->create([
+                'workgroup_id' => $department->id,
+                'starts' => today()->subMonth(),
+                'ends' => today()->addMonths(2),
             ]);
         }
     }

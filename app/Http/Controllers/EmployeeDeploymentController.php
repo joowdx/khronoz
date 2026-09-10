@@ -109,23 +109,43 @@ class EmployeeDeploymentController extends Controller
     }
 
     /**
-     * End the placement on its last day, inclusive. Unlike a move, this
+     * End the placement on its last day, inclusive. Unlike a transfer, this
      * opens no replacement row, so ends is the supplied day, not day - 1.
      *
-     * `whereNull('parent_id')` narrows this to the *substantive* row: since
-     * decision 31 a reassigned employee has two open deployments, and without
-     * it this one statement would end the open reassignment as well as the
-     * placement — silently, since both match "the open one for this employee".
+     * **An expected-value predicate, and it is a security control rather than
+     * tidiness.** This used to close "the open placement of this employee",
+     * which the 2026-09-10 adversarial review found could close the wrong
+     * row: a form rendered before a concurrent transfer and submitted after
+     * it closed whatever was open *by then* — the replacement placement, in a
+     * workgroup the clerk never saw. Decision 30 makes deployment ranges
+     * access control, so that is a visibility change nobody asked for, not a
+     * data-quality slip.
      *
-     * The open-row guard is part of the UPDATE, never a model read followed
-     * by save(): re-dating a closed deployment violates no constraint, so
-     * the application is the only guard against a stale close rewriting
-     * history. Zero affected rows means there was nothing left to end.
-     * Eloquent supplies updated_at on this query-builder update.
+     * `WHERE id = :deployment AND ends IS NOT DISTINCT FROM :expects` closes
+     * both halves: the id pins which row, and `expects` — the `ends` the form
+     * was rendered with — pins that the row has not changed since. `IS NOT
+     * DISTINCT FROM` and not `=` because the expected value is normally null,
+     * and `ends = NULL` is never true.
+     *
+     * It stays a conditional UPDATE rather than a read followed by save():
+     * re-dating a deployment violates no constraint, so the predicate is the
+     * only guard, and a read-then-write leaves exactly the window this
+     * closes. Eloquent supplies updated_at on a query-builder update.
+     *
+     * Zero affected rows now means "not the row you were looking at any
+     * more" — someone else moved, ended or corrected it — which is reported
+     * rather than retried, because the clerk needs to see the current state
+     * before choosing a date again.
+     *
+     * `whereNull('parent_id')` is kept by the request's own `exists` rule:
+     * since decision 31 a reassigned employee has two rows covering today,
+     * and ending a placement must never silently end the reassignment nested
+     * in it.
      *
      * | SQLSTATE | Constraint | Reached by |
      * | --- | --- | --- |
-     * | 23514 | deployments_dates_ordered | a placement that starts after ends; the request checks first, but a concurrent move can change the open placement before this write |
+     * | 23514 | deployments_dates_ordered | an `ends` before the row's own `starts`; the request checks first, but a concurrent correction can re-date the row between the two |
+     * | P0001 | deployments_nested | closing the placement while a reassignment nested in it reaches past that day — end the reassignment first |
      *
      * The transaction makes a caught refusal recoverable even inside another
      * transaction. Other failures propagate unchanged.
@@ -133,17 +153,21 @@ class EmployeeDeploymentController extends Controller
     public function update(EndEmployeeDeploymentRequest $request, Employee $employee): RedirectResponse
     {
         try {
-            $closed = DB::transaction(fn () => $employee->deployments()->whereNull('parent_id')->whereNull('ends')
+            $closed = DB::transaction(fn () => $employee->deployments()
+                ->whereKey($request->validated('deployment'))
+                ->whereRaw('ends IS NOT DISTINCT FROM ?', [$request->date('expects')?->toDateString()])
                 ->update(['ends' => $request->date('ends')]));
         } catch (QueryException $e) {
             throw match ($e->getCode()) {
                 '23514' => ValidationException::withMessages(['ends' => ['Before the current placement began.']]),
+                'P0001' => ValidationException::withMessages(['ends' => ['End the reassignment nested under this placement first.']]),
                 default => $e,
             };
         }
 
         if ($closed === 0) {
-            return redirect()->route('employees.show', $employee)->with('error', 'No open placement to end.');
+            return redirect()->route('employees.show', $employee)
+                ->with('error', 'That placement changed while you were looking at it. Check the history and try again.');
         }
 
         return redirect()->route('employees.show', $employee)->with('success', 'Placement ended.');
