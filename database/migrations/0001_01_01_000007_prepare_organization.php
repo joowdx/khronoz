@@ -65,13 +65,22 @@ return new class extends Migration
         // (transitively) needs a trigger walking parent_id upward.
         //
         // It matters that this fires on UPDATE OF parent_id and not only on
-        // INSERT: no INSERT can close a cycle, because a freshly generated
-        // ULID cannot already be an ancestor of anything. The reachable
-        // violation is repointing an existing row — insert A, insert B under
-        // A, then set A's parent to B — and an INSERT-only trigger would be
-        // dead code. The self-parent INSERT that looks like a cycle is caught
-        // by the units_parent_not_self CHECK instead: on INSERT the row is not
-        // in the table yet, so the walk below starts nowhere and returns.
+        // INSERT: a *single-row* INSERT cannot close a cycle, because a
+        // freshly generated ULID cannot already be an ancestor of anything, so
+        // the everyday violation is repointing an existing row — insert A,
+        // insert B under A, then set A's parent to B — and an INSERT-only
+        // trigger would be near enough dead code.
+        //
+        // A multi-row INSERT is the exception, and it is why the trigger this
+        // function backs is AFTER and per-row on both events rather than
+        // BEFORE (see 0001_01_01_000009_create_units_table and
+        // 07-constraints.md): several rows pointing at each other inside one
+        // statement can close a cycle, and only a trigger firing after that
+        // statement's rows are written sees them. By then the walk below
+        // starts at a row that is in the table — the AFTER timing is what
+        // makes this function's own recursive CTE meaningful on INSERT at all.
+        // The self-parent INSERT is caught by the units_parent_not_self CHECK,
+        // which needs no walk.
         //
         // UNION, not UNION ALL: the recursive term then discards rows it has
         // already produced, so the walk terminates even against a cycle this

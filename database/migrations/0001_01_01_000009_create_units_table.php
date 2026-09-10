@@ -61,16 +61,23 @@ return new class extends Migration
         // NULL, which a CHECK accepts.
         DB::statement('ALTER TABLE units ADD CONSTRAINT units_parent_not_self CHECK (parent_id IS DISTINCT FROM id)');
 
-        // UPDATE OF parent_id, not INSERT alone: an INSERT can never close a
-        // cycle, since a freshly generated ULID cannot already be an ancestor.
-        // Repointing an existing row is the reachable violation — insert A,
-        // insert B under A, then set A's parent to B — so an INSERT-only
-        // trigger would be dead code that a self-parent test appears to cover
-        // while really exercising units_parent_not_self above.
+        // UPDATE OF parent_id, not INSERT alone: a single-row INSERT can never
+        // close a cycle, since a freshly generated ULID cannot already be an
+        // ancestor. Repointing an existing row is the everyday violation —
+        // insert A, insert B under A, then set A's parent to B — so an
+        // INSERT-only trigger would be dead code that a self-parent test
+        // appears to cover while really exercising units_parent_not_self above.
         //
-        // INSERT is listed anyway: a single-row INSERT is safe (above), but a
-        // multi-row INSERT can close a cycle within one statement, and only
-        // an end-of-statement constraint trigger can see every row it produced.
+        // INSERT is listed anyway, because a multi-row INSERT can close a
+        // cycle within one statement: several rows pointing at each other
+        // arrive together, and no one of them is a cycle on its own. Catching
+        // that is what AFTER buys — a BEFORE ... FOR EACH ROW trigger fires
+        // before its own row exists and cannot see the statement's other rows,
+        // while an AFTER row trigger fires once those rows are written and the
+        // walk sees all of them (07-constraints.md). The CONSTRAINT form is
+        // what makes the timing settable at all, and INITIALLY IMMEDIATE keeps
+        // it at end-of-statement rather than commit; the sibling visibility
+        // comes from AFTER, not from constraint-ness.
         DB::unprepared(<<<'SQL'
             CREATE CONSTRAINT TRIGGER units_acyclic
                 AFTER INSERT OR UPDATE OF parent_id ON units
