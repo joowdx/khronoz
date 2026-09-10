@@ -6,13 +6,13 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * The GRANT, REVOKE and ALTER DEFAULT PRIVILEGES statements that give
- * khronoz_app row access on every present and future table and sequence,
+ * The GRANT, REVOKE and ALTER DEFAULT PRIVILEGES statements that give the
+ * app role row access on every present and future table and sequence,
  * except the write access on `migrations` it must never hold. Shared by
  * 0000_00_00_000001_prepare_application_database (a fresh install) and `php artisan
  * db:grant` (GrantAppRolePrivileges): a rotated owner role's later migrations
  * create tables whose default privileges follow whichever role ran *them*,
- * not the original owner that first granted khronoz_app access, so re-running
+ * not the original owner that first granted the app role access, so re-running
  * these statements is how a deploy recovers after that rotation without a
  * confusing 42501 at runtime. Both callers must run on the owner connection.
  */
@@ -33,7 +33,7 @@ class AppRoleGrants
             throw new RuntimeException("Role {$role} does not exist. Create it first: see README, Database roles.");
         }
 
-        // $role is already regex-validated above (it is always ours, khronoz_app);
+        // $role is already regex-validated above (it is always ours, chronoz);
         // routing it through the same quoting helper too is defence in depth, not a
         // fix, and costs nothing here since a regex-validated value has no characters
         // left for quoting to escape.
@@ -56,13 +56,13 @@ class AppRoleGrants
         $db->statement("ALTER DEFAULT PRIVILEGES FOR ROLE {$owner} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {$role}");
 
         // migrations is the one table the migrator itself must be able to
-        // write; khronoz_app never runs a migration, so it keeps SELECT (in
+        // write; the app role never runs a migration, so it keeps SELECT (in
         // case anything needs to read migration history) but not the write
         // privileges the blanket grant above just gave it. REVOKE is
         // naturally idempotent, so re-running it here on an already-restricted
         // database is harmless — that is what lets `db:grant` restore this
         // narrower state after an owner-role rotation, since the blanket
-        // GRANT ON ALL TABLES above re-grants khronoz_app write access to
+        // GRANT ON ALL TABLES above re-grants the app role write access to
         // every existing table, `migrations` included, on every re-run.
         $db->statement("REVOKE INSERT, UPDATE, DELETE ON migrations FROM {$role}");
 

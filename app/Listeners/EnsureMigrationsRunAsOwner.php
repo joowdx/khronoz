@@ -9,7 +9,7 @@ use RuntimeException;
 final class EnsureMigrationsRunAsOwner
 {
     /**
-     * A habitual `php artisan migrate` would run as khronoz_app and fail half-way.
+     * A habitual `php artisan migrate` would run as the app role and fail half-way.
      *
      * `Migrator::directConnectionName()` appends `::direct` to the default
      * connection when a direct connection is configured, and `::read` /

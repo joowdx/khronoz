@@ -221,9 +221,9 @@ CHECK (state BETWEEN 0 AND 255) CHECK (mode BETWEEN 0 AND 255)    -- raw ints, u
 Immutability is a privilege, not a trigger:
 
 ```sql
-REVOKE DELETE ON timelogs FROM khronoz_app;
-REVOKE UPDATE ON timelogs FROM khronoz_app;
-GRANT  UPDATE (voided_at, reason) ON timelogs TO khronoz_app;
+REVOKE DELETE ON timelogs FROM chronoz;
+REVOKE UPDATE ON timelogs FROM chronoz;
+GRANT  UPDATE (voided_at, reason) ON timelogs TO chronoz;
 ```
 
 The app role can insert and void. It cannot change what the device said, it cannot say who punched, and it cannot delete. Same `REVOKE DELETE` on `syncs`.
@@ -425,7 +425,7 @@ FOREIGN KEY (user_id, agency_id)   REFERENCES users (id, agency_id)   -- a signe
 UNIQUE (ledger_id, role)                                               -- one signature per role
 CHECK (role ~ '^[a-z_]{1,32}$')                                        -- the allowed set is the agency's setting, checked by the app
 -- trigger attestations_locked, BEFORE INSERT: raise unless the ledger's locked_at IS NOT NULL
-REVOKE UPDATE ON attestations FROM khronoz_app                          -- a signature is added or removed, never edited
+REVOKE UPDATE ON attestations FROM chronoz                          -- a signature is added or removed, never edited
 ```
 
 ### workdays
@@ -490,4 +490,4 @@ One extra `agency_id` column and one `UNIQUE (id, agency_id)` index per table, o
 - Exclusion constraints, `CHECK`, partial unique indexes, grants and triggers: `DB::statement()` inside the migration. Wrap each in `Schema::hasTable` guards only if the migration must be re-runnable; otherwise let it fail loudly.
 - `Timelog` has no `employee_id` or `enrollment_id` in `$fillable`, and the model never sets them; the database does. Ingestion reads them back with `RETURNING`.
 - Every constraint and trigger gets one Pest test that performs the violation, or the insert, and asserts what the database did. That is the test suite for this file.
-- The app connection uses `khronoz_app`; migrations run as the owner role. Two `DB_` connections in `config/database.php`.
+- The app connection uses `chronoz`; migrations run as the owner role (`khronoz`). Two `DB_` connections in `config/database.php`.

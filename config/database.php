@@ -113,7 +113,7 @@ return [
         ],
 
         // Migrations and schema changes run as the database owner. The application
-        // itself connects as `khronoz_app`, which cannot alter schema or bypass the
+        // itself connects as `chronoz`, which cannot alter schema or bypass the
         // column-level grants declared in the migrations (docs/design/07-constraints.md).
         //
         // No fallback defaults on username/password: a fallback would let the

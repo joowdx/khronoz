@@ -13,7 +13,7 @@ class AppRoleTest extends TestCase
 {
     public function test_app_connection_uses_the_app_role(): void
     {
-        $this->assertSame('khronoz_app', DB::selectOne('select current_user as name')->name);
+        $this->assertSame('chronoz', DB::selectOne('select current_user as name')->name);
     }
 
     public function test_app_role_cannot_create_tables(): void
@@ -22,7 +22,7 @@ class AppRoleTest extends TestCase
     }
 
     /**
-     * khronoz_app never runs a migration, so it keeps SELECT on `migrations`
+     * The app role never runs a migration, so it keeps SELECT on `migrations`
      * (test_app_role_can_read_and_write_migrated_tables's sibling never
      * exercises this table) but not the write privileges the blanket grant
      * in AppRoleGrants gives it everywhere else — see the REVOKE at the end

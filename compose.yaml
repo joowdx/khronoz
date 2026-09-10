@@ -11,9 +11,9 @@ services:
         environment:
             PGPASSWORD: '${DB_OWNER_PASSWORD:-password}'
             POSTGRES_DB: '${DB_DATABASE:-khronoz}'
-            POSTGRES_USER: '${DB_OWNER_USERNAME:-sail}'
+            POSTGRES_USER: '${DB_OWNER_USERNAME:-khronoz}'
             POSTGRES_PASSWORD: '${DB_OWNER_PASSWORD:-password}'
-            APP_DB_USERNAME: '${DB_USERNAME:-khronoz_app}'
+            APP_DB_USERNAME: '${DB_USERNAME:-chronoz}'
             APP_DB_PASSWORD: '${DB_PASSWORD:-password}'
         volumes:
             - 'khronoz-pgsql:/var/lib/postgresql'
@@ -29,7 +29,7 @@ services:
                 - '-d'
                 - '${DB_DATABASE:-khronoz}'
                 - '-U'
-                - '${DB_OWNER_USERNAME:-sail}'
+                - '${DB_OWNER_USERNAME:-khronoz}'
             retries: 3
             timeout: 5s
     valkey:

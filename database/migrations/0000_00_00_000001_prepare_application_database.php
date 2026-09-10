@@ -15,7 +15,7 @@ return new class extends Migration
      * so if the owner role is ever rotated, re-run `php artisan db:grant`
      * (AppRoleGrants::apply(), the same statements this migration issues)
      * against the new owner — otherwise later migrations' tables would have
-     * no default privileges for khronoz_app at all.
+     * no default privileges for the app role at all.
      *
      * The REVOKE on `migrations` lives in AppRoleGrants::apply() itself, not
      * here, on purpose: this migration only ever runs once per database (a

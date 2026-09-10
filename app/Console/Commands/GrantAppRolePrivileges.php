@@ -8,14 +8,14 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 /**
- * Re-issues khronoz_app's row privileges. A fresh install gets them from
+ * Re-issues the app role's row privileges. A fresh install gets them from
  * 0000_00_00_000001_prepare_application_database automatically; run this by hand as a
  * post-deploy step after the owner role is rotated (README, Database roles),
  * because a later migration's default privileges follow whichever role ran
- * it, not the original owner that first granted khronoz_app access.
+ * it, not the original owner that first granted the app role access.
  */
 #[Signature('db:grant')]
-#[Description("Re-issue khronoz_app's row privileges on every table and sequence")]
+#[Description("Re-issue the app role's row privileges on every table and sequence")]
 class GrantAppRolePrivileges extends Command
 {
     /**
@@ -25,6 +25,6 @@ class GrantAppRolePrivileges extends Command
     {
         AppRoleGrants::apply();
 
-        $this->components->info('Granted khronoz_app row privileges on every present and future table and sequence.');
+        $this->components->info('Granted the app role row privileges on every present and future table and sequence.');
     }
 }
