@@ -67,6 +67,62 @@ class Suspension extends Model
         return $this->starts === null;
     }
 
+    /**
+     * The employees this suspension reaches, as a query
+     * (05-calendar.md rule 3).
+     *
+     * Written as the rule reads, in three clauses, rather than as one
+     * DISTINCT ON — each clause is a sentence of decision 31 and the shape is
+     * what stops it being "simplified" into the wrong thing:
+     *
+     *   - agency-wide (`workgroup_id` null): everyone deployed on the date.
+     *     No subtree and no operative distinction, because there is nowhere
+     *     for either to matter. A movement always nests inside its placement
+     *     (`deployments_nested`), so "has any deployment covering the date"
+     *     and "is employed on the date" are the same set.
+     *   - otherwise, either the employee's **movement** covering the date is
+     *     in the subtree,
+     *   - or they have **no** movement covering the date and their
+     *     substantive placement is.
+     *
+     * The negative clause is the whole point and the easiest thing to drop.
+     * Without it, an employee detailed *out* of the suspended workgroup would
+     * still be excused by their substantive placement — which is exactly the
+     * "every employee deployed under the workgroup" reading rule 3 exists to
+     * forbid, and it excuses a day the person actually worked elsewhere.
+     *
+     * The subtree is `Workgroup::descendants()`, which walks parent_id with a
+     * recursive CTE using UNION so it terminates even over a cycle; the
+     * workgroup itself is added here, since descendants() is strict.
+     */
+    public function appliesTo(): Builder
+    {
+        $date = $this->date;
+
+        if ($this->workgroup_id === null) {
+            return Employee::query()->whereHas('deployments', fn (Builder $any) => $any->covering($date));
+        }
+
+        $subtree = [
+            $this->workgroup_id,
+            ...$this->workgroup->descendants()->pluck('id')->all(),
+        ];
+
+        return Employee::query()->where(fn (Builder $operative) => $operative
+            ->whereHas('deployments', fn (Builder $movement) => $movement
+                ->whereNotNull('parent_id')->covering($date)->whereIn('workgroup_id', $subtree)
+            )
+            ->orWhere(fn (Builder $substantive) => $substantive
+                ->whereDoesntHave('deployments', fn (Builder $movement) => $movement
+                    ->whereNotNull('parent_id')->covering($date)
+                )
+                ->whereHas('deployments', fn (Builder $placement) => $placement
+                    ->whereNull('parent_id')->covering($date)->whereIn('workgroup_id', $subtree)
+                )
+            )
+        );
+    }
+
     /** Every suspension declared for a date — plural, deliberately. */
     #[Scope]
     protected function covering(Builder $query, CarbonInterface $date): void

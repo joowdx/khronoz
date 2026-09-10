@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Sex;
 use App\Models\Concerns\BelongsToAgency;
+use Carbon\CarbonInterface;
 use Database\Factories\EmployeeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -150,6 +151,39 @@ class Employee extends Model
     public function currentReassignment(): HasOne
     {
         return $this->hasOne(Deployment::class)->whereNotNull('parent_id')->coveringToday();
+    }
+
+    /**
+     * The **operative** deployment on a date: the reassignment if one covers
+     * it, otherwise the substantive placement. Where the person actually
+     * worked that day, as opposed to where the plantilla item sits.
+     *
+     * This is decision 31's third reading, and the one it insists must not be
+     * collapsed with the other two. `head` and the final attestation walk up
+     * from the **substantive** row, so the mother department signs last;
+     * visibility under decision 30 reads **any** overlapping row, so both
+     * workgroups see a split month. This one is read by a work suspension
+     * (05-calendar.md rule 3) — a closure declared on the mother office must
+     * not excuse a day the person actually worked in the receiving one.
+     *
+     * A method taking a date rather than a `coveringToday` relation, because
+     * a suspension is always about a specific past or future date and never
+     * about now.
+     *
+     * `->first()` is sound here and is not the ->first() that `holidays`
+     * forbids: the two partial exclusion constraints allow at most one
+     * substantive row and at most one movement per date, so this query returns
+     * at most two rows and the ordering picks between them deterministically.
+     * `parent_id IS NULL` sorts false before true, so a movement — which has a
+     * parent — comes first. The same expression, in the same direction, that
+     * RemoveEmployee uses to close the innermost row first.
+     */
+    public function operativeDeployment(CarbonInterface $date): ?Deployment
+    {
+        return $this->deployments()
+            ->covering($date)
+            ->orderByRaw('deployments.parent_id IS NULL')
+            ->first();
     }
 
     public function rosters(): HasMany
