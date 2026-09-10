@@ -4,7 +4,7 @@ namespace Tests\Feature\Models;
 
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -12,17 +12,17 @@ use Tests\TestCase;
 /**
  * deployments_agency_id_foreign is deliberately untested on both sides here
  * (Ruling P5). To violate it, agency_id must name no agency — but the two
- * paired FKs require (employee_id, agency_id) and (unit_id, agency_id) to
+ * paired FKs require (employee_id, agency_id) and (workgroup_id, agency_id) to
  * match real rows, whose own agency_id is valid, so no row exists where this
  * FK fails while the pairs hold: any 23503 caught could come from either
  * pair and would prove nothing about this one. Its delete side is covered
- * transitively by the units and employees agency-delete tests (a deployment
+ * transitively by the workgroups and employees agency-delete tests (a deployment
  * can only exist under an agency that still exists).
  */
 class DeploymentTest extends TestCase
 {
     /**
-     * agency_id NOT NULL. employee_id/unit_id are real (if cross-agency)
+     * agency_id NOT NULL. employee_id/workgroup_id are real (if cross-agency)
      * rows, not omitted or nonexistent — MATCH SIMPLE skips both paired FKs
      * once agency_id itself is null, so the only possible refusal is this
      * NOT NULL, unambiguously.
@@ -30,13 +30,13 @@ class DeploymentTest extends TestCase
     public function test_deployment_needs_an_agency(): void
     {
         $employee = Employee::factory()->create();
-        $unit = Unit::factory()->create();
+        $workgroup = Workgroup::factory()->create();
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('deployments')->insert([
             'id' => (string) Str::ulid(),
             'agency_id' => null,
             'employee_id' => $employee->id,
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2026-01-01',
             'ends' => null,
             'created_at' => now(),
@@ -75,20 +75,20 @@ class DeploymentTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('employees')->where('id', $deployment->employee_id)->delete());
     }
 
-    /** deployments_unit_id_agency_id_foreign, insert side: a unit of a different agency. */
-    public function test_unit_id_must_share_the_deployments_agency(): void
+    /** deployments_workgroup_id_agency_id_foreign, insert side: a workgroup of a different agency. */
+    public function test_workgroup_id_must_share_the_deployments_agency(): void
     {
-        $unit = Unit::factory()->create();
+        $workgroup = Workgroup::factory()->create();
 
-        $this->assertDatabaseRefuses('23503', fn () => Deployment::factory()->create(['unit_id' => $unit->id]));
+        $this->assertDatabaseRefuses('23503', fn () => Deployment::factory()->create(['workgroup_id' => $workgroup->id]));
     }
 
-    /** deployments_unit_id_agency_id_foreign, delete side: a unit that still has a deployment. */
-    public function test_unit_with_a_deployment_cannot_be_deleted(): void
+    /** deployments_workgroup_id_agency_id_foreign, delete side: a workgroup that still has a deployment. */
+    public function test_workgroup_with_a_deployment_cannot_be_deleted(): void
     {
         $deployment = Deployment::factory()->create();
 
-        $this->assertDatabaseRefuses('23001', fn () => DB::table('units')->where('id', $deployment->unit_id)->delete());
+        $this->assertDatabaseRefuses('23001', fn () => DB::table('workgroups')->where('id', $deployment->workgroup_id)->delete());
     }
 
     public function test_end_date_cannot_precede_start_date(): void
@@ -115,13 +115,13 @@ class DeploymentTest extends TestCase
     {
         $employee = Employee::factory()->create();
         $agency = $employee->agency_id;
-        $unitA = Unit::factory()->create(['agency_id' => $agency]);
-        $unitB = Unit::factory()->create(['agency_id' => $agency]);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency]);
+        $workgroupB = Workgroup::factory()->create(['agency_id' => $agency]);
 
         Deployment::factory()->create([
             'agency_id' => $agency,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2026-01-01',
             'ends' => null,
         ]);
@@ -130,7 +130,7 @@ class DeploymentTest extends TestCase
         $this->assertDatabaseRefuses('23P01', fn () => Deployment::factory()->create([
             'agency_id' => $agency,
             'employee_id' => $employee->id,
-            'unit_id' => $unitB->id,
+            'workgroup_id' => $workgroupB->id,
             'starts' => '2026-02-01',
             'ends' => null,
         ]));
@@ -141,7 +141,7 @@ class DeploymentTest extends TestCase
         $this->assertDatabaseRefuses('23P01', fn () => Deployment::factory()->create([
             'agency_id' => $agency,
             'employee_id' => $employee->id,
-            'unit_id' => $unitB->id,
+            'workgroup_id' => $workgroupB->id,
             'starts' => '2026-01-31',
             'ends' => null,
         ]));
@@ -151,7 +151,7 @@ class DeploymentTest extends TestCase
         $accepted = Deployment::factory()->create([
             'agency_id' => $agency,
             'employee_id' => $other->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2026-01-01',
             'ends' => null,
         ]);
@@ -166,13 +166,13 @@ class DeploymentTest extends TestCase
     public function test_starts_is_required(): void
     {
         $employee = Employee::factory()->create();
-        $unit = Unit::factory()->create(['agency_id' => $employee->agency_id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $employee->agency_id]);
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('deployments')->insert([
             'id' => (string) Str::ulid(),
             'agency_id' => $employee->agency_id,
             'employee_id' => $employee->id,
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => null,
             'ends' => null,
             'created_at' => now(),
@@ -194,13 +194,13 @@ class DeploymentTest extends TestCase
     public function test_employee_id_is_required(): void
     {
         $employee = Employee::factory()->create();
-        $unit = Unit::factory()->create(['agency_id' => $employee->agency_id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $employee->agency_id]);
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('deployments')->insert([
             'id' => (string) Str::ulid(),
             'agency_id' => $employee->agency_id,
             'employee_id' => null,
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2026-01-01',
             'ends' => null,
             'created_at' => now(),
@@ -209,12 +209,12 @@ class DeploymentTest extends TestCase
     }
 
     /**
-     * unit_id is NOT NULL, the same FK-half of the reason above: MATCH
-     * SIMPLE would skip deployments_unit_id_agency_id_foreign entirely once
-     * unit_id itself is null, bypassing the paired-FK tenancy guarantee
+     * workgroup_id is NOT NULL, the same FK-half of the reason above: MATCH
+     * SIMPLE would skip deployments_workgroup_id_agency_id_foreign entirely once
+     * workgroup_id itself is null, bypassing the paired-FK tenancy guarantee
      * (docs/design/07-constraints.md:10-22) for that row.
      */
-    public function test_unit_id_is_required(): void
+    public function test_workgroup_id_is_required(): void
     {
         $employee = Employee::factory()->create();
 
@@ -222,7 +222,7 @@ class DeploymentTest extends TestCase
             'id' => (string) Str::ulid(),
             'agency_id' => $employee->agency_id,
             'employee_id' => $employee->id,
-            'unit_id' => null,
+            'workgroup_id' => null,
             'starts' => '2026-01-01',
             'ends' => null,
             'created_at' => now(),

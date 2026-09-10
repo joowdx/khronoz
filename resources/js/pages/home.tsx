@@ -172,14 +172,14 @@ export default function Home({ demo }: { demo: string }) {
                         <div className="lg:pr-16">
                             <h3 className={H3}>Government agencies</h3>
                             <p className="pt-3 text-sm leading-[23px] md:text-[15px] md:leading-[25px]">
-                                One agency to a tenant, with its own units, terminals, shifts, calendar and signing
+                                One agency to a tenant, with its own workgroups, terminals, shifts, calendar and signing
                                 chain. The Civil Service Commission rules are applied as written, and the product keeps
                                 the issuance behind each one visible, so a timekeeper can check a computation against
                                 the circular rather than take it on trust.
                             </p>
                             <ul className="pt-3.5 pl-0">
                                 <li className={COLUMN_FACT}>
-                                    Units of any shape: <b>departments, divisions, sections</b>, or none.
+                                    Workgroups of any shape: <b>departments, divisions, sections, units</b>, or none.
                                 </li>
                                 <li className={COLUMN_FACT}>
                                     Who signs is agency data: <b>employee, supervisor, head</b> and <b>timekeeper</b>, in the

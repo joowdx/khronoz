@@ -28,7 +28,7 @@ class DeploymentResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'unit' => $this->whenLoaded('unit', fn ($unit) => UnitResource::make($unit)->resolve()),
+            'workgroup' => $this->whenLoaded('workgroup', fn ($workgroup) => WorkgroupResource::make($workgroup)->resolve()),
             'starts' => $this->starts?->toDateString(),
             'ends' => $this->ends?->toDateString(),
         ];

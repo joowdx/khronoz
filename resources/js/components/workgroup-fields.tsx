@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { Combobox } from '@/components/combobox';
 import { Field } from '@/components/field';
 import { Input } from '@/components/ui/input';
-import { flattenUnits, subtreeIds } from '@/lib/units';
-import type { Employee, Unit } from '@/types';
+import { flattenWorkgroups, subtreeIds } from '@/lib/workgroups';
+import type { Employee, Workgroup } from '@/types';
 
 /**
- * The five columns of `units`, in one 560px column — shared by the add and the
+ * The five columns of `workgroups`, in one 560px column — shared by the add and the
  * edit screens for the same reason the employee fields are.
  *
  * Two of the five are pickers rather than text boxes, and both are searchable
@@ -14,31 +14,31 @@ import type { Employee, Unit } from '@/types';
  * big. Each writes a hidden input, so the page's Inertia `<Form>` submits it
  * without knowing they hold state.
  *
- * The parent picker refuses the unit itself and everything under it. A cycle
- * is refused by `units_parent_not_self` and the `units_acyclic` trigger, and
- * StoreUnitRequest deliberately leaves it to them — which is exactly why the
+ * The parent picker refuses the workgroup itself and everything under it. A cycle
+ * is refused by `workgroups_parent_not_self` and the `workgroups_acyclic` trigger, and
+ * StoreWorkgroupRequest deliberately leaves it to them — which is exactly why the
  * picker has to make it unreachable: the database's refusal arrives as an
  * unhandled SQLSTATE, not as a message on a label row.
  */
-export function UnitFields({
-    unit,
-    units,
+export function WorkgroupFields({
+    workgroup,
+    workgroups,
     employees,
     errors,
 }: {
-    /** The unit being edited, or nothing when one is being added. */
-    unit?: Unit;
-    /** Every unit of the agency, flat — the parent picker's options. */
-    units: Unit[];
-    /** Who may head a unit: employees still employed (UnitController::heads). */
+    /** The workgroup being edited, or nothing when one is being added. */
+    workgroup?: Workgroup;
+    /** Every workgroup of the agency, flat — the parent picker's options. */
+    workgroups: Workgroup[];
+    /** Who may head a workgroup: employees still employed (WorkgroupController::heads). */
     employees: Employee[];
     errors: Partial<Record<string, string>>;
 }) {
-    const [parent, setParent] = useState<string | null>(unit?.parent_id ?? null);
-    const [head, setHead] = useState<string | null>(unit?.head_id ?? null);
+    const [parent, setParent] = useState<string | null>(workgroup?.parent_id ?? null);
+    const [head, setHead] = useState<string | null>(workgroup?.head_id ?? null);
 
-    const forbidden = unit ? subtreeIds(unit.id, units) : new Set<string>();
-    const parents = flattenUnits(units).filter(({ unit: option }) => !forbidden.has(option.id));
+    const forbidden = workgroup ? subtreeIds(workgroup.id, workgroups) : new Set<string>();
+    const parents = flattenWorkgroups(workgroups).filter(({ workgroup: option }) => !forbidden.has(option.id));
 
     return (
         <>
@@ -47,7 +47,7 @@ export function UnitFields({
                     <Input
                         id={id}
                         name="name"
-                        defaultValue={unit?.name}
+                        defaultValue={workgroup?.name}
                         autoFocus
                         placeholder="Administrative Division"
                         maxLength={255}
@@ -68,7 +68,7 @@ export function UnitFields({
                         <Input
                             id={id}
                             name="code"
-                            defaultValue={unit?.code}
+                            defaultValue={workgroup?.code}
                             placeholder="ADMIN"
                             maxLength={255}
                             className="uppercase"
@@ -81,13 +81,13 @@ export function UnitFields({
                     label="Kind"
                     htmlFor="kind"
                     error={errors.kind}
-                    hint="Whatever your agency calls this level: department, division, section."
+                    hint="Whatever your agency calls this level: department, division, section, unit."
                 >
                     {({ id, invalid, describedBy }) => (
                         <Input
                             id={id}
                             name="kind"
-                            defaultValue={unit?.kind ?? ''}
+                            defaultValue={workgroup?.kind ?? ''}
                             placeholder="division"
                             maxLength={255}
                             aria-invalid={invalid}
@@ -102,7 +102,7 @@ export function UnitFields({
                 label="Sits under"
                 htmlFor="parent_id"
                 error={errors.parent_id}
-                hint="Leave it at the top level for the one unit everything else hangs off."
+                hint="Leave it at the top level for the one workgroup everything else hangs off."
             >
                 {({ id, invalid, describedBy }) => (
                     <Combobox
@@ -113,10 +113,10 @@ export function UnitFields({
                         invalid={invalid}
                         describedBy={describedBy}
                         placeholder="Top level"
-                        searchPlaceholder="Search units"
-                        empty="No unit by that name."
+                        searchPlaceholder="Search workgroups"
+                        empty="No workgroup by that name."
                         clearLabel="Top level"
-                        options={parents.map(({ unit: option, depth }) => ({
+                        options={parents.map(({ workgroup: option, depth }) => ({
                             value: option.id,
                             label: option.name,
                             keywords: [option.code, option.kind ?? ''],
@@ -137,7 +137,7 @@ export function UnitFields({
                 label="Head"
                 htmlFor="head_id"
                 error={errors.head_id}
-                hint="Who runs it. One person can head more than one unit, and you can set this later."
+                hint="Who runs it. One person can head more than one workgroup, and you can set this later."
             >
                 {({ id, invalid, describedBy }) => (
                     <Combobox

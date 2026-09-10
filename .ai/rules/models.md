@@ -15,3 +15,12 @@ Nothing else identifier-shaped belongs in that array under the `database` driver
 
 ## Scout's scope behaviour is driver-dependent
 Scout's scope behaviour is driver-dependent. `DatabaseEngine::newSearchQuery()` falls back to `Model::newQuery()`, so the shipped `SCOUT_DRIVER=database` carries every global scope. External engines match their own index and only scope the rehydration, so hit counts, ordering and pagination escape `AgencyScope` even though the returned rows do not. Hence `agency_id` in `toSearchableArray()` **and** an explicit filter at every `::search()` call site — the protection is a property of the driver, not of the code.
+
+## Workgroup is the container; "unit" is one of its kinds
+Do not rename `Workgroup` back to `Unit` (decision 29). A Philippine agency's hierarchy runs department → division → section → **unit**, so "unit" is a legitimate value of `workgroups.kind`, and the container cannot share the name.
+
+The collision cannot be fixed on the `kind` side. `kind` is a plain nullable string with no CHECK and no PHP enum on purpose, because 06-attendance.md rule 3 resolves the `head` attestation role as "the head of the nearest ancestor workgroup **of the kind the setting names**". The vocabulary belongs to the agency, so `kind = 'unit'` is always reachable and nothing may forbid it.
+
+`Workgroup` and `Team` are near-synonyms in English and are deliberately different things: a workgroup is where a person is *placed* (one at a time, via `Deployment`, under Organization); a team is the rotation they are *rostered into* (04-scheduling.md, under Scheduling).
+
+Also do not rename: PHPUnit's `tests/Unit` suite, `app()->runningUnitTests()`, or 04-scheduling.md's "Civil Security Unit" worked example — that last one is a real office's own name and the clearest illustration of the collision.

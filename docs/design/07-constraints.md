@@ -28,7 +28,7 @@ FKs use `MATCH SIMPLE`, the default: when any referencing column is null the che
 - National holidays, default shifts and schedules, superusers: `agency_id = platform`.
 - An agency roster cannot reference a platform schedule, because `(schedule_id, agency_id)` would not match. **Copy on use is enforced by the FK**, not by discipline. The copy keeps `origin_id` pointing at the platform row it came from, the one deliberate cross-agency pointer, reference only.
 - Scoping is `agency_id IN (own, platform)` for holidays and `agency_id = own` for everything else.
-- Nothing operational hangs under the platform row: employees, units, terminals and teams refuse it by trigger, and everything else needs one of those.
+- Nothing operational hangs under the platform row: employees, workgroups, terminals and teams refuse it by trigger, and everything else needs one of those.
 - The application never lists it: an Eloquent global scope on `Agency` excludes it, `Agency::platform()` reaches it.
 
 ## Extensions
@@ -51,19 +51,19 @@ UNIQUE (code)
 platform boolean NOT NULL DEFAULT false
 CREATE UNIQUE INDEX agencies_platform ON agencies (platform) WHERE platform     -- at most one platform row
 -- trigger agencies_platform_row: the platform row cannot be deleted; `platform` cannot change after insert
--- trigger agency_not_platform on employees, units, terminals, teams, BEFORE INSERT OR UPDATE OF agency_id:
+-- trigger agency_not_platform on employees, workgroups, terminals, teams, BEFORE INSERT OR UPDATE OF agency_id:
 --   raise if the agency is the platform row
---   Milestone 2 applies it to employees and units only; terminals arrive in M5, teams in M3
+--   Milestone 2 applies it to employees and workgroups only; terminals arrive in M5, teams in M3
 ```
 
-### units
+### workgroups
 
 ```sql
-FOREIGN KEY (parent_id, agency_id) REFERENCES units (id, agency_id)
+FOREIGN KEY (parent_id, agency_id) REFERENCES workgroups (id, agency_id)
 FOREIGN KEY (head_id, agency_id)   REFERENCES employees (id, agency_id)
 UNIQUE (agency_id, code)
 CHECK (parent_id IS DISTINCT FROM id)
--- constraint trigger units_acyclic, AFTER INSERT OR UPDATE OF parent_id, DEFERRABLE INITIALLY
+-- constraint trigger workgroups_acyclic, AFTER INSERT OR UPDATE OF parent_id, DEFERRABLE INITIALLY
 --   IMMEDIATE: walk NEW.parent_id upward with a recursive CTE; raise if NEW.id is reached. AFTER
 --   and deferrable, not BEFORE, because a BEFORE ... FOR EACH ROW trigger fires before its own row
 --   exists and can't see other rows from the same statement, letting a multi-row INSERT close a
@@ -107,7 +107,7 @@ returning false, so an unguarded bound could surface `22023` where `employees_ta
 
 ```sql
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
-FOREIGN KEY (unit_id, agency_id)     REFERENCES units (id, agency_id)
+FOREIGN KEY (workgroup_id, agency_id)     REFERENCES workgroups (id, agency_id)
 CHECK (ends IS NULL OR ends >= starts)
 EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
 ```
@@ -145,7 +145,7 @@ $$;
 ### terminals
 
 ```sql
-FOREIGN KEY (unit_id, agency_id) REFERENCES units (id, agency_id)
+FOREIGN KEY (workgroup_id, agency_id) REFERENCES workgroups (id, agency_id)
 UNIQUE (agency_id, code)
 CREATE UNIQUE INDEX terminals_serial ON terminals (serial) WHERE serial IS NOT NULL
 CHECK (kind IN ('terminal', 'usb'))
@@ -353,7 +353,7 @@ CHECK (type IN ('regular', 'special', 'working', 'local'))
 declared_at timestamp(0) NOT NULL                                  -- prospective application, Res. 2600838 §2.5
 
 -- suspensions
-FOREIGN KEY (unit_id, agency_id) REFERENCES units (id, agency_id)
+FOREIGN KEY (workgroup_id, agency_id) REFERENCES workgroups (id, agency_id)
 FOREIGN KEY (user_id) REFERENCES users (id)
 CHECK ((starts IS NULL) = (ends IS NULL))
 CHECK (starts IS NULL OR ends > starts)
@@ -450,7 +450,7 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 | Can an agency roster a platform default without copying it? | no, the paired FK fails on the agency mismatch |
 | Can two deployments, rosters or overtime windows overlap? | exclusion constraints with btree_gist |
 | Can a schedule be half-built? | deferred constraint trigger `turns_complete` |
-| Can a unit be its own ancestor? | trigger `units_acyclic` |
+| Can a workgroup be its own ancestor? | trigger `workgroups_acyclic` |
 | Can a month be locked while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
 | Can someone certify moving numbers, or move certified numbers? | trigger `attestations_locked`, trigger `ledgers_unlock_clean` |
 | Can a signer be from another agency, or sign a role twice? | paired FK on `(user_id, agency_id)`, `UNIQUE (ledger_id, role)` |

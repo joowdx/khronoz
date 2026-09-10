@@ -30,7 +30,7 @@ export function HolidayCalendar() {
             <div className="flex items-baseline gap-2.5 border-b px-4 pt-3 pb-[11px]">
                 <span className="text-lg leading-6 font-bold tracking-[-0.006em] tabular-nums">November 2026</span>
                 <span className="flex-1" />
-                <span className="text-muted-foreground text-xs leading-4">National, local and unit scope</span>
+                <span className="text-muted-foreground text-xs leading-4">National, local and workgroup scope</span>
             </div>
 
             <div className="grid grid-cols-7">

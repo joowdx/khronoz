@@ -19,7 +19,7 @@ use Laravel\Scout\Searchable;
  * A person an agency keeps a DTR for (docs/design/01-organization.md).
  *
  * Soft-deleted, not hard-deleted (R6): $employee->delete() is an UPDATE, so it
- * never trips the ON DELETE RESTRICT that units.head_id and
+ * never trips the ON DELETE RESTRICT that workgroups.head_id and
  * deployments.employee_id carry against this table. A hard delete of a
  * referenced employee is still refused by the database; Task 4 tests that
  * side directly with a real DELETE.

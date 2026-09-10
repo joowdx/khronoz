@@ -36,9 +36,9 @@ class SetTenantTest extends TestCase
     /**
      * The other half of the Organization nav gate (OrganizationNavContractTest
      * holds the component's side of it). `app-sidebar.tsx` decides whether to
-     * render Units and Employees from the shared `agency` prop, so what this
+     * render Workgroups and Employees from the shared `agency` prop, so what this
      * has to prove is that the prop tells the truth in both cases: a superuser
-     * who has entered nothing is on the platform tenant, where a unit or an
+     * who has entered nothing is on the platform tenant, where a workgroup or an
      * employee cannot exist at all (agency_not_platform, P0001), and one who
      * has entered an agency is not.
      */

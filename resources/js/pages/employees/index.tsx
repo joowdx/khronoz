@@ -43,14 +43,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import { flattenUnits } from '@/lib/units';
+import { flattenWorkgroups } from '@/lib/workgroups';
 import { create, destroy, edit, index, show } from '@/routes/employees';
-import type { Employee, Unit } from '@/types';
+import type { Employee, Workgroup } from '@/types';
 
 interface Filters {
     search: string;
-    /** A unit id, or '' for every unit. Includes everything under it (see EmployeeController::index). */
-    unit: string;
+    /** A workgroup id, or '' for every workgroup. Includes everything under it (see EmployeeController::index). */
+    workgroup: string;
     tag: string;
     exempt: boolean;
 }
@@ -63,7 +63,7 @@ interface Pagination {
     next: string | null;
 }
 
-/** Only the props the list itself owns come back on a filter change; `units` and `tags` stay put. */
+/** Only the props the list itself owns come back on a filter change; `workgroups` and `tags` stay put. */
 const PARTIAL = ['employees', 'pagination', 'filters'];
 
 /**
@@ -75,15 +75,15 @@ const PARTIAL = ['employees', 'pagination', 'filters'];
  * exactly its declared width. It does not — `table-layout` is `auto`
  * (the default), so a `TableHead`'s width is only a preference the browser
  * redistributes under pressure. MEASURED at this floor (1440 in brackets):
- * Unit 212.6px (259.1), Position 211.3px (250.7), Tags 213px (213) — all
+ * Workgroup 212.6px (259.1), Position 211.3px (250.7), Tags 213px (213) — all
  * short of 270/260/200 declared. `actions` is declared 68, not the 64 a bare
  * `w-16` would give it, because table-layout:auto never shrinks it below 68
  * regardless of what is asked — MEASURED identically at both floors and both
- * widths on this page and on units/index.tsx, so 68 is what the column
+ * widths on this page and on workgroups/index.tsx, so 68 is what the column
  * reliably gets, not a rounding artifact.
  *
  * One cell still clips at this floor: "Office of the Executive Director" (a
- * unit name) does not fit the 212.6px Unit column, 4 clipped `<td>`s at 800
+ * workgroup name) does not fit the 212.6px Workgroup column, 4 clipped `<td>`s at 800
  * against 3 at 1440 (the two-line "Human Resource Management Section" /
  * "…Officer III" cells clip at both widths). Dropping columns responsively
  * was rejected in fix round 1 — the overflow is data-dependent — so this is
@@ -91,7 +91,7 @@ const PARTIAL = ['employees', 'pagination', 'filters'];
  * `.ai/rules/pages.md` both claimed.
  */
 const COLUMNS = {
-    unit: 270,
+    workgroup: 270,
     position: 260,
     tags: 200,
     actions: 68,
@@ -110,7 +110,7 @@ const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + widt
 
 /**
  * Every filter lives in the query string, so the list is a link: a colleague
- * can be sent `/employees?unit=…&tag=night`. Defaults are dropped rather than
+ * can be sent `/employees?workgroup=…&tag=night`. Defaults are dropped rather than
  * spelled out, so an unfiltered list is `/employees` and nothing else.
  */
 function query(filters: Filters, page?: string): Record<string, string> {
@@ -120,8 +120,8 @@ function query(filters: Filters, page?: string): Record<string, string> {
         params.search = filters.search;
     }
 
-    if (filters.unit !== '') {
-        params.unit = filters.unit;
+    if (filters.workgroup !== '') {
+        params.workgroup = filters.workgroup;
     }
 
     if (filters.tag !== '') {
@@ -149,7 +149,7 @@ function query(filters: Filters, page?: string): Record<string, string> {
 function activeFilters(filters: Filters): string[] {
     return [
         filters.search !== '' ? `the search for “${filters.search}”` : null,
-        filters.unit !== '' ? 'the unit filter' : null,
+        filters.workgroup !== '' ? 'the workgroup filter' : null,
         filters.tag !== '' ? 'the tag filter' : null,
         filters.exempt ? 'Exempt only' : null,
     ].filter((phrase): phrase is string => phrase !== null);
@@ -242,13 +242,13 @@ export default function Index({
     employees,
     pagination,
     filters,
-    units,
+    workgroups,
     tags,
 }: {
     employees: Employee[];
     pagination: Pagination;
     filters: Filters;
-    units: Unit[];
+    workgroups: Workgroup[];
     tags: string[];
 }) {
     const can = useCan();
@@ -291,7 +291,7 @@ export default function Index({
         });
     }
 
-    const tree = flattenUnits(units);
+    const tree = flattenWorkgroups(workgroups);
     const addEmployee = manage ? (
         <Button asChild>
             <Link href={create()}>
@@ -319,7 +319,7 @@ export default function Index({
                     <EmptyState
                         className="py-0"
                         title="No employees yet"
-                        description="An employee is a person you file a daily time record for. Add them here, then deploy each one to a unit so their record knows where they work."
+                        description="An employee is a person you file a daily time record for. Add them here, then deploy each one to a workgroup so their record knows where they work."
                         action={addEmployee ?? undefined}
                     />
                 </Card>
@@ -346,7 +346,7 @@ export default function Index({
                       before, a 646px table sat in a 486px card, `scrollWidth >
                       clientWidth` with nothing scrollable, and `Actions for …`
                       landed at x 871-903 — outside the viewport, taking Edit
-                      and Remove with it. Tags was fully clipped and Unit read
+                      and Remove with it. Tags was fully clipped and Workgroup read
                       "Fi…". After: the card is 648, the table is whole, and
                       the shell scrolls 128px. Dropping columns instead was
                       rejected: the overflow is data-dependent (one long tag
@@ -373,28 +373,28 @@ export default function Index({
                         </span>
 
                         {/* A combobox rather than a select: an agency's tree can
-                            run to hundreds of units, and the indented rows are
+                            run to hundreds of workgroups, and the indented rows are
                             how you tell two divisions of the same name apart.
                             The trigger shows the bare name — the indentation is
                             information about the list, not about the choice. */}
                         <Combobox
-                            label="Filter by unit"
+                            label="Filter by workgroup"
                             className="w-[220px] font-normal"
-                            placeholder="Any unit"
-                            searchPlaceholder="Search units"
-                            empty="No unit by that name."
-                            clearLabel="Any unit"
-                            value={filters.unit === '' ? null : filters.unit}
-                            onValueChange={(value) => go({ unit: value ?? '' })}
-                            options={tree.map(({ unit, depth }) => ({
-                                value: unit.id,
-                                label: unit.name,
-                                keywords: [unit.code, unit.kind ?? ''],
-                                trigger: unit.name,
+                            placeholder="Any workgroup"
+                            searchPlaceholder="Search workgroups"
+                            empty="No workgroup by that name."
+                            clearLabel="Any workgroup"
+                            value={filters.workgroup === '' ? null : filters.workgroup}
+                            onValueChange={(value) => go({ workgroup: value ?? '' })}
+                            options={tree.map(({ workgroup, depth }) => ({
+                                value: workgroup.id,
+                                label: workgroup.name,
+                                keywords: [workgroup.code, workgroup.kind ?? ''],
+                                trigger: workgroup.name,
                                 render: (
                                     <span className="flex min-w-0 items-center" style={{ paddingLeft: depth * 14 }}>
-                                        <span className="truncate">{unit.name}</span>
-                                        <span className="text-muted-foreground ml-2 shrink-0 text-xs">{unit.code}</span>
+                                        <span className="truncate">{workgroup.name}</span>
+                                        <span className="text-muted-foreground ml-2 shrink-0 text-xs">{workgroup.code}</span>
                                     </span>
                                 ),
                             }))}
@@ -445,7 +445,7 @@ export default function Index({
                       that still clips. Without a floor at all the panel stops
                       at the table's *min-content*, which is the maximally
                       squeezed layout: the `max-w-0` truncating cells collapse
-                      to nothing and Unit still reads "Fi…".
+                      to nothing and Workgroup still reads "Fi…".
                     */}
                     <Table style={{ minWidth: TABLE_MIN_WIDTH }}>
                         <TableCaption className="sr-only mt-0">Employees</TableCaption>
@@ -456,7 +456,7 @@ export default function Index({
                                 {/* MEASURED at 1440: "Human Resource Management Section" needs 270 and a
                                     CSC position title needs 260; below either, the column that
                                     tells you where someone works clips first. */}
-                                <TableHead style={{ width: COLUMNS.unit }}>Unit</TableHead>
+                                <TableHead style={{ width: COLUMNS.workgroup }}>Workgroup</TableHead>
                                 <TableHead style={{ width: COLUMNS.position }}>Position</TableHead>
                                 <TableHead style={{ width: COLUMNS.tags }}>Tags</TableHead>
                                 <TableHead style={{ width: COLUMNS.actions }}>
@@ -482,7 +482,7 @@ export default function Index({
                                                         variant="outline"
                                                         onClick={() => {
                                                             setSearch('');
-                                                            go({ search: '', unit: '', tag: '', exempt: false });
+                                                            go({ search: '', workgroup: '', tag: '', exempt: false });
                                                         }}
                                                     >
                                                         Clear filters
@@ -520,8 +520,8 @@ export default function Index({
                                             <Person employee={employee} />
                                         </TableCell>
                                         <TableCell className="max-w-0 truncate">
-                                            {employee.current_deployment?.unit ? (
-                                                employee.current_deployment.unit.name
+                                            {employee.current_deployment?.workgroup ? (
+                                                employee.current_deployment.workgroup.name
                                             ) : (
                                                 <span className="text-muted-foreground">Not deployed</span>
                                             )}

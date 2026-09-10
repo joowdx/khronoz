@@ -7,7 +7,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -92,22 +92,22 @@ class EmployeeControllerTest extends TestCase
      * The eager-loading trap (task-5-brief.md): Model::shouldBeStrict() arms
      * the lazy-loading guard on a hydrated collection only once it holds
      * more than one model (Builder::hydrate()), so a single-employee test
-     * cannot exercise EmployeeController::index's `->with('currentDeployment.unit')`
+     * cannot exercise EmployeeController::index's `->with('currentDeployment.workgroup')`
      * — this fixture is deliberately two employees, one with an open
      * deployment and one without, so both branches of
      * EmployeeResource::current_deployment render.
      */
-    public function test_index_renders_two_employees_including_their_current_unit(): void
+    public function test_index_renders_two_employees_including_their_current_workgroup(): void
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
-        $unit = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Treasury']);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Treasury']);
         $deployed = Employee::factory()->create(['agency_id' => $agency->id, 'first_name' => 'X', 'last_name' => 'Aaa Deployed']);
         $undeployed = Employee::factory()->create(['agency_id' => $agency->id, 'first_name' => 'X', 'last_name' => 'Zzz Undeployed']);
         Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $deployed->id,
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2020-01-01',
             'ends' => null,
         ]);
@@ -119,7 +119,7 @@ class EmployeeControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('employees/index', false)
                 ->has('employees', 2)
                 ->where('employees.0.id', $deployed->id)
-                ->where('employees.0.current_deployment.unit.name', 'Treasury')
+                ->where('employees.0.current_deployment.workgroup.name', 'Treasury')
                 ->where('employees.1.id', $undeployed->id)
                 ->where('employees.1.current_deployment', null));
     }
@@ -269,21 +269,21 @@ class EmployeeControllerTest extends TestCase
     }
 
     /**
-     * P17's unit filter. The fixture is the point: three employees, one in a
+     * P17's workgroup filter. The fixture is the point: three employees, one in a
      * department, one in a division *under* it, one in an unrelated division.
      * Filtering by the department must return the first two — 01-organization.md
-     * rule 4 makes "this unit and everything under it" what choosing a unit
+     * rule 4 makes "this workgroup and everything under it" what choosing a workgroup
      * means, and a department whose people all sit in its divisions would
      * otherwise answer with nothing. A fixture with only a direct member would
      * pass whether or not the subtree walk existed.
      */
-    public function test_the_unit_filter_includes_everything_under_the_chosen_unit(): void
+    public function test_the_workgroup_filter_includes_everything_under_the_chosen_workgroup(): void
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
-        $department = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Treasury']);
-        $division = Unit::factory()->under($department)->create(['name' => 'Collection']);
-        $elsewhere = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Legal']);
+        $department = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Treasury']);
+        $division = Workgroup::factory()->under($department)->create(['name' => 'Collection']);
+        $elsewhere = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Legal']);
 
         $inDepartment = $this->deployed($agency, $department, 'Aaa');
         $inDivision = $this->deployed($agency, $division, 'Bbb');
@@ -291,30 +291,30 @@ class EmployeeControllerTest extends TestCase
 
         $this->actingAsAgency($agency, Permission::ViewOrganization);
 
-        $this->get(route('employees.index', ['unit' => $department->id]))
+        $this->get(route('employees.index', ['workgroup' => $department->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('employees/index', false)
                 ->has('employees', 2)
                 ->where('employees.0.id', $inDepartment->id)
                 ->where('employees.1.id', $inDivision->id)
-                ->where('filters.unit', $department->id)
+                ->where('filters.workgroup', $department->id)
                 ->where('pagination.total', 2));
     }
 
-    /** The subtree is inclusive of the unit itself but not of its siblings: filtering by the child returns only the child's own. */
-    public function test_the_unit_filter_does_not_climb_to_a_parent(): void
+    /** The subtree is inclusive of the workgroup itself but not of its siblings: filtering by the child returns only the child's own. */
+    public function test_the_workgroup_filter_does_not_climb_to_a_parent(): void
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
-        $department = Unit::factory()->create(['agency_id' => $agency->id]);
-        $division = Unit::factory()->under($department)->create();
+        $department = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $division = Workgroup::factory()->under($department)->create();
 
         $this->deployed($agency, $department, 'Aaa');
         $inDivision = $this->deployed($agency, $division, 'Bbb');
 
         $this->actingAsAgency($agency, Permission::ViewOrganization);
 
-        $this->get(route('employees.index', ['unit' => $division->id]))
+        $this->get(route('employees.index', ['workgroup' => $division->id]))
             ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
                 ->where('employees.0.id', $inDivision->id));
     }
@@ -363,40 +363,40 @@ class EmployeeControllerTest extends TestCase
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
-        $other = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $other = Workgroup::factory()->create(['agency_id' => $agency->id]);
 
-        $wanted = $this->deployed($agency, $unit, 'Aaa', ['tags' => ['night'], 'exempt' => true]);
-        $this->deployed($agency, $unit, 'Bbb', ['tags' => ['night'], 'exempt' => false]);
-        $this->deployed($agency, $unit, 'Ccc', ['tags' => ['day'], 'exempt' => true]);
+        $wanted = $this->deployed($agency, $workgroup, 'Aaa', ['tags' => ['night'], 'exempt' => true]);
+        $this->deployed($agency, $workgroup, 'Bbb', ['tags' => ['night'], 'exempt' => false]);
+        $this->deployed($agency, $workgroup, 'Ccc', ['tags' => ['day'], 'exempt' => true]);
         $this->deployed($agency, $other, 'Ddd', ['tags' => ['night'], 'exempt' => true]);
 
         $this->actingAsAgency($agency, Permission::ViewOrganization);
 
-        $this->get(route('employees.index', ['unit' => $unit->id, 'tag' => 'night', 'exempt' => '1']))
+        $this->get(route('employees.index', ['workgroup' => $workgroup->id, 'tag' => 'night', 'exempt' => '1']))
             ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
                 ->where('employees.0.id', $wanted->id));
     }
 
     /**
-     * A unit id or a tag the tenant does not have is dropped, not applied, and
+     * A workgroup id or a tag the tenant does not have is dropped, not applied, and
      * `filters` reports it as unset — otherwise the picker would show an empty
      * value while the list stayed filtered by something nobody can see. Same
      * whitelisting AgencyController::index gives `sort`.
      */
-    public function test_an_unknown_unit_or_tag_filter_is_dropped(): void
+    public function test_an_unknown_workgroup_or_tag_filter_is_dropped(): void
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
         Employee::factory()->count(2)->create(['agency_id' => $agency->id, 'tags' => ['day']]);
-        $stranger = Unit::factory()->create(); // another agency's unit
+        $stranger = Workgroup::factory()->create(); // another agency's workgroup
 
         $this->actingAsAgency($agency, Permission::ViewOrganization);
 
-        $this->get(route('employees.index', ['unit' => $stranger->id, 'tag' => 'night']))
+        $this->get(route('employees.index', ['workgroup' => $stranger->id, 'tag' => 'night']))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->has('employees', 2)
-                ->where('filters.unit', '')
+                ->where('filters.workgroup', '')
                 ->where('filters.tag', ''));
     }
 
@@ -406,12 +406,12 @@ class EmployeeControllerTest extends TestCase
      * part of it, which is the half a plain DISTINCT over the raw table would
      * get wrong.
      */
-    public function test_index_carries_the_units_and_tags_the_filters_need(): void
+    public function test_index_carries_the_workgroups_and_tags_the_filters_need(): void
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
-        Unit::factory()->count(2)->create(['agency_id' => $agency->id]);
-        Unit::factory()->create(); // another agency's
+        Workgroup::factory()->count(2)->create(['agency_id' => $agency->id]);
+        Workgroup::factory()->create(); // another agency's
         Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['ward-3', 'night']]);
         Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['night']]);
         Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['gone']])->delete();
@@ -421,21 +421,21 @@ class EmployeeControllerTest extends TestCase
 
         $this->get(route('employees.index'))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('units', 2)
+            ->assertInertia(fn (Assert $page) => $page->has('workgroups', 2)
                 ->where('tags', ['night', 'ward-3']));
     }
 
     /**
      * The partial-reload contract, which had no test at all: the brief
      * requires a filter change to reload only the props the list owns, and
-     * the whole reason `units` and `tags` are sent as Inertia closures is
+     * the whole reason `workgroups` and `tags` are sent as Inertia closures is
      * that Inertia never invokes a closure for a prop a partial reload
      * excluded — so the option lists are queried once per full load rather
      * than once per keystroke.
      *
      * `X-Inertia-Partial-Data` is read from the page component's own
      * `PARTIAL` constant rather than hard-coded, which is what makes this
-     * falsifiable in the direction that matters: adding `units` to `PARTIAL`
+     * falsifiable in the direction that matters: adding `workgroups` to `PARTIAL`
      * puts it in the header, the closure is then invoked, and `missing`
      * fails. A hard-coded header would have gone on passing.
      */
@@ -443,7 +443,7 @@ class EmployeeControllerTest extends TestCase
     {
         $this->useDatabaseSearchDriver();
         $agency = Agency::factory()->create();
-        Unit::factory()->create(['agency_id' => $agency->id]);
+        Workgroup::factory()->create(['agency_id' => $agency->id]);
         Employee::factory()->create(['agency_id' => $agency->id, 'tags' => ['night']]);
 
         $this->actingAsAgency($agency, Permission::ViewOrganization);
@@ -461,7 +461,7 @@ class EmployeeControllerTest extends TestCase
             ->assertHeader('X-Inertia', 'true')
             ->assertJsonPath('component', 'employees/index')
             ->assertJsonStructure(['props' => ['employees', 'pagination', 'filters']])
-            ->assertJsonMissingPath('props.units')
+            ->assertJsonMissingPath('props.workgroups')
             ->assertJsonMissingPath('props.tags');
     }
 
@@ -489,16 +489,16 @@ class EmployeeControllerTest extends TestCase
 
     /**
      * The profile carries the tree, for the move sheet's picker and for the
-     * ancestry line under the current unit. A view-only reader gets it too:
-     * the same tree is on /units for anyone holding organization.view, so
-     * withholding it would only cost them the line that says where the unit
+     * ancestry line under the current workgroup. A view-only reader gets it too:
+     * the same tree is on /workgroups for anyone holding organization.view, so
+     * withholding it would only cost them the line that says where the workgroup
      * sits — and it stays this tenant's own tree either way.
      */
     public function test_show_carries_the_tree_for_the_path_and_the_move_picker(): void
     {
         $agency = Agency::factory()->create();
-        Unit::factory()->count(2)->create(['agency_id' => $agency->id]);
-        Unit::factory()->create(); // another agency entirely
+        Workgroup::factory()->count(2)->create(['agency_id' => $agency->id]);
+        Workgroup::factory()->create(); // another agency entirely
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
 
         foreach ([Permission::ViewOrganization, Permission::ManageOrganization] as $permission) {
@@ -506,19 +506,19 @@ class EmployeeControllerTest extends TestCase
 
             $this->get(route('employees.show', $employee))
                 ->assertOk()
-                ->assertInertia(fn (Assert $page) => $page->has('units', 2));
+                ->assertInertia(fn (Assert $page) => $page->has('workgroups', 2));
         }
     }
 
-    /** An employee with an open deployment in $unit, ordered by $lastName so a filtered list's row order is assertable. */
-    private function deployed(Agency $agency, Unit $unit, string $lastName, array $attributes = []): Employee
+    /** An employee with an open deployment in $workgroup, ordered by $lastName so a filtered list's row order is assertable. */
+    private function deployed(Agency $agency, Workgroup $workgroup, string $lastName, array $attributes = []): Employee
     {
         $employee = Employee::factory()->create([...$attributes, 'agency_id' => $agency->id, 'last_name' => $lastName]);
 
         Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2020-01-01',
             'ends' => null,
         ]);
@@ -577,11 +577,11 @@ class EmployeeControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
         Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2024-01-01',
             'ends' => null,
         ]);
@@ -675,23 +675,23 @@ class EmployeeControllerTest extends TestCase
     }
 
     /** The headcount queries deployments, so hiding the employee alone cannot fix it. */
-    public function test_removal_closes_a_started_placement_and_reduces_the_unit_headcount(): void
+    public function test_removal_closes_a_started_placement_and_reduces_the_workgroup_headcount(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-10 00:30:00'));
         $agency = Agency::factory()->create();
         $this->actingAsAgency($agency, Permission::ManageOrganization);
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
-        $placement = Deployment::factory()->create(['agency_id' => $agency->id, 'unit_id' => $unit->id, 'starts' => '2026-09-10']);
-        Deployment::factory()->create(['agency_id' => $agency->id, 'unit_id' => $unit->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $placement = Deployment::factory()->create(['agency_id' => $agency->id, 'workgroup_id' => $workgroup->id, 'starts' => '2026-09-10']);
+        Deployment::factory()->create(['agency_id' => $agency->id, 'workgroup_id' => $workgroup->id]);
 
-        $this->get(route('units.index'))->assertInertia(fn (Assert $page) => $page->where('units.0.people_count', 2));
+        $this->get(route('workgroups.index'))->assertInertia(fn (Assert $page) => $page->where('workgroups.0.people_count', 2));
         $this->delete(route('employees.destroy', $placement->employee_id))->assertRedirect()->assertSessionHas('success');
 
         $this->assertDatabaseHas('deployments', ['id' => $placement->id, 'ends' => '2026-09-10']);
         $this->assertSoftDeleted('employees', ['id' => $placement->employee_id]);
         $this->assertNull(Employee::withTrashed()->findOrFail($placement->employee_id)->currentDeployment);
-        $this->get(route('units.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('units.0.people_count', 1)->where('units.0.deployments_count', 2));
+        $this->get(route('workgroups.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('workgroups.0.people_count', 1)->where('workgroups.0.deployments_count', 2));
     }
 
     public function test_removal_deletes_a_future_placement(): void
@@ -704,8 +704,8 @@ class EmployeeControllerTest extends TestCase
 
         $this->assertModelMissing($placement);
         $this->assertSoftDeleted('employees', ['id' => $placement->employee_id]);
-        $this->get(route('units.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('units.0.people_count', 0)->where('units.0.deployments_count', 0));
+        $this->get(route('workgroups.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('workgroups.0.people_count', 0)->where('workgroups.0.deployments_count', 0));
     }
 
     public function test_removal_preserves_closed_placement_history(): void

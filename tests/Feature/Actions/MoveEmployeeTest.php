@@ -6,7 +6,7 @@ use App\Actions\MoveEmployee;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -18,11 +18,11 @@ class MoveEmployeeTest extends TestCase
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
 
-        $deployment = app(MoveEmployee::class)->handle($employee, $unit, Carbon::parse('2026-01-01'));
+        $deployment = app(MoveEmployee::class)->handle($employee, $workgroup, Carbon::parse('2026-01-01'));
 
-        $this->assertSame($unit->id, $deployment->unit_id);
+        $this->assertSame($workgroup->id, $deployment->workgroup_id);
         $this->assertSame($employee->id, $deployment->employee_id);
         $this->assertSame($agency->id, $deployment->agency_id);
         $this->assertSame('2026-01-01', $deployment->starts->toDateString());
@@ -36,21 +36,21 @@ class MoveEmployeeTest extends TestCase
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
-        $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $workgroupB = Workgroup::factory()->create(['agency_id' => $agency->id]);
 
         $original = Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2026-01-01',
             'ends' => null,
         ]);
 
-        $new = app(MoveEmployee::class)->handle($employee->fresh(), $unitB, Carbon::parse('2026-03-15'));
+        $new = app(MoveEmployee::class)->handle($employee->fresh(), $workgroupB, Carbon::parse('2026-03-15'));
 
         $this->assertSame('2026-03-14', $original->fresh()->ends->toDateString());
-        $this->assertSame($unitB->id, $new->unit_id);
+        $this->assertSame($workgroupB->id, $new->workgroup_id);
         $this->assertSame('2026-03-15', $new->starts->toDateString());
         $this->assertNull($new->ends);
     }
@@ -76,18 +76,18 @@ class MoveEmployeeTest extends TestCase
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
-        $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $workgroupB = Workgroup::factory()->create(['agency_id' => $agency->id]);
 
         Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2025-06-01',
             'ends' => '2025-09-01',
         ]);
 
-        $this->assertDatabaseRefuses('23P01', fn () => app(MoveEmployee::class)->handle($employee->fresh(), $unitB, Carbon::parse('2025-07-01')));
+        $this->assertDatabaseRefuses('23P01', fn () => app(MoveEmployee::class)->handle($employee->fresh(), $workgroupB, Carbon::parse('2025-07-01')));
 
         // The historical row survives untouched.
         $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'starts' => '2025-06-01', 'ends' => '2025-09-01']);
@@ -96,26 +96,26 @@ class MoveEmployeeTest extends TestCase
     /**
      * Proves the "one transaction" half of R16 directly: the close (a valid
      * UPDATE that would succeed on its own) and the open (an INSERT that
-     * fails on a mismatched agency_id/unit_id pair) either both land or
-     * neither does. $foreignUnit belongs to a different agency, so the
+     * fails on a mismatched agency_id/workgroup_id pair) either both land or
+     * neither does. $foreignWorkgroup belongs to a different agency, so the
      * insert fails with 23503 (foreign_key_violation) on
-     * deployments_unit_id_agency_id_foreign — a failure with nothing to do
+     * deployments_workgroup_id_agency_id_foreign — a failure with nothing to do
      * with overlap, chosen so this test is not just a rerun of
      * test_refuses_an_overlap under a different name.
      */
     public function test_a_failed_open_rolls_back_the_close(): void
     {
-        $foreignUnit = Unit::factory()->create(); // a different, unrelated agency
+        $foreignWorkgroup = Workgroup::factory()->create(); // a different, unrelated agency
 
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency->id]);
 
         $current = Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2026-01-01',
             'ends' => null,
         ]);
@@ -137,8 +137,8 @@ class MoveEmployeeTest extends TestCase
         // marks the whole per-test transaction aborted (25P02) and the same
         // read errors instead of passing.
         try {
-            app(MoveEmployee::class)->handle($employee->fresh(), $foreignUnit, Carbon::parse('2026-06-01'));
-            $this->fail('expected the paired FK to refuse a unit from another agency');
+            app(MoveEmployee::class)->handle($employee->fresh(), $foreignWorkgroup, Carbon::parse('2026-06-01'));
+            $this->fail('expected the paired FK to refuse a workgroup from another agency');
         } catch (QueryException $e) {
             $this->assertSame('23503', $e->getCode());
         }

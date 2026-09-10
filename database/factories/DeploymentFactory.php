@@ -5,7 +5,7 @@ namespace Database\Factories;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -16,9 +16,9 @@ class DeploymentFactory extends Factory
     /**
      * Define the model's default state.
      *
-     * employee_id and unit_id are callbacks, not Employee::factory() /
-     * Unit::factory() directly: the paired FKs (employee_id, agency_id) and
-     * (unit_id, agency_id) require the employee and unit to belong to the
+     * employee_id and workgroup_id are callbacks, not Employee::factory() /
+     * Workgroup::factory() directly: the paired FKs (employee_id, agency_id) and
+     * (workgroup_id, agency_id) require the employee and workgroup to belong to the
      * same agency as this deployment, so each is created explicitly under
      * the agency_id resolved just above rather than getting its own random
      * agency. agency_id is declared first so both callbacks can read the
@@ -33,7 +33,7 @@ class DeploymentFactory extends Factory
             'employee_id' => fn (array $attributes) => Employee::factory()->create([
                 'agency_id' => $attributes['agency_id'],
             ])->id,
-            'unit_id' => fn (array $attributes) => Unit::factory()->create([
+            'workgroup_id' => fn (array $attributes) => Workgroup::factory()->create([
                 'agency_id' => $attributes['agency_id'],
             ])->id,
             'starts' => fake()->dateTimeBetween('-5 years', 'now'),

@@ -11,7 +11,7 @@ class EnsureAgencyTest extends TestCase
 {
     /**
      * Every organization route a platform user can reach *without* a bound
-     * model. Those are the falsifiable ones: `units.edit`, `employees.show`
+     * model. Those are the falsifiable ones: `workgroups.edit`, `employees.show`
      * and the rest bind a {model} that AgencyScope already refuses across
      * tenants, so they answer 404 whether this middleware runs or not and
      * could not detect it being dropped (.ai/rules/middleware.md's rule —
@@ -30,9 +30,9 @@ class EnsureAgencyTest extends TestCase
             'employees.index' => ['get', 'employees.index'],
             'employees.create' => ['get', 'employees.create'],
             'employees.store' => ['post', 'employees.store'],
-            'units.index' => ['get', 'units.index'],
-            'units.create' => ['get', 'units.create'],
-            'units.store' => ['post', 'units.store'],
+            'workgroups.index' => ['get', 'workgroups.index'],
+            'workgroups.create' => ['get', 'workgroups.create'],
+            'workgroups.store' => ['post', 'workgroups.store'],
         ];
     }
 
@@ -67,7 +67,7 @@ class EnsureAgencyTest extends TestCase
             // A store with no payload: what matters is that it reached
             // validation rather than the middleware's 404, so the assertion
             // is that the request was validated at all, not which field
-            // complained (units and employees require different ones).
+            // complained (workgroups and employees require different ones).
             : $response->assertRedirect()->assertSessionHasErrors();
     }
 }

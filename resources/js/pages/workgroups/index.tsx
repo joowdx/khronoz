@@ -25,28 +25,28 @@ import {
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
-import { flattenUnits } from '@/lib/units';
+import { flattenWorkgroups } from '@/lib/workgroups';
 import { cn } from '@/lib/utils';
 import { index as employeesIndex } from '@/routes/employees';
-import { create, destroy, edit, update } from '@/routes/units';
-import type { Employee, Unit } from '@/types';
+import { create, destroy, edit, update } from '@/routes/workgroups';
+import type { Employee, Workgroup } from '@/types';
 
 /**
- * `UnitResource` plus the two aggregates only this list asks for, which is
- * why they live here rather than on `Unit` (the split `AgencyRow` uses for
+ * `WorkgroupResource` plus the two aggregates only this list asks for, which is
+ * why they live here rather than on `Workgroup` (the split `AgencyRow` uses for
  * `users_count`).
  *
  * `people_count` is the headcount to show: open deployments, the people who
- * are in the unit now — in it **or in anything under it**, which is what the
+ * are in the workgroup now — in it **or in anything under it**, which is what the
  * row's link and its accessible name both already say, and what the server
- * rolls the count up to (`UnitController::rollUpPeople`).
- * `deployments_count` is every placement this unit itself has ever held, not
- * its subtree's, and it decides whether Remove is offered at all — a unit
+ * rolls the count up to (`WorkgroupController::rollUpPeople`).
+ * `deployments_count` is every placement this workgroup itself has ever held, not
+ * its subtree's, and it decides whether Remove is offered at all — a workgroup
  * named by any deployment row, closed ones included, is refused by
- * `deployments_unit_id_agency_id_foreign`'s RESTRICT. Two different questions,
+ * `deployments_workgroup_id_agency_id_foreign`'s RESTRICT. Two different questions,
  * two counts, and only one of them rolls up.
  */
-interface UnitRow extends Unit {
+interface WorkgroupRow extends Workgroup {
     people_count: number;
     deployments_count: number;
 }
@@ -70,7 +70,7 @@ function Guides({ guides }: { guides: boolean[] }) {
 }
 
 /**
- * The elbow that says this unit hangs off the one above it.
+ * The elbow that says this workgroup hangs off the one above it.
  *
  * Indentation alone is ambiguous on a 44px row: the eye has to measure. A
  * hairline turns it into a drawing. The last child of a parent gets an L and
@@ -136,7 +136,7 @@ function Elbow({ last }: { last: boolean }) {
  * the floor cannot silently drift out of step with the columns the way a
  * hand-typed `min-w-[1060px]` did (fix round 2) — see employees/index.tsx's
  * `COLUMNS` for the fuller derivation note and the table-layout:auto caveat.
- * Unlike employees/index.tsx, MEASURED here shows Unit/Kind/People holding
+ * Unlike employees/index.tsx, MEASURED here shows Workgroup/Kind/People holding
  * their declared widths exactly at both 800 and 1440 — this page's overflow
  * comes entirely from Head, the flexible column, not from the fixed ones
  * being squeezed. `actions` is 68 for the same reason it is on
@@ -144,7 +144,7 @@ function Elbow({ last }: { last: boolean }) {
  * that, on either page, at any width tried.
  */
 const COLUMNS = {
-    unit: 480,
+    workgroup: 480,
     kind: 150,
     people: 110,
     actions: 68,
@@ -161,37 +161,37 @@ const FLEX_MIN = 252;
 /** A no-op at 1440, where the table wants 1126 regardless and Head gets 318. */
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-export default function Index({ units, employees }: { units: UnitRow[]; employees: Employee[] }) {
+export default function Index({ workgroups, employees }: { workgroups: WorkgroupRow[]; employees: Employee[] }) {
     const can = useCan();
     const manage = can('organization.manage');
-    const tree = flattenUnits(units);
+    const tree = flattenWorkgroups(workgroups);
 
     /**
      * The head is chosen in the row, so the whole row is submitted: `code` and
-     * `name` are required by UpdateUnitRequest, and a partial update would
+     * `name` are required by UpdateWorkgroupRequest, and a partial update would
      * fail validation rather than change one column. State stays on the
      * server — the request redirects back to this list, so the new head, the
      * flash toast and any other change since arrive together.
      */
-    function setHead(unit: UnitRow, headId: string | null): void {
+    function setHead(workgroup: WorkgroupRow, headId: string | null): void {
         router.put(
-            update.url(unit),
+            update.url(workgroup),
             {
-                parent_id: unit.parent_id ?? '',
-                kind: unit.kind ?? '',
-                code: unit.code,
-                name: unit.name,
+                parent_id: workgroup.parent_id ?? '',
+                kind: workgroup.kind ?? '',
+                code: workgroup.code,
+                name: workgroup.name,
                 head_id: headId ?? '',
             },
             { preserveScroll: true },
         );
     }
 
-    const addUnit = manage ? (
+    const addWorkgroup = manage ? (
         <Button asChild>
             <Link href={create()}>
                 <PlusIcon aria-hidden />
-                Add unit
+                Add workgroup
             </Link>
         </Button>
     ) : null;
@@ -211,22 +211,22 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
     return (
         <AppLayout>
             <PageHeader
-                title="Units"
-                description="How your agency is organised. Each unit sits under one parent, and employees are deployed into them."
-                actions={addUnit}
+                title="Workgroups"
+                description="How your agency is organised. Each workgroup sits under one parent, and employees are deployed into them."
+                actions={addWorkgroup}
             />
 
-            {units.length === 0 ? (
+            {workgroups.length === 0 ? (
                 // The screen a freshly entered agency lands on. It teaches the
                 // model rather than apologising for the absence (§5.20): what
-                // a unit is in this product, in the words the agency already
+                // a workgroup is in this product, in the words the agency already
                 // uses for its own org chart.
                 <Card className="p-8">
                     <EmptyState
                         className="py-0"
-                        title="No units yet"
-                        description="A unit is a box on your org chart: a department, a division, a section, an office. Add the top one first, then add what sits under it."
-                        action={addUnit ?? undefined}
+                        title="No workgroups yet"
+                        description="A workgroup is a box on your org chart: a department, a division, a section, an office. Add the top one first, then add what sits under it."
+                        action={addWorkgroup ?? undefined}
                     />
                 </Card>
             ) : (
@@ -242,7 +242,7 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                     <CardHeader>
                         <CardTitle>Structure</CardTitle>
                         <CardDescription className="ml-auto tabular-nums">
-                            {units.length} {units.length === 1 ? 'unit' : 'units'}
+                            {workgroups.length} {workgroups.length === 1 ? 'workgroup' : 'workgroups'}
                         </CardDescription>
                     </CardHeader>
 
@@ -254,22 +254,22 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                     */}
                     <Table style={{ minWidth: TABLE_MIN_WIDTH }}>
                         <TableCaption className="sr-only mt-0">
-                            Units, indented under the unit each one sits in
+                            Workgroups, indented under the workgroup each one sits in
                         </TableCaption>
                         {/* Sticky: the head pins at `top: var(--bar-h)`, under the title bar. */}
                         <TableHeader sticky>
                             {/*
                               MEASURED: with only the last column sized, the
-                              Unit column took 538 of the panel's 1210 and
+                              Workgroup column took 538 of the panel's 1210 and
                               left a 280px void between the deepest name and
                               Kind — the eye had to jump the width of a
-                              sidebar to read a one-word label. Unit is
+                              sidebar to read a one-word label. Workgroup is
                               bounded instead and Head is the column that
                               flexes: it holds full names, and its picker's
                               hover tint has somewhere to go.
                             */}
                             <TableRow>
-                                <TableHead style={{ width: COLUMNS.unit }}>Unit</TableHead>
+                                <TableHead style={{ width: COLUMNS.workgroup }}>Workgroup</TableHead>
                                 <TableHead style={{ width: COLUMNS.kind }}>Kind</TableHead>
                                 <TableHead style={{ width: COLUMNS.people }} numeric>
                                     People
@@ -281,8 +281,8 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {tree.map(({ unit, depth, last, children, guides }) => (
-                                <TableRow key={unit.id} className="group/row">
+                            {tree.map(({ workgroup, depth, last, children, guides }) => (
+                                <TableRow key={workgroup.id} className="group/row">
                                     {/*
                                       The indent is padding on the cell, so the
                                       hairline elbow can sit flush against the
@@ -311,10 +311,10 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                                                     depth === 0 ? 'font-medium' : 'font-normal',
                                                 )}
                                             >
-                                                {unit.name}
+                                                {workgroup.name}
                                             </span>
                                             <span className="text-muted-foreground ml-2.5 truncate text-xs">
-                                                {unit.code}
+                                                {workgroup.code}
                                             </span>
                                         </span>
                                     </TableCell>
@@ -325,18 +325,18 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                                       quiet muted text, not a badge per row.
                                     */}
                                     <TableCell className="text-muted-foreground max-w-0 truncate text-[13px]">
-                                        {unit.kind ?? '—'}
+                                        {workgroup.kind ?? '—'}
                                     </TableCell>
                                     <TableCell numeric>
-                                        {unit.people_count === 0 ? (
+                                        {workgroup.people_count === 0 ? (
                                             <span className="text-muted-foreground">—</span>
                                         ) : (
                                             <Link
-                                                href={employeesIndex({ query: { unit: unit.id } })}
+                                                href={employeesIndex({ query: { workgroup: workgroup.id } })}
                                                 className="hover:text-acc-text underline-offset-2 hover:underline"
-                                                aria-label={`${unit.people_count} in ${unit.name} and below`}
+                                                aria-label={`${workgroup.people_count} in ${workgroup.name} and below`}
                                             >
-                                                {unit.people_count}
+                                                {workgroup.people_count}
                                             </Link>
                                         )}
                                     </TableCell>
@@ -344,9 +344,9 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                                         {manage ? (
                                             <Combobox
                                                 variant="inline"
-                                                label={`Head of ${unit.name}`}
-                                                value={unit.head_id}
-                                                onValueChange={(value) => setHead(unit, value)}
+                                                label={`Head of ${workgroup.name}`}
+                                                value={workgroup.head_id}
+                                                onValueChange={(value) => setHead(workgroup, value)}
                                                 options={heads}
                                                 placeholder="Choose a head"
                                                 searchPlaceholder="Search employees"
@@ -354,11 +354,11 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
                                                 clearLabel="No head"
                                             />
                                         ) : (
-                                            (unit.head?.name ?? <span className="text-muted-foreground">—</span>)
+                                            (workgroup.head?.name ?? <span className="text-muted-foreground">—</span>)
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <RowMenu unit={unit} childCount={children} manage={manage} />
+                                        <RowMenu workgroup={workgroup} childCount={children} manage={manage} />
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -373,7 +373,7 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
 /**
  * Edit always; Remove only where it can actually succeed.
  *
- * `units.parent_id` and `deployments.unit_id` both RESTRICT, so a unit with
+ * `workgroups.parent_id` and `deployments.workgroup_id` both RESTRICT, so a workgroup with
  * anything under it or anyone ever placed in it is refused by the database. So
  * the item is absent rather than offered-and-broken, which is the same rule
  * the sidebar follows for a screen that does not exist yet. The row already
@@ -381,29 +381,29 @@ export default function Index({ units, employees }: { units: UnitRow[]; employee
  * standing in the way is on screen next to the missing item.
  *
  * That is the primary defence, not the only one: hiding an action is not
- * translating a refusal, and this list can be stale (another tab moved a unit
- * under this one) or bypassed by URL. UnitController::destroy turns the 23001
- * into a flash error naming what still sits in the unit.
+ * translating a refusal, and this list can be stale (another tab moved a workgroup
+ * under this one) or bypassed by URL. WorkgroupController::destroy turns the 23001
+ * into a flash error naming what still sits in the workgroup.
  */
-function RowMenu({ unit, childCount, manage }: { unit: UnitRow; childCount: number; manage: boolean }) {
+function RowMenu({ workgroup, childCount, manage }: { workgroup: WorkgroupRow; childCount: number; manage: boolean }) {
     if (!manage) {
         return null;
     }
 
-    const removable = unit.deployments_count === 0 && childCount === 0;
+    const removable = workgroup.deployments_count === 0 && childCount === 0;
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${unit.name}`}>
+                <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${workgroup.name}`}>
                     <MoreHorizontalIcon aria-hidden strokeWidth={1.5} />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[252px]">
                 <DropdownMenuItem asChild>
-                    <Link href={edit(unit)} className="w-full">
+                    <Link href={edit(workgroup)} className="w-full">
                         <PencilIcon aria-hidden strokeWidth={1.5} />
-                        Edit unit
+                        Edit workgroup
                     </Link>
                 </DropdownMenuItem>
                 {removable && (
@@ -411,24 +411,24 @@ function RowMenu({ unit, childCount, manage }: { unit: UnitRow; childCount: numb
                         <AlertDialogTrigger asChild>
                             <DropdownMenuItem variant="destructive" onSelect={(event) => event.preventDefault()}>
                                 <Trash2Icon aria-hidden strokeWidth={1.5} />
-                                Remove unit
+                                Remove workgroup
                             </DropdownMenuItem>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Remove {unit.name}?</AlertDialogTitle>
+                                <AlertDialogTitle>Remove {workgroup.name}?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                     Nobody has ever been deployed to it, so nothing is lost. You can add it again with
                                     the same code.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                                <AlertDialogCancel>Keep unit</AlertDialogCancel>
+                                <AlertDialogCancel>Keep workgroup</AlertDialogCancel>
                                 <AlertDialogAction
                                     variant="destructive"
-                                    onClick={() => router.delete(destroy.url(unit))}
+                                    onClick={() => router.delete(destroy.url(workgroup))}
                                 >
-                                    Remove unit
+                                    Remove workgroup
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

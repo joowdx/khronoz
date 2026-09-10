@@ -18,7 +18,7 @@ export interface PresetOption {
  * them: an agency's own profile and its users.
  *
  * The rows are written out rather than derived from the permission values
- * because the label is the sentence a person reads ("Units, employees,
+ * because the label is the sentence a person reads ("Workgroups, employees,
  * deployments and tags"), not a name the enum holds. Every `Permission`
  * case must appear here or in `ATTEST`, and
  * tests/Unit/PermissionMatrixContractTest.php fails if one does not.
@@ -26,7 +26,7 @@ export interface PresetOption {
 const AREAS: { label: string; view: Permission | null; manage: Permission }[] = [
     { label: 'Agency profile and settings', view: null, manage: 'agency.manage' },
     { label: 'Users and their permissions', view: null, manage: 'users.manage' },
-    { label: 'Units, employees, deployments and tags', view: 'organization.view', manage: 'organization.manage' },
+    { label: 'Workgroups, employees, deployments and tags', view: 'organization.view', manage: 'organization.manage' },
     { label: 'Shifts, schedules and rosters', view: 'scheduling.view', manage: 'scheduling.manage' },
     { label: 'Holidays, suspensions, exemptions and overtime', view: 'calendar.view', manage: 'calendar.manage' },
     { label: 'Terminals, enrollments and timelogs', view: 'terminals.view', manage: 'terminals.manage' },

@@ -18,7 +18,7 @@ import type { SharedProps } from '@/types';
  * The artboard (docs/design/mockups/03-dashboard.html) draws the finished
  * product: a lane chart of who is on duty now, a five-figure month strip with
  * an August comparison, today's events, pending night outs and tardiness by
- * unit. Every one of those needs a model Milestone 1 does not have, so none of
+ * workgroup. Every one of those needs a model Milestone 1 does not have, so none of
  * them is faked here:
  *
  * | Left out                                      | Needs                   | Milestone |
@@ -28,7 +28,7 @@ import type { SharedProps } from '@/types';
  * | This month, so far — and its comparison       | Workday                 | 6         |
  * | On duty now (the lane chart)                  | Shift, Schedule, Roster | 3 and 6   |
  * | Today's events, pending night outs            | Punch, Workday          | 6         |
- * | Ledgers, tardiness by unit                    | Ledger, Unit            | 6, 2      |
+ * | Ledgers, tardiness by workgroup                    | Ledger, Workgroup            | 6, 2      |
  *
  * What is left is real: who can sign in, who has not accepted an invitation
  * yet, and — for the platform tenant — how the estate is doing. The page is

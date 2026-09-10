@@ -48,7 +48,7 @@ class OrganizationNavContractTest extends TestCase
             '/agency\s*!==\s*null.*!agency\.platform/s',
             $this->beforeTheGroup($source),
             'resources/js/components/app-sidebar.tsx: the Organization group must be gated on an entered, non-platform agency. '
-            .'A platform user sitting on the platform tenant cannot create a unit or an employee — agency_not_platform raises P0001 — '
+            .'A platform user sitting on the platform tenant cannot create a workgroup or an employee — agency_not_platform raises P0001 — '
             .'so the group must not be rendered for them.',
         );
 
@@ -60,7 +60,7 @@ class OrganizationNavContractTest extends TestCase
         );
     }
 
-    /** Units and Employees, and nothing that has not landed yet (§10). */
+    /** Workgroups and Employees, and nothing that has not landed yet (§10). */
     public function test_the_group_offers_only_the_screens_that_exist(): void
     {
         preg_match(
@@ -73,7 +73,7 @@ class OrganizationNavContractTest extends TestCase
 
         preg_match_all("/title: '([^']+)'/", $matches[1], $titles);
 
-        $this->assertSame(['Units', 'Employees'], $titles[1]);
+        $this->assertSame(['Workgroups', 'Employees'], $titles[1]);
     }
 
     private function source(): string

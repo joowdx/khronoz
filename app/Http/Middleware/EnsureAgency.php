@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
  * platform row. Aliased as `agency`, and the mirror image of EnsurePlatform,
  * which restricts a route to platform users.
  *
- * `units` and `employees` both carry an `agency_not_platform` trigger
+ * `workgroups` and `employees` both carry an `agency_not_platform` trigger
  * (docs/design/07-constraints.md — nothing operational hangs under the
  * platform agency), so every write on those routes is refused by the database
  * with P0001 when the tenant is the platform row. Nothing above this saw that:

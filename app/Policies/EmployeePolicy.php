@@ -41,7 +41,7 @@ class EmployeePolicy
      * Determine whether the user can update the model.
      *
      * Also the ability MoveEmployeeRequest authorizes against: moving an
-     * employee to a new unit is a change to that employee, not a distinct
+     * employee to a new workgroup is a change to that employee, not a distinct
      * resource of its own.
      */
     public function update(User $user, Employee $employee): bool

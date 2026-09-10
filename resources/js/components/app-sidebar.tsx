@@ -9,7 +9,7 @@ import { useCan } from '@/hooks/use-can';
 import { dashboard } from '@/routes';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as agenciesIndex } from '@/routes/platform/agencies';
-import { index as unitsIndex } from '@/routes/units';
+import { index as workgroupsIndex } from '@/routes/workgroups';
 import { index as usersIndex } from '@/routes/users';
 import type { SharedProps } from '@/types';
 
@@ -36,7 +36,7 @@ export function AppSidebar() {
     const platform = auth?.user?.platform ?? false;
 
     /*
-     * Units and employees belong to an agency, and the platform row is the one
+     * Workgroups and employees belong to an agency, and the platform row is the one
      * agency that may not have any: `employees`' agency_not_platform trigger
      * refuses the insert (P0001), so for a superuser who has not entered an
      * agency yet the whole group leads nowhere — Add employee would answer
@@ -76,7 +76,7 @@ export function AppSidebar() {
                   {
                       label: 'Organization',
                       items: [
-                          { title: 'Units', href: unitsIndex().url, icon: Network },
+                          { title: 'Workgroups', href: workgroupsIndex().url, icon: Network },
                           { title: 'Employees', href: employeesIndex().url, icon: UsersRound },
                       ],
                   },

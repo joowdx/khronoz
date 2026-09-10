@@ -3,7 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\Permission;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use App\Models\User;
 
 /**
@@ -11,7 +11,7 @@ use App\Models\User;
  * true for a platform user before any of these run, mirroring UserPolicy —
  * this class describes non-platform staff only.
  */
-class UnitPolicy
+class WorkgroupPolicy
 {
     /**
      * Determine whether the user can view any models.
@@ -32,7 +32,7 @@ class UnitPolicy
     /**
      * Determine whether the user can update the model.
      */
-    public function update(User $user, Unit $unit): bool
+    public function update(User $user, Workgroup $workgroup): bool
     {
         return $user->allows(Permission::ManageOrganization);
     }
@@ -40,7 +40,7 @@ class UnitPolicy
     /**
      * Determine whether the user can delete the model.
      */
-    public function delete(User $user, Unit $unit): bool
+    public function delete(User $user, Workgroup $workgroup): bool
     {
         return $user->allows(Permission::ManageOrganization);
     }

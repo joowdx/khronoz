@@ -3,7 +3,7 @@
 ```mermaid
 erDiagram
     AGENCIES  ||--o{ TERMINALS   : "owns"
-    UNITS     |o--o{ TERMINALS   : "hosts, nullable"
+    WORKGROUPS     |o--o{ TERMINALS   : "hosts, nullable"
     TERMINALS ||--o{ ENROLLMENTS : "holds"
     EMPLOYEES ||--o{ ENROLLMENTS : "registered on"
     EMPLOYEES ||--o{ TEMPLATES   : "phase 2"
@@ -18,7 +18,7 @@ erDiagram
     TERMINALS {
         ulid id PK
         ulid agency_id FK
-        ulid unit_id FK "nullable"
+        ulid workgroup_id FK "nullable"
         string code UK "device no as it appears in attlog"
         string name
         string serial
@@ -87,7 +87,7 @@ erDiagram
     AGENCIES {
         ulid id PK "see 01-organization"
     }
-    UNITS {
+    WORKGROUPS {
         ulid id PK "see 01-organization"
     }
     EMPLOYEES {

@@ -8,18 +8,18 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * An employee's placement in a unit over a date range: the history of
+     * An employee's placement in a workgroup over a date range: the history of
      * where a person has worked, one row at a time
      * (docs/design/01-organization.md rule 2).
      *
      * `agency_id` is not redundant even though both parents carry one: it is
      * what makes the two FKs paired, so a deployment can never join an
-     * employee of one agency to a unit of another. It carries the usual
+     * employee of one agency to a workgroup of another. It carries the usual
      * `NOT NULL` and `UNIQUE (id, agency_id)` from
      * docs/design/07-constraints.md's "Defaults unless stated" sentence.
      *
-     * No `agency_not_platform` trigger, unlike `employees` and `units`: it
-     * would be unreachable. A deployment needs an employee and a unit, and
+     * No `agency_not_platform` trigger, unlike `employees` and `workgroups`: it
+     * would be unreachable. A deployment needs an employee and a workgroup, and
      * both of those refuse the platform agency already.
      */
     public function up(): void
@@ -28,7 +28,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('agency_id')->constrained('agencies')->restrictOnDelete()->restrictOnUpdate();
             $table->ulid('employee_id');
-            $table->ulid('unit_id');
+            $table->ulid('workgroup_id');
             $table->date('starts');
             $table->date('ends')->nullable();
             $table->timestamps();
@@ -41,9 +41,9 @@ return new class extends Migration
                 ->restrictOnDelete()
                 ->restrictOnUpdate();
 
-            $table->foreign(['unit_id', 'agency_id'])
+            $table->foreign(['workgroup_id', 'agency_id'])
                 ->references(['id', 'agency_id'])
-                ->on('units')
+                ->on('workgroups')
                 ->restrictOnDelete()
                 ->restrictOnUpdate();
         });
@@ -60,7 +60,7 @@ return new class extends Migration
         //
         // '[]' — inclusive upper bound, not Postgres's default '[)'. The
         // observable difference: a deployment ending 31 Jan and one starting
-        // 31 Jan conflict, which is right, since the employee is in both units
+        // 31 Jan conflict, which is right, since the employee is in both workgroups
         // that day.
         //
         // NOT deferrable, deliberately, however much a later MoveEmployee

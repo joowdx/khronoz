@@ -19,7 +19,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
  * the scrollport's own padding, not just be present.** `position: sticky`
  * only pins the axes it is given an offset for — an index panel wide enough
  * to scroll `#main-content` sideways (pages/employees/index.tsx,
- * pages/units/index.tsx) moves this element's static-position box left along
+ * pages/workgroups/index.tsx) moves this element's static-position box left along
  * with everything else, and `top: 0` alone re-pins it only vertically.
  * MEASURED before any `left` offset existed, scrolled fully right: 1440/1366
  * no-op (nothing scrolls there), 1280 left a 42px strip of the bar uncovered,

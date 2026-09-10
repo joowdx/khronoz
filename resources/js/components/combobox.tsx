@@ -8,7 +8,7 @@ export interface ComboboxOption {
     value: string;
     /** What the trigger shows once this option is chosen, and what a screen reader hears. */
     label: string;
-    /** Extra strings the search should match — an employee number, a unit code. */
+    /** Extra strings the search should match — an employee number, a workgroup code. */
     keywords?: string[];
     /** The row inside the list, when the label alone is not enough. Defaults to the label. */
     render?: ReactNode;
@@ -20,7 +20,7 @@ export interface ComboboxOption {
 /**
  * One value out of a searchable list: §5.14's popover with `cmdk` inside it,
  * which is the design's answer for a choice too long to be a `<Select>` —
- * every employee of a hospital, every unit of an agency.
+ * every employee of a hospital, every workgroup of an agency.
  *
  * Why not `Select`: a native-shaped select has no search, and its list is
  * item-aligned over the trigger. Why not a bare `Command`: the list has to be
@@ -31,8 +31,8 @@ export interface ComboboxOption {
  *
  * | variant  | Looks like                            | Empty reads as        | Used by                      |
  * | -------- | ------------------------------------- | --------------------- | ---------------------------- |
- * | `field`  | a 36px control, `--input` border      | the placeholder       | a form field (unit, parent)  |
- * | `inline` | text until hovered, no border at rest | `—`, placeholder on hover | a table cell (a unit's head) |
+ * | `field`  | a 36px control, `--input` border      | the placeholder       | a form field (workgroup, parent)  |
+ * | `inline` | text until hovered, no border at rest | `—`, placeholder on hover | a table cell (a workgroup's head) |
  *
  * The trigger's accessible name always names the chosen value, never just the
  * field — see the note on `aria-label` below.
@@ -168,7 +168,7 @@ export function Combobox({
 
                   Width is the content's, floored at the trigger and at §4.3's
                   232 minimum, capped at 420. MEASURED: tied to the trigger it
-                  inherited a 220px filter control and clipped every unit name
+                  inherited a 220px filter control and clipped every workgroup name
                   in the list to "Office of the Executiv…" — the list is where
                   a choice is read, so it may be wider than the control that
                   reports it.
@@ -181,7 +181,7 @@ export function Combobox({
                 >
                     <Command
                         // Match the trigger's own label as well as the row's
-                        // text: an employee number or a unit code is what
+                        // text: an employee number or a workgroup code is what
                         // someone types when the name is long.
                         filter={(itemValue, search, keywords) => {
                             const haystack = [itemValue, ...(keywords ?? [])].join(' ').toLowerCase();

@@ -4,14 +4,14 @@ namespace App\Actions;
 
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
 final class MoveEmployee
 {
     /**
-     * Place $employee in $unit starting $starts: close the currently open
+     * Place $employee in $workgroup starting $starts: close the currently open
      * deployment, if any, the day before, then open the new one — in one
      * transaction, close first (R16).
      *
@@ -30,14 +30,14 @@ final class MoveEmployee
      * A rehire is the same operation after a gap: with no open deployment,
      * nothing is closed and a new range preserves every previous placement.
      */
-    public function handle(Employee $employee, Unit $unit, CarbonInterface $starts): Deployment
+    public function handle(Employee $employee, Workgroup $workgroup, CarbonInterface $starts): Deployment
     {
-        return DB::transaction(function () use ($employee, $unit, $starts): Deployment {
+        return DB::transaction(function () use ($employee, $workgroup, $starts): Deployment {
             $employee->currentDeployment?->update(['ends' => $starts->copy()->subDay()]);
 
             return $employee->deployments()->create([
                 'agency_id' => $employee->agency_id,
-                'unit_id' => $unit->id,
+                'workgroup_id' => $workgroup->id,
                 'starts' => $starts,
                 'ends' => null,
             ]);

@@ -6,7 +6,7 @@ use App\Actions\MoveEmployee;
 use App\Http\Requests\EndEmployeeDeploymentRequest;
 use App\Http\Requests\MoveEmployeeRequest;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -16,17 +16,17 @@ use Illuminate\Validation\ValidationException;
 class EmployeeDeploymentController extends Controller
 {
     /**
-     * unit_id names a real row of this tenant (MoveEmployeeRequest's exists
-     * rule), so Unit::findOrFail is safe: AgencyScope already limits it to
+     * workgroup_id names a real row of this tenant (MoveEmployeeRequest's exists
+     * rule), so Workgroup::findOrFail is safe: AgencyScope already limits it to
      * the current tenant, and the request already proved the id exists
      * there before this method runs.
      */
     public function store(MoveEmployeeRequest $request, Employee $employee, MoveEmployee $move): RedirectResponse
     {
-        $unit = Unit::findOrFail($request->validated('unit_id'));
+        $workgroup = Workgroup::findOrFail($request->validated('workgroup_id'));
 
         try {
-            $move->handle($employee, $unit, $request->date('starts'));
+            $move->handle($employee, $workgroup, $request->date('starts'));
         } catch (QueryException $e) {
             /**
              * The database decides both of these, and this catch only
@@ -59,7 +59,7 @@ class EmployeeDeploymentController extends Controller
             };
         }
 
-        return redirect()->route('employees.show', $employee)->with('success', "{$employee->name} moved to {$unit->name}.");
+        return redirect()->route('employees.show', $employee)->with('success', "{$employee->name} moved to {$workgroup->name}.");
     }
 
     /**

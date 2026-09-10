@@ -203,7 +203,7 @@ CS Form 48 is certified by the employee and verified by the in-charge. Agencies 
 
 1. `attestations`: `ledger_id`, `role`, `user_id`, `at`. One row per role per ledger.
 2. The agency setting `attestations` lists the required roles in order. Default `[employee, supervisor]`. `[employee, supervisor, head]` or `[supervisor, head, timekeeper]` are settings, not code.
-3. Who may sign a role comes from the org tree. `employee`: the ledger's own employee through their user. `supervisor`: `Unit.head_id` of the employee's deployment in that month. `head`: the head of the nearest ancestor unit of the kind the setting names, department for instance. `timekeeper`: any user of the agency holding `ledgers.attest`. The row records who actually signed.
+3. Who may sign a role comes from the org tree. `employee`: the ledger's own employee through their user. `supervisor`: `Workgroup.head_id` of the employee's deployment in that month. `head`: the head of the nearest ancestor workgroup of the kind the setting names, department for instance. `timekeeper`: any user of the agency holding `ledgers.attest`. The row records who actually signed.
 4. A ledger is complete when every listed role has a row.
 5. Attestations are only possible on a locked ledger, and a ledger with attestations cannot be unlocked until they are removed. You certify frozen numbers, never moving ones. Triggers in 07-constraints.md.
 6. Timestamps and user ids only. No signature images, no certificates.

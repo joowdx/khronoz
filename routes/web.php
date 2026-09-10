@@ -6,9 +6,9 @@ use App\Http\Controllers\EmployeeDeploymentController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
-use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
+use App\Http\Controllers\WorkgroupController;
 use Illuminate\Support\Facades\Route;
 
 // The product's public face: server-rendered so crawlers and link previews
@@ -30,7 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class)->except(['show']);
     Route::post('users/{user}/invite', [UserInviteController::class, 'store'])->name('users.invite');
 
-    // The org tree and its people (docs/design/01-organization.md). UnitPolicy
+    // The org tree and its people (docs/design/01-organization.md). WorkgroupPolicy
     // and EmployeePolicy gate on organization.view/organization.manage.
     // Deployment moves and endings share the nested employee boundary;
     // removal is a distinct transaction owned by RemoveEmployee.
@@ -44,7 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('employees', EmployeeController::class);
         Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
         Route::patch('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'update'])->name('employees.deployments.update');
-        Route::resource('units', UnitController::class)->except(['show']);
+        Route::resource('workgroups', WorkgroupController::class)->except(['show']);
     });
 
     // Platform users only (superusers of the one platform = true agency):

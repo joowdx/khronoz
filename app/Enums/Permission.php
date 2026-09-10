@@ -62,8 +62,8 @@ enum Permission: string
         return match ($this) {
             self::ManageAgency => 'Manage agency profile and settings',
             self::ManageUsers => 'Invite users and set permissions',
-            self::ViewOrganization => 'View units and employees',
-            self::ManageOrganization => 'Manage units, employees, deployments and tags',
+            self::ViewOrganization => 'View workgroups and employees',
+            self::ManageOrganization => 'Manage workgroups, employees, deployments and tags',
             self::ViewScheduling => 'View shifts, schedules and rosters',
             self::ManageScheduling => 'Manage shifts, schedules and rosters',
             self::ViewCalendar => 'View holidays, suspensions, exemptions and overtime',

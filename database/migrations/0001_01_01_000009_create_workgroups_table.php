@@ -8,15 +8,18 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * The agency's formal structure: a tree of units, an employee placed in
+     * The agency's formal structure: a tree of workgroups, an employee placed in
      * exactly one at a time through `deployments`
      * (docs/design/01-organization.md).
      *
-     * `kind` ("department", "division", "section", "office"...) is a plain
-     * nullable string with no CHECK and no PHP enum, unlike every other
+     * `kind` ("department", "division", "section", "unit", "office"...) is a
+     * plain nullable string with no CHECK and no PHP enum, unlike every other
      * label-ish column in the schema: `01-organization.md` types it "label
-     * only", and a later milestone matches it against a per-agency setting
-     * string, which a fixed platform-wide enum would break.
+     * only", and 06-attendance.md's attestation chain resolves `head` as the
+     * nearest ancestor *of the kind an agency setting names*, so the
+     * vocabulary has to stay the agency's. "unit" is in that list on purpose:
+     * it is a legitimate kind, which is precisely why the container it sits
+     * in is called a workgroup and not a unit (decision 29).
      *
      * As with `employees`, the four constraints the per-table block in
      * docs/design/07-constraints.md does not name — `agency_id NOT NULL`, its
@@ -25,7 +28,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('units', function (Blueprint $table) {
+        Schema::create('workgroups', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('agency_id')->constrained('agencies')->restrictOnDelete()->restrictOnUpdate();
             $table->ulid('parent_id')->nullable();
@@ -44,11 +47,11 @@ return new class extends Migration
             // declared just above, in the same table.
             $table->foreign(['parent_id', 'agency_id'])
                 ->references(['id', 'agency_id'])
-                ->on('units')
+                ->on('workgroups')
                 ->restrictOnDelete()
                 ->restrictOnUpdate();
 
-            // Deliberately not unique: one employee may head several units
+            // Deliberately not unique: one employee may head several workgroups
             // (01-organization.md's "heads, one employee may head several").
             $table->foreign(['head_id', 'agency_id'])
                 ->references(['id', 'agency_id'])
@@ -59,14 +62,14 @@ return new class extends Migration
 
         // IS DISTINCT FROM, not <>: parent_id is nullable and `NULL <> id` is
         // NULL, which a CHECK accepts.
-        DB::statement('ALTER TABLE units ADD CONSTRAINT units_parent_not_self CHECK (parent_id IS DISTINCT FROM id)');
+        DB::statement('ALTER TABLE workgroups ADD CONSTRAINT workgroups_parent_not_self CHECK (parent_id IS DISTINCT FROM id)');
 
         // UPDATE OF parent_id, not INSERT alone: a single-row INSERT can never
         // close a cycle, since a freshly generated ULID cannot already be an
         // ancestor. Repointing an existing row is the everyday violation —
         // insert A, insert B under A, then set A's parent to B — so an
         // INSERT-only trigger would be dead code that a self-parent test
-        // appears to cover while really exercising units_parent_not_self above.
+        // appears to cover while really exercising workgroups_parent_not_self above.
         //
         // INSERT is listed anyway, because a multi-row INSERT can close a
         // cycle within one statement: several rows pointing at each other
@@ -79,13 +82,13 @@ return new class extends Migration
         // it at end-of-statement rather than commit; the sibling visibility
         // comes from AFTER, not from constraint-ness.
         DB::unprepared(<<<'SQL'
-            CREATE CONSTRAINT TRIGGER units_acyclic
-                AFTER INSERT OR UPDATE OF parent_id ON units
+            CREATE CONSTRAINT TRIGGER workgroups_acyclic
+                AFTER INSERT OR UPDATE OF parent_id ON workgroups
                 DEFERRABLE INITIALLY IMMEDIATE
-                FOR EACH ROW EXECUTE FUNCTION units_acyclic();
+                FOR EACH ROW EXECUTE FUNCTION workgroups_acyclic();
 
             CREATE TRIGGER agency_not_platform
-                BEFORE INSERT OR UPDATE OF agency_id ON units
+                BEFORE INSERT OR UPDATE OF agency_id ON workgroups
                 FOR EACH ROW EXECUTE FUNCTION agency_not_platform();
         SQL);
     }
@@ -96,6 +99,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('units');
+        Schema::dropIfExists('workgroups');
     }
 };

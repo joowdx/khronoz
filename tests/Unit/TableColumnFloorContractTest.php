@@ -5,7 +5,7 @@ namespace Tests\Unit;
 use PHPUnit\Framework\TestCase;
 
 /**
- * employees/index.tsx and units/index.tsx each carry a `COLUMNS` constant
+ * employees/index.tsx and workgroups/index.tsx each carry a `COLUMNS` constant
  * that both the `TableHead` widths and the table's `min-w` floor
  * (`TABLE_MIN_WIDTH`) read, so the floor cannot silently drift out of step
  * with the columns the way a hand-typed `min-w-[1040px]` / `min-w-[1060px]`
@@ -27,12 +27,12 @@ class TableColumnFloorContractTest extends TestCase
 {
     public function test_employees_index_floor_is_derived_from_its_declared_columns(): void
     {
-        $this->assertFloorIsDerivedFromColumns('employees/index.tsx', ['unit', 'position', 'tags', 'actions']);
+        $this->assertFloorIsDerivedFromColumns('employees/index.tsx', ['workgroup', 'position', 'tags', 'actions']);
     }
 
-    public function test_units_index_floor_is_derived_from_its_declared_columns(): void
+    public function test_workgroups_index_floor_is_derived_from_its_declared_columns(): void
     {
-        $this->assertFloorIsDerivedFromColumns('units/index.tsx', ['unit', 'kind', 'people', 'actions']);
+        $this->assertFloorIsDerivedFromColumns('workgroups/index.tsx', ['workgroup', 'kind', 'people', 'actions']);
     }
 
     /**

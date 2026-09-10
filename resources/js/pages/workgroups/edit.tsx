@@ -1,37 +1,37 @@
 import { Form, Link } from '@inertiajs/react';
 import { PageHeader } from '@/components/page-header';
-import { UnitFields } from '@/components/unit-fields';
+import { WorkgroupFields } from '@/components/workgroup-fields';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
-import { index, update } from '@/routes/units';
-import type { Employee, Unit } from '@/types';
+import { index, update } from '@/routes/workgroups';
+import type { Employee, Workgroup } from '@/types';
 
 /**
- * The add form again, against a unit that already exists — so the title is its
+ * The add form again, against a workgroup that already exists — so the title is its
  * name and the primary action is Save changes. The parent picker drops this
- * unit and everything under it (see `UnitFields`), which is what keeps the
- * `units_acyclic` trigger from ever having to speak.
+ * workgroup and everything under it (see `WorkgroupFields`), which is what keeps the
+ * `workgroups_acyclic` trigger from ever having to speak.
  */
 export default function Edit({
-    unit,
-    units,
+    workgroup,
+    workgroups,
     employees,
 }: {
-    unit: Unit;
-    units: Unit[];
+    workgroup: Workgroup;
+    workgroups: Workgroup[];
     employees: Employee[];
 }) {
     return (
         <AppLayout>
             <PageHeader
-                breadcrumb={{ title: 'Units', href: index().url }}
-                title={unit.name}
+                breadcrumb={{ title: 'Workgroups', href: index().url }}
+                title={workgroup.name}
                 description="Where it sits, what it is called, and who runs it."
             />
-            <Form {...update.form(unit)} className="w-[560px] max-w-full" disableWhileProcessing>
+            <Form {...update.form(workgroup)} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <UnitFields unit={unit} units={units} employees={employees} errors={errors} />
+                        <WorkgroupFields workgroup={workgroup} workgroups={workgroups} employees={employees} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 Save changes

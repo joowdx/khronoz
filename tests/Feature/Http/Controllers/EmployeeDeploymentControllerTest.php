@@ -7,7 +7,7 @@ use App\Http\Requests\EndEmployeeDeploymentRequest;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -17,12 +17,12 @@ class EmployeeDeploymentControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
-        $unitB = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Records']);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $workgroupB = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Records']);
         $current = Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2024-01-01',
             'ends' => null,
         ]);
@@ -30,28 +30,28 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
         $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $unitB->id,
+            'workgroup_id' => $workgroupB->id,
             'starts' => '2026-03-01',
         ])->assertRedirect(route('employees.show', $employee))
             ->assertSessionHas('success', "{$employee->name} moved to Records.");
 
         $this->assertSame('2026-02-28', $current->fresh()->ends->toDateString());
-        $new = Deployment::query()->where('employee_id', $employee->id)->where('unit_id', $unitB->id)->firstOrFail();
+        $new = Deployment::query()->where('employee_id', $employee->id)->where('workgroup_id', $workgroupB->id)->firstOrFail();
         $this->assertSame('2026-03-01', $new->starts->toDateString());
         $this->assertNull($new->ends);
     }
 
-    public function test_refuses_a_unit_from_another_agency(): void
+    public function test_refuses_a_workgroup_from_another_agency(): void
     {
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $foreignUnit = Unit::factory()->create(); // a different agency
+        $foreignWorkgroup = Workgroup::factory()->create(); // a different agency
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
         $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $foreignUnit->id,
+            'workgroup_id' => $foreignWorkgroup->id,
             'starts' => '2026-01-01',
-        ])->assertSessionHasErrors('unit_id');
+        ])->assertSessionHasErrors('workgroup_id');
     }
 
     /**
@@ -67,12 +67,12 @@ class EmployeeDeploymentControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
-        $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $workgroupB = Workgroup::factory()->create(['agency_id' => $agency->id]);
         Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2025-06-01',
             'ends' => '2025-09-01',
         ]);
@@ -80,12 +80,12 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
         $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $unitB->id,
+            'workgroup_id' => $workgroupB->id,
             'starts' => '2025-07-01',
         ])->assertSessionHasErrors(['starts' => 'Overlaps an existing deployment.']);
 
         // Neither the failed insert nor the historical row it collided with left a trace of the attempt.
-        $this->assertDatabaseMissing('deployments', ['unit_id' => $unitB->id]);
+        $this->assertDatabaseMissing('deployments', ['workgroup_id' => $workgroupB->id]);
         $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'starts' => '2025-06-01', 'ends' => '2025-09-01']);
     }
 
@@ -107,12 +107,12 @@ class EmployeeDeploymentControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
-        $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroupA = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $workgroupB = Workgroup::factory()->create(['agency_id' => $agency->id]);
         $current = Deployment::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'unit_id' => $unitA->id,
+            'workgroup_id' => $workgroupA->id,
             'starts' => '2026-01-01',
             'ends' => null,
         ]);
@@ -120,12 +120,12 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
         $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $unitB->id,
+            'workgroup_id' => $workgroupB->id,
             'starts' => '2020-06-01',
         ])->assertSessionHasErrors(['starts' => 'Before the current placement began.']);
 
         // The whole move rolled back: no new row, and the open one is still open.
-        $this->assertDatabaseMissing('deployments', ['unit_id' => $unitB->id]);
+        $this->assertDatabaseMissing('deployments', ['workgroup_id' => $workgroupB->id]);
         $this->assertNull($current->fresh()->ends);
     }
 
@@ -133,11 +133,11 @@ class EmployeeDeploymentControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
         $this->actingAsAgency($agency, Permission::ViewOrganization);
 
         $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2026-01-01',
         ])->assertForbidden();
     }
@@ -147,11 +147,11 @@ class EmployeeDeploymentControllerTest extends TestCase
     {
         $stranger = Employee::factory()->create([]);
         $agency = Agency::factory()->create();
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
         $this->post(route('employees.deployments.store', $stranger), [
-            'unit_id' => $unit->id,
+            'workgroup_id' => $workgroup->id,
             'starts' => '2026-01-01',
         ])->assertNotFound();
     }
@@ -171,7 +171,7 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertNull($employee->fresh()->currentDeployment);
 
         $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $placement->unit_id, 'starts' => '2026-01-01',
+            'workgroup_id' => $placement->workgroup_id, 'starts' => '2026-01-01',
         ])->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
 
         $this->assertSame('2025-06-30', $placement->fresh()->ends->toDateString());

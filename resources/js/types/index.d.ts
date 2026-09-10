@@ -89,17 +89,17 @@ export interface Employee {
 }
 
 /**
- * Matches UnitResource. The tree is composed client-side from a flat list
- * keyed by `parent_id` (see lib/units.ts), so there is no nested `children`
+ * Matches WorkgroupResource. The tree is composed client-side from a flat list
+ * keyed by `parent_id` (see lib/workgroups.ts), so there is no nested `children`
  * here — the resource does not send one.
  *
  * `head` is `whenLoaded`: absent means the controller did not ask for it,
- * `null` means the unit has no head. `people_count` is a `withCount`
- * aggregate present only on the units index, so it lives in that page's own
+ * `null` means the workgroup has no head. `people_count` is a `withCount`
+ * aggregate present only on the workgroups index, so it lives in that page's own
  * row type rather than here — the same split `AgencyRow` uses for
  * `users_count`.
  */
-export interface Unit {
+export interface Workgroup {
     id: string;
     parent_id: string | null;
     /** "department", "division", "section"… label only, agency-defined. */
@@ -111,13 +111,13 @@ export interface Unit {
 }
 
 /**
- * Matches DeploymentResource. One placement of one employee in one unit over
+ * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.
  */
 export interface Deployment {
     id: string;
-    unit?: Unit | null;
+    workgroup?: Workgroup | null;
     starts: string;
     ends: string | null;
 }

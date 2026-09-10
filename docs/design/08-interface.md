@@ -511,7 +511,7 @@ The invite form's core. A borderless table inside a `.panel-pad` panel, renderin
 | Preset row | `Start from a preset` at 13/18 `--muted`, spacer, then the segmented control: Admin / Timekeeper / Viewer / Custom. Editing any box moves the preset to Custom. |
 | Head | `<th>` 34 high, padding `0 0 6`, 12/16/600 `--muted`. First column is `What they can reach`; the View and Manage columns are 86 wide and centred. |
 | Row | `<td>` 44 high, `border-top: 1px solid var(--rule)`; the first row's top border is `--line`. Label at 14/20. |
-| Rows, in order | Agency profile and settings · Users and their permissions · Units, employees, deployments and tags · Shifts, schedules and rosters · Holidays, suspensions, exemptions and overtime · Terminals, enrollments and timelogs · Workdays and daily time records |
+| Rows, in order | Agency profile and settings · Users and their permissions · Workgroups, employees, deployments and tags · Shifts, schedules and rosters · Holidays, suspensions, exemptions and overtime · Terminals, enrollments and timelogs · Workdays and daily time records |
 | No-view cell | an em dash in `--muted` with `aria-label="No separate view right"` — `agency.manage` and `users.manage` have no paired view right |
 | Implied view | checked **and** disabled: the `--edge-soft` box with an `--ink` check, plus a 14px lock icon beside it. `manage` implies `view`, so the view box cannot be unchecked while manage is on. |
 | Attest | below the table, above a `1px solid var(--line)` rule at `padding-top: 16`: a single checkbox, `Sign daily time records as the timekeeper`, with a hint at 12/16 `--muted`: `Puts their name on CS Form 48 when a ledger is attested. Only the officer who signs needs this.` This is `ledgers.attest`, which is not a view/manage pair. |
@@ -533,7 +533,7 @@ The 24-hour on-duty chart. One lane per shift, drawn on the same 06:00 → 30:00
 
 ### 5.23 Roster grid
 
-The one memorable element. A month of day columns against employees, grouped by unit and team, with its own scroller, sticky head and two frozen columns.
+The one memorable element. A month of day columns against employees, grouped by workgroup and team, with its own scroller, sticky head and two frozen columns.
 
 | Part | Spec |
 |---|---|
@@ -607,7 +607,7 @@ Short copy, one line each. Use these exact strings; add to the table rather than
 | When the month is the title | on month-scoped pages only — Dashboard, Roster, Workdays, Ledgers. Everywhere else the title is the page name and any date filter is a `.sel` on the right. |
 | When breadcrumbs appear | only where depth exists. Invite user shows `Users ›`; Users shows nothing. Never a breadcrumb to the dashboard, never a trailing chevron after the current page. |
 | Where the primary action lives | the right end of the title bar, one per page, repeated in the empty state |
-| Where filters live | the panel header for a table's own filters; the title bar for page-scoped filters (Unit, Schedule on the roster) |
+| Where filters live | the panel header for a table's own filters; the title bar for page-scoped filters (Workgroup, Schedule on the roster) |
 | Sidebar grouping | Dashboard ungrouped, then Organization, Scheduling, Daily time records, then Users and Settings ungrouped. A count on a nav item means work is held up, and takes the attention variant. |
 | Rail | the roster only, so the timetable owns the width |
 
@@ -618,7 +618,7 @@ Short copy, one line each. Use these exact strings; add to the table rather than
 | Leader-dot row (`.kv`) | a label and one figure, read as a list | 38 min-height, `1px solid var(--rule)` between, label 14/20/400 left, radial-gradient dots filling the gap, value 14/20/600 right, `tabular-nums`. `.bad` / `.att` / `.ok` recolour the value. |
 | Navigating figure row (`.kv--nav`) | a figure that is a link to the work behind it | 44 high, radius 8, negative 10px margins so the hover tint bleeds past the column, a `--rule` hairline drawn by `::before` instead of a border, the value at 18/24/600, a chevron in `--edge` that turns `--acc-text` on hover |
 | Figure strip (`.figs`) | up to five headline numbers across one section | a column grid, `1px solid var(--line)` between columns and no border on the first, value 24/30/700 `tabular-nums`, label 13/18 `--muted`, delta 12/16/500 with a 9px triangle: `.up` is `--fault`, `.down` is `--pos` (more tardiness is worse, so direction is not sentiment) |
-| Person row (`.nite`, `.who2`) | a count that has people in it | 52 min-height, avatar plus name 14/18/500 over unit 12/16 `--muted`, the fact right-aligned at 13/18/500 with its qualifier below in `--attn` |
+| Person row (`.nite`, `.who2`) | a count that has people in it | 52 min-height, avatar plus name 14/18/500 over workgroup 12/16 `--muted`, the fact right-aligned at 13/18/500 with its qualifier below in `--attn` |
 | Meter row (`.byu`) | a distribution across named buckets | label 148 wide at 13/18, an 8px `--rule` trough with radius 2 filled by `--acc-text` (not `--acc`: on the dark trough `--acc` measures 2.89:1 and the bar is a graphical object under 1.4.11), count 26 wide right at 13/18/600 |
 | Split section (`.split`) | two subjects side by side in one section | a grid with a 48 gutter; the right column takes `border-left: 1px solid var(--line)` and `padding-left: 48`. Measured widths: `1fr 420px` for the attention split, `1fr 360px` for the today split. |
 | Table | many rows of the same shape, sortable or paged | §5.13, in the page's one panel |

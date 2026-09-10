@@ -7,10 +7,10 @@ return new class extends Migration
 {
     /**
      * The organization tables' shared prerequisites: one extension and the
-     * three functions `employees`, `units` and `deployments` need. They live
+     * three functions `employees`, `workgroups` and `deployments` need. They live
      * here rather than in the table migrations because two of them outlive any
      * single table — `agency_not_platform()` is used by `employees` and
-     * `units` now and by `terminals` in Milestone 5, `string_set_valid()` is
+     * `workgroups` now and by `terminals` in Milestone 5, `string_set_valid()` is
      * the generic form of `permissions_valid()` and the next jsonb label set
      * will reuse it — so no table's own `down()` may drop them.
      *
@@ -61,7 +61,7 @@ return new class extends Migration
             $$;
         SQL);
 
-        // A CHECK cannot see other rows, so "a unit is not under itself"
+        // A CHECK cannot see other rows, so "a workgroup is not under itself"
         // (transitively) needs a trigger walking parent_id upward.
         //
         // It matters that this fires on UPDATE OF parent_id and not only on
@@ -73,21 +73,31 @@ return new class extends Migration
         //
         // A multi-row INSERT is the exception, and it is why the trigger this
         // function backs is AFTER and per-row on both events rather than
-        // BEFORE (see 0001_01_01_000009_create_units_table and
+        // BEFORE (see 0001_01_01_000009_create_workgroups_table and
         // 07-constraints.md): several rows pointing at each other inside one
         // statement can close a cycle, and only a trigger firing after that
         // statement's rows are written sees them. By then the walk below
         // starts at a row that is in the table — the AFTER timing is what
         // makes this function's own recursive CTE meaningful on INSERT at all.
-        // The self-parent INSERT is caught by the units_parent_not_self CHECK,
+        // The self-parent INSERT is caught by the workgroups_parent_not_self CHECK,
         // which needs no walk.
         //
         // UNION, not UNION ALL: the recursive term then discards rows it has
         // already produced, so the walk terminates even against a cycle this
         // trigger did not create (an owner-role `ALTER TABLE ... DISABLE
         // TRIGGER`, a pre-trigger backup restored in). UNION ALL would spin.
+        //
+        // The drop first, and it is not housekeeping: this function was
+        // `units_acyclic()` before decision 29, and `db:wipe` drops tables,
+        // views and types but never functions. OR REPLACE only ever reaches
+        // the *new* name, so without this line every database that ran the
+        // pre-rename migration keeps a `units_acyclic()` referencing a table
+        // that no longer exists, for good — invisible until something calls
+        // it. New databases no-op on IF EXISTS.
+        DB::statement('DROP FUNCTION IF EXISTS units_acyclic()');
+
         DB::unprepared(<<<'SQL'
-            CREATE OR REPLACE FUNCTION units_acyclic() RETURNS trigger LANGUAGE plpgsql AS $$
+            CREATE OR REPLACE FUNCTION workgroups_acyclic() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
                 IF NEW.parent_id IS NULL THEN
                     RETURN NEW;
@@ -95,17 +105,17 @@ return new class extends Migration
 
                 IF EXISTS (
                     WITH RECURSIVE ancestry (id, parent_id) AS (
-                        SELECT units.id, units.parent_id
-                          FROM units
-                         WHERE units.id = NEW.parent_id
+                        SELECT workgroups.id, workgroups.parent_id
+                          FROM workgroups
+                         WHERE workgroups.id = NEW.parent_id
                         UNION
-                        SELECT units.id, units.parent_id
-                          FROM units
-                          JOIN ancestry ON units.id = ancestry.parent_id
+                        SELECT workgroups.id, workgroups.parent_id
+                          FROM workgroups
+                          JOIN ancestry ON workgroups.id = ancestry.parent_id
                     )
                     SELECT 1 FROM ancestry WHERE ancestry.id = NEW.id
                 ) THEN
-                    RAISE EXCEPTION 'a unit cannot be placed under itself or its own descendant';
+                    RAISE EXCEPTION 'a workgroup cannot be placed under itself or its own descendant';
                 END IF;
 
                 RETURN NEW;
@@ -121,7 +131,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('DROP FUNCTION IF EXISTS units_acyclic()');
+        DB::statement('DROP FUNCTION IF EXISTS workgroups_acyclic()');
         DB::statement('DROP FUNCTION IF EXISTS string_set_valid(jsonb)');
         DB::statement('DROP FUNCTION IF EXISTS agency_not_platform()');
     }

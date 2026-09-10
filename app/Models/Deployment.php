@@ -11,12 +11,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * An employee's placement in a unit over a date range (docs/design/01-organization.md
+ * An employee's placement in a workgroup over a date range (docs/design/01-organization.md
  * rule 2): the history of where a person has worked, one row at a time. At
  * most one open row (ends IS NULL) per employee is enforced by the
  * deployments_no_overlap exclusion constraint, not by application code.
  */
-#[Fillable(['agency_id', 'employee_id', 'unit_id', 'starts', 'ends'])]
+#[Fillable(['agency_id', 'employee_id', 'workgroup_id', 'starts', 'ends'])]
 class Deployment extends Model
 {
     /** @use HasFactory<DeploymentFactory> */
@@ -35,8 +35,8 @@ class Deployment extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function unit(): BelongsTo
+    public function workgroup(): BelongsTo
     {
-        return $this->belongsTo(Unit::class);
+        return $this->belongsTo(Workgroup::class);
     }
 }

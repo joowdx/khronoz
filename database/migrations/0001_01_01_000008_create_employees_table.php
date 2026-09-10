@@ -9,8 +9,8 @@ return new class extends Migration
 {
     /**
      * The people an agency keeps a DTR for (docs/design/01-organization.md).
-     * Created before `units` because a unit's head is an employee, so
-     * `units.head_id` can pair to this table's `UNIQUE (id, agency_id)` in its
+     * Created before `workgroups` because a workgroup's head is an employee, so
+     * `workgroups.head_id` can pair to this table's `UNIQUE (id, agency_id)` in its
      * own migration instead of needing a trailing ALTER.
      *
      * Every constraint the per-table block in docs/design/07-constraints.md
@@ -48,7 +48,7 @@ return new class extends Migration
             $table->unique(['agency_id', 'number']);
 
             // Trivially satisfied by the primary key, and the whole point of
-            // the tenancy design: `units.head_id`, `deployments.employee_id`
+            // the tenancy design: `workgroups.head_id`, `deployments.employee_id`
             // and `users.employee_id` each reference this pair, which is what
             // proves a child never points at an employee of another agency.
             $table->unique(['id', 'agency_id']);
@@ -74,7 +74,7 @@ return new class extends Migration
         // place to keep a changing number.
 
         // Nothing operational hangs under the platform agency. `deployments`
-        // deliberately has no such trigger: it needs an employee and a unit,
+        // deliberately has no such trigger: it needs an employee and a workgroup,
         // and both refuse the platform row already.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER agency_not_platform

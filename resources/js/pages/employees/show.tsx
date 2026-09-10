@@ -14,11 +14,11 @@ import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, Tabl
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
 import { addDay, formatDay, laterDay, manilaToday } from '@/lib/dates';
-import { flattenUnits, unitPath } from '@/lib/units';
+import { flattenWorkgroups, workgroupPath } from '@/lib/workgroups';
 import { cn } from '@/lib/utils';
 import { edit, index } from '@/routes/employees';
 import { store, update } from '@/routes/employees/deployments';
-import type { Employee, Unit } from '@/types';
+import type { Employee, Workgroup } from '@/types';
 
 /** Sections divided by a rule with 32 either side, never by a box (§1 rule 3) — the same rhythm the dashboard reads in. */
 function Stack({ children }: { children: ReactNode }) {
@@ -68,7 +68,7 @@ function Blank({ children = 'Not recorded' }: { children?: string }) {
 
 const SEX = { male: 'Male', female: 'Female' } as const;
 
-export default function Show({ employee, units }: { employee: Employee; units: Unit[] }) {
+export default function Show({ employee, workgroups }: { employee: Employee; workgroups: Workgroup[] }) {
     const can = useCan();
     const manage = can('organization.manage');
     const [moving, setMoving] = useState(false);
@@ -88,7 +88,7 @@ export default function Show({ employee, units }: { employee: Employee; units: U
     const move = manage ? (
         <Button variant="outline" onClick={() => setMoving(true)}>
             <ArrowRightLeftIcon aria-hidden strokeWidth={1.5} />
-            {deployed ? 'Move to another unit' : 'Deploy to a unit'}
+            {deployed ? 'Move to another workgroup' : 'Deploy to a workgroup'}
         </Button>
     ) : null;
 
@@ -144,18 +144,18 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                             ) : undefined
                         }
                     />
-                    {current?.unit ? (
+                    {current?.workgroup ? (
                         <div className="flex flex-wrap items-start justify-between gap-4 pt-4">
                             <div className="min-w-0">
                                 <p className="flex items-center gap-2.5 text-lg leading-6 font-semibold">
-                                    <span className="truncate">{current.unit.name}</span>
-                                    {current.unit.kind && <Badge variant="outline">{current.unit.kind}</Badge>}
+                                    <span className="truncate">{current.workgroup.name}</span>
+                                    {current.workgroup.kind && <Badge variant="outline">{current.workgroup.kind}</Badge>}
                                 </p>
-                                {/* Where the unit sits, not just what it is
+                                {/* Where the workgroup sits, not just what it is
                                     called: two divisions can share a name and
                                     the ancestry is what tells them apart. */}
                                 <p className="text-muted-foreground pt-1 text-[13px] leading-[18px]">
-                                    {unitPath(current.unit, units)}
+                                    {workgroupPath(current.workgroup, workgroups)}
                                 </p>
                             </div>
                             <p className="text-[13px] leading-[18px] font-medium tabular-nums">
@@ -169,7 +169,7 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                             description={
                                 lastEnd !== null
                                     ? `Their last placement ended on ${formatDay(lastEnd)}. Deploy them again to start a new placement; their history stays below.`
-                                    : 'A deployment records which unit this person belongs to and when their placement starts.'
+                                    : 'A deployment records which workgroup this person belongs to and when their placement starts.'
                             }
                             action={move ?? undefined}
                         />
@@ -229,11 +229,11 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                         </CardHeader>
                         <Table>
                             <TableCaption className="sr-only mt-0">
-                                Every unit {employee.name} has been deployed to
+                                Every workgroup {employee.name} has been deployed to
                             </TableCaption>
                             <TableHeader sticky>
                                 <TableRow>
-                                    <TableHead>Unit</TableHead>
+                                    <TableHead>Workgroup</TableHead>
                                     <TableHead className="w-[200px]">From</TableHead>
                                     <TableHead className="w-[200px]">Until</TableHead>
                                 </TableRow>
@@ -245,7 +245,7 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                                             <EmptyState
                                                 className="py-6"
                                                 title="Nothing recorded yet"
-                                                description="Every move is kept here, so a daily time record can always be traced to the unit that filed it."
+                                                description="Every move is kept here, so a daily time record can always be traced to the workgroup that filed it."
                                             />
                                         </TableCell>
                                     </TableRow>
@@ -260,19 +260,19 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                                             data-state={deployment.ends === null ? 'selected' : undefined}
                                         >
                                             <TableCell className="max-w-0 truncate">
-                                                {deployment.unit ? (
+                                                {deployment.workgroup ? (
                                                     <span className="flex items-center gap-2.5">
                                                         <span className="truncate font-medium">
-                                                            {deployment.unit.name}
+                                                            {deployment.workgroup.name}
                                                         </span>
-                                                        {deployment.unit.kind && (
+                                                        {deployment.workgroup.kind && (
                                                             <span className="text-muted-foreground shrink-0 text-xs">
-                                                                {deployment.unit.kind}
+                                                                {deployment.workgroup.kind}
                                                             </span>
                                                         )}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-muted-foreground">Unit removed</span>
+                                                    <span className="text-muted-foreground">Workgroup removed</span>
                                                 )}
                                             </TableCell>
                                             <TableCell className="tabular-nums">
@@ -295,7 +295,7 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                 </section>
             </Stack>
 
-            {manage && <MoveSheet employee={employee} units={units} open={moving} onOpenChange={setMoving} />}
+            {manage && <MoveSheet employee={employee} workgroups={workgroups} open={moving} onOpenChange={setMoving} />}
             {manage && current && (
                 <EndSheet employee={employee} starts={current.starts} open={ending} onOpenChange={setEnding} />
             )}
@@ -318,18 +318,18 @@ export default function Show({ employee, units }: { employee: Employee; units: U
  */
 function MoveSheet({
     employee,
-    units,
+    workgroups,
     open,
     onOpenChange,
 }: {
     employee: Employee;
-    units: Unit[];
+    workgroups: Workgroup[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
-    const [unit, setUnit] = useState<string | null>(null);
+    const [workgroup, setWorkgroup] = useState<string | null>(null);
     const current = employee.current_deployment ?? null;
-    const tree = flattenUnits(units);
+    const tree = flattenWorkgroups(workgroups);
 
     // A move ends the current placement the day before the new one starts.
     const earliest = current === null ? undefined : addDay(current.starts);
@@ -345,34 +345,34 @@ function MoveSheet({
                     {({ errors, processing }) => (
                         <>
                             <SheetHeader>
-                                <SheetTitle>{current ? 'Move to another unit' : 'Deploy to a unit'}</SheetTitle>
+                                <SheetTitle>{current ? 'Move to another workgroup' : 'Deploy to a workgroup'}</SheetTitle>
                             </SheetHeader>
 
                             <div className="min-h-0 flex-1 overflow-auto p-5">
                                 <SheetDescription id="move-what-happens" className="text-[13px] leading-[18px]">
                                     {current
-                                        ? `${employee.name} leaves ${current.unit?.name ?? 'their current unit'} the day before this date, and joins the new one on it.`
-                                        : `${employee.name} joins the unit on this date. Nothing before it changes.`}
+                                        ? `${employee.name} leaves ${current.workgroup?.name ?? 'their current workgroup'} the day before this date, and joins the new one on it.`
+                                        : `${employee.name} joins the workgroup on this date. Nothing before it changes.`}
                                 </SheetDescription>
 
-                                <Field className="mt-5" label="Unit" htmlFor="unit_id" error={errors.unit_id}>
+                                <Field className="mt-5" label="Workgroup" htmlFor="workgroup_id" error={errors.workgroup_id}>
                                     {({ id, invalid, describedBy }) => (
                                         <Combobox
                                             id={id}
-                                            name="unit_id"
-                                            value={unit}
-                                            onValueChange={setUnit}
+                                            name="workgroup_id"
+                                            value={workgroup}
+                                            onValueChange={setWorkgroup}
                                             invalid={invalid}
                                             describedBy={describedBy}
-                                            placeholder="Choose a unit"
-                                            searchPlaceholder="Search units"
-                                            empty="No unit by that name."
-                                            options={tree.map(({ unit: option, depth }) => ({
+                                            placeholder="Choose a workgroup"
+                                            searchPlaceholder="Search workgroups"
+                                            empty="No workgroup by that name."
+                                            options={tree.map(({ workgroup: option, depth }) => ({
                                                 value: option.id,
                                                 label: option.name,
                                                 keywords: [option.code, option.kind ?? ''],
                                                 trigger: option.name,
-                                                disabled: option.id === current?.unit?.id,
+                                                disabled: option.id === current?.workgroup?.id,
                                                 render: (
                                                     <span
                                                         className="flex min-w-0 items-center"
@@ -397,7 +397,7 @@ function MoveSheet({
                                     hint={
                                         earliest
                                             ? `On or after ${formatDay(earliest)}, the day after the current placement began.`
-                                            : 'Choose the first day in this unit. Previous placements stay in the history.'
+                                            : 'Choose the first day in this workgroup. Previous placements stay in the history.'
                                     }
                                 >
                                     {({ id, invalid, describedBy }) => (
@@ -416,11 +416,11 @@ function MoveSheet({
 
                             <SheetFooter>
                                 {/*
-                                  Not disabled until a unit is picked. §6.1
+                                  Not disabled until a workgroup is picked. §6.1
                                   makes the label row the validation
                                   mechanism, and a disabled submit leaves the
                                   tab order while explaining nothing —
-                                  submitting empty puts `Required` on the Unit
+                                  submitting empty puts `Required` on the Workgroup
                                   label row, which is both reachable and
                                   specific.
                                 */}

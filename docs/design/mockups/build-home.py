@@ -256,7 +256,7 @@ def cal_html():
         cells.append('<span class="cal-c pad"></span>')
     return f'''<div class="cal">
 <div class="cal-hd"><span class="m">November 2026</span><span class="spacer"></span>
-<span class="n">National, local and unit scope</span></div>
+<span class="n">National, local and workgroup scope</span></div>
 <div class="cal-g">{''.join(cells)}</div>
 <div class="cal-ft">
 <span class="li"><span class="sw-hol"></span>Holiday</span>
@@ -436,12 +436,12 @@ def page():
     <div class="two">
       <div class="col">
         <h3 class="h3">Government agencies</h3>
-        <p>One agency to a tenant, with its own units, terminals, shifts, calendar and signing
+        <p>One agency to a tenant, with its own workgroups, terminals, shifts, calendar and signing
           chain. The Civil Service Commission rules are applied as written, and the product
           keeps the issuance behind each one visible, so a timekeeper can check a computation
           against the circular rather than take it on trust.</p>
         <ul>
-          <li>Units of any shape: <b>departments, divisions, sections</b>, or none.</li>
+          <li>Workgroups of any shape: <b>departments, divisions, sections, units</b>, or none.</li>
           <li>Who signs is agency data: <b>employee, supervisor, head</b> and <b>timekeeper</b>,
             in the order the agency uses.</li>
         </ul>

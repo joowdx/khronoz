@@ -3,13 +3,13 @@
 namespace Database\Factories;
 
 use App\Models\Agency;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<Unit>
+ * @extends Factory<Workgroup>
  */
-class UnitFactory extends Factory
+class WorkgroupFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -24,7 +24,7 @@ class UnitFactory extends Factory
             'kind' => fake()->randomElement(['department', 'division', 'section', 'office']),
             // unique(), matching AgencyFactory's own `code` generator: the
             // constraint is only UNIQUE (agency_id, code), but callers
-            // routinely place several factory units under one shared agency
+            // routinely place several factory workgroups under one shared agency
             // (under() below, or an explicit agency_id override), so the
             // generator must not collide within one agency either.
             'code' => strtoupper(fake()->unique()->lexify('????')),
@@ -34,7 +34,7 @@ class UnitFactory extends Factory
     }
 
     /** Placed under $parent: same agency (the paired parent_id FK requires it), parent_id set. */
-    public function under(Unit $parent): static
+    public function under(Workgroup $parent): static
     {
         return $this->state(fn (array $attributes): array => [
             'agency_id' => $parent->agency_id,

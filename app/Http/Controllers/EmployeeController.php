@@ -6,9 +6,9 @@ use App\Actions\RemoveEmployee;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
-use App\Http\Resources\UnitResource;
+use App\Http\Resources\WorkgroupResource;
 use App\Models\Employee;
-use App\Models\Unit;
+use App\Models\Workgroup;
 use App\Tenancy\Tenant;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,7 +26,7 @@ use Inertia\Response;
  */
 class EmployeeController extends Controller
 {
-    /** A large agency (a hospital, task-6-brief.md's Shape C) can hold far more employees than it has system users, so unlike units this list is genuinely paged. */
+    /** A large agency (a hospital, task-6-brief.md's Shape C) can hold far more employees than it has system users, so unlike workgroups this list is genuinely paged. */
     private const PER_PAGE = 25;
 
     /** @var array<int, string>|null Memoized: the tag vocabulary is asked for twice on a filtered request. */
@@ -42,21 +42,21 @@ class EmployeeController extends Controller
      * | Key      | Means                                                     |
      * | -------- | --------------------------------------------------------- |
      * | `search` | Scout, across every column toSearchableArray() indexes    |
-     * | `unit`   | currently deployed in this unit **or any unit under it**  |
+     * | `workgroup`   | currently deployed in this workgroup **or any workgroup under it**  |
      * | `tag`    | carries this tag                                          |
      * | `exempt` | no daily time record expected                             |
      *
-     * `unit` includes the subtree because that is what choosing a unit means
-     * in this product (01-organization.md rule 4, and Unit::descendants() is
+     * `workgroup` includes the subtree because that is what choosing a workgroup means
+     * in this product (01-organization.md rule 4, and Workgroup::descendants() is
      * the documented way to answer it): a department whose people all sit in
-     * its divisions would otherwise return nothing at all. `unit` and `tag`
+     * its divisions would otherwise return nothing at all. `workgroup` and `tag`
      * are both whitelisted against what the tenant actually has, the same way
      * AgencyController::index whitelists `sort` — a mangled query string
      * drops the filter and reports it as unset, rather than showing a list
      * filtered by a value the picker cannot display.
      *
      * The three new filters live inside ->query(), not as Scout ->where()
-     * clauses, because none of them is a scalar column match: the unit filter
+     * clauses, because none of them is a scalar column match: the workgroup filter
      * is an EXISTS against the open deployment and the tag filter is a jsonb
      * containment test. Under the shipped `database` engine that closure is
      * applied to the very query ->paginate() counts and pages
@@ -83,7 +83,7 @@ class EmployeeController extends Controller
      * themselves would still come back correct. See EmployeeControllerTest
      * for the cross-tenant proof.
      *
-     * currentDeployment.unit is eager-loaded through ->query() — for the
+     * currentDeployment.workgroup is eager-loaded through ->query() — for the
      * database engine (the only one configured today) its closure applies
      * directly to the underlying Eloquent query, including for eager
      * loading. This is deliberate, not decorative: Model::shouldBeStrict()
@@ -101,16 +101,16 @@ class EmployeeController extends Controller
         $tag = $request->string('tag')->trim()->toString();
         $tag = $tag !== '' && in_array($tag, $this->tags(), true) ? $tag : '';
 
-        $unit = ($id = $request->string('unit')->trim()->toString()) === '' ? null : Unit::find($id);
-        $unitIds = $unit === null ? null : [$unit->id, ...$unit->descendants()->pluck('id')->all()];
+        $workgroup = ($id = $request->string('workgroup')->trim()->toString()) === '' ? null : Workgroup::find($id);
+        $workgroupIds = $workgroup === null ? null : [$workgroup->id, ...$workgroup->descendants()->pluck('id')->all()];
 
         $employees = Employee::search($search)
             ->where('agency_id', $this->tenant->id())
             ->query(fn (Builder $query) => $query
-                ->with('currentDeployment.unit')
-                ->when($unitIds !== null, fn (Builder $query) => $query->whereHas(
+                ->with('currentDeployment.workgroup')
+                ->when($workgroupIds !== null, fn (Builder $query) => $query->whereHas(
                     'currentDeployment',
-                    fn (Builder $deployment) => $deployment->whereIn('unit_id', $unitIds),
+                    fn (Builder $deployment) => $deployment->whereIn('workgroup_id', $workgroupIds),
                 ))
                 ->when($tag !== '', fn (Builder $query) => $query->whereJsonContains('tags', $tag))
                 ->when($exempt, fn (Builder $query) => $query->where('exempt', true))
@@ -129,7 +129,7 @@ class EmployeeController extends Controller
             ],
             'filters' => [
                 'search' => $search,
-                'unit' => $unit?->id ?? '',
+                'workgroup' => $workgroup?->id ?? '',
                 'tag' => $tag,
                 'exempt' => $exempt,
             ],
@@ -137,7 +137,7 @@ class EmployeeController extends Controller
             // on every keystroke: the front end reloads only `employees`,
             // `pagination` and `filters`, and Inertia never invokes a closure
             // for a prop a partial reload excluded.
-            'units' => fn () => UnitResource::collection($this->units())->resolve(),
+            'workgroups' => fn () => WorkgroupResource::collection($this->workgroups())->resolve(),
             'tags' => fn () => $this->tags(),
         ]);
     }
@@ -173,15 +173,15 @@ class EmployeeController extends Controller
     }
 
     /**
-     * The tenant's whole unit tree, flat. The front end composes the nesting
-     * from `parent_id` (resources/js/lib/units.ts), which is why this is one
-     * ordered list and not a recursive query — see UnitResource's docblock.
+     * The tenant's whole workgroup tree, flat. The front end composes the nesting
+     * from `parent_id` (resources/js/lib/workgroups.ts), which is why this is one
+     * ordered list and not a recursive query — see WorkgroupResource's docblock.
      *
-     * @return Collection<int, Unit>
+     * @return Collection<int, Workgroup>
      */
-    private function units(): Collection
+    private function workgroups(): Collection
     {
-        return Unit::query()->orderBy('name')->get();
+        return Workgroup::query()->orderBy('name')->get();
     }
 
     public function create(): Response
@@ -204,21 +204,21 @@ class EmployeeController extends Controller
         Gate::authorize('view', $employee);
 
         $employee->load([
-            'currentDeployment.unit',
-            'deployments' => fn ($query) => $query->with('unit')->orderByDesc('starts'),
+            'currentDeployment.workgroup',
+            'deployments' => fn ($query) => $query->with('workgroup')->orderByDesc('starts'),
         ]);
 
         return Inertia::render('employees/show', [
             'employee' => EmployeeResource::make($employee)->resolve(),
             // The tree, for two things the screen does with it: the move
-            // sheet's picker, and the ancestry line under the current unit
+            // sheet's picker, and the ancestry line under the current workgroup
             // ("Office of the Executive Director / Administrative Division /
             // Records Section"). It is deliberately NOT gated on `update`
             // even though only a manager sees the sheet: the same tree is
-            // already on /units for anyone holding organization.view, so
+            // already on /workgroups for anyone holding organization.view, so
             // withholding it here would protect nothing and would cost a
-            // view-only reader the one line that says where the unit sits.
-            'units' => UnitResource::collection($this->units())->resolve(),
+            // view-only reader the one line that says where the workgroup sits.
+            'workgroups' => WorkgroupResource::collection($this->workgroups())->resolve(),
         ]);
     }
 
@@ -238,7 +238,7 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', "{$employee->name} updated.");
     }
 
-    /** $employee->delete() is a soft delete (SoftDeletes): an UPDATE, not a DELETE, so it never trips units.head_id / deployments.employee_id's ON DELETE RESTRICT. */
+    /** $employee->delete() is a soft delete (SoftDeletes): an UPDATE, not a DELETE, so it never trips workgroups.head_id / deployments.employee_id's ON DELETE RESTRICT. */
     public function destroy(Employee $employee, RemoveEmployee $remove): RedirectResponse
     {
         Gate::authorize('delete', $employee);

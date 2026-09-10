@@ -8,7 +8,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Matches the `Employee` interface in resources/js/types/index.d.ts (Task 6).
  *
- * `current_deployment` needs `currentDeployment.unit` eager-loaded by the
+ * `current_deployment` needs `currentDeployment.workgroup` eager-loaded by the
  * controller — EmployeeController::index and ::show both do, deliberately
  * (see their own docblocks): Model::shouldBeStrict() only arms the
  * lazy-loading guard on a hydrated collection of more than one row, so a
