@@ -100,6 +100,16 @@ return new class extends Migration
         // purpose.
         DB::statement('ALTER TABLE suspensions ADD CONSTRAINT suspensions_hours_ordered CHECK (starts IS NULL OR ends > starts)');
 
+
+        // The recording user must belong to this agency or be a platform
+        // user; no FK can say "or", so this trigger does. The function and
+        // its reasoning are in 0001_01_01_000018_prepare_calendar.
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER actor_of_agency
+                BEFORE INSERT OR UPDATE OF user_id, agency_id ON suspensions
+                FOR EACH ROW EXECUTE FUNCTION actor_of_agency();
+        SQL);
+
         // Deliberately absent: any uniqueness or exclusion constraint over
         // (agency_id, workgroup_id, date). Two suspensions on one date are
         // ordinary — a morning window and an afternoon one, or an agency-wide
@@ -119,6 +129,10 @@ return new class extends Migration
         // SuspensionTest scopes that test to a workgroup.
     }
 
+    /**
+     * The trigger goes with the table; `actor_of_agency()` belongs to
+     * 0001_01_01_000018_prepare_calendar and is dropped only there.
+     */
     public function down(): void
     {
         Schema::dropIfExists('suspensions');

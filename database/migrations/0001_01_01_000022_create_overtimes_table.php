@@ -96,8 +96,21 @@ return new class extends Migration
         // releasing one does not run deferred checks, so a deferred
         // constraint would be uncatchable and its test vacuously green.
         DB::statement('ALTER TABLE overtimes ADD CONSTRAINT overtimes_no_overlap EXCLUDE USING gist (employee_id WITH =, tsrange(starts, ends) WITH &&)');
+
+        // The recording user must belong to this agency or be a platform
+        // user; no FK can say "or", so this trigger does. The function and
+        // its reasoning are in 0001_01_01_000018_prepare_calendar.
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER actor_of_agency
+                BEFORE INSERT OR UPDATE OF user_id, agency_id ON overtimes
+                FOR EACH ROW EXECUTE FUNCTION actor_of_agency();
+        SQL);
     }
 
+    /**
+     * The trigger goes with the table; `actor_of_agency()` belongs to
+     * 0001_01_01_000018_prepare_calendar and is dropped only there.
+     */
     public function down(): void
     {
         Schema::dropIfExists('overtimes');

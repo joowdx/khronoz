@@ -468,24 +468,27 @@ CHECK ((starts IS NULL) = (ends IS NULL))
 CHECK (starts IS NULL OR ends > starts)                            -- strict, unlike the '>=' every date range uses: a zero-length window suspends nothing
 reason NOT NULL                                                    -- the operative justification, and it prints on the DTR
 declared_at timestamp(0) NOT NULL
+-- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
 -- no uniqueness over (agency_id, workgroup_id, date), deliberately: two windows on one date are ordinary.
--- One would also not work — workgroup_id is null on every agency-wide row and UNIQUE treats nulls as
--- distinct, so it would refuse the legitimate workgroup pairs and permit unlimited agency-wide duplicates.
+-- A plain one would also not work — workgroup_id is null on every agency-wide row and UNIQUE treats nulls
+-- as distinct, so it would refuse the legitimate workgroup pairs and permit unlimited agency-wide
+-- duplicates. UNIQUE NULLS NOT DISTINCT (PG15+) is the formulation that WOULD hold if one were ever
+-- wanted; it still is not, because multiple same-scope partial suspensions are legitimate.
 
 -- exemptions
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
 FOREIGN KEY (user_id) REFERENCES users (id)                        -- single, not paired, for the reason suspensions.user_id is
 UNIQUE (id, employee_id)                                          -- target for the workday FK
-until date NULL                                                    -- last day, INCLUSIVE; null is one day and NOT an open end (README decision 37)
-CHECK (until IS NULL OR until > date)                              -- strict, so null is the one canonical spelling of a single day
-CHECK (until IS NULL OR starts IS NULL)                            -- a multi-day exemption is whole days; hours across 105 days is never meant
+until date NOT NULL                                                -- last day, INCLUSIVE; a one-day exemption carries until = date (README decisions 37, 38)
+CHECK (until >= date)                                              -- NOT NULL rather than "null means one day": daterange(date, until, '[]') with a null upper bound is UNBOUNDED
+CHECK (until = date OR starts IS NULL)                             -- a multi-day exemption is whole days; hours across 105 days is never meant
 CHECK ((starts IS NULL) = (ends IS NULL))
 CHECK (starts IS NULL OR ends > starts)
 CHECK (type IN ('leave', 'business', 'travel', 'cto', 'pass', 'personal', 'emergency'))   -- personal is recorded and printed but excuses nothing (README decision 19)
 approved_at timestamp(0) NOT NULL                                  -- v1 sets it on entry (05-calendar.md rule 5); filing workflows are phase 2
 -- no exclusion over (employee_id, the range), deliberately: a morning pass and an afternoon CTO are one
 -- ordinary day. Milestone 6 stamps one workdays.exemption_id per day and picks by precedence.
--- Concerns\CoversDates must NOT be used on this table: null `until` is one day, null `ends` is no end.
+-- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
 ```
 
 ### overtimes
@@ -499,6 +502,7 @@ date date GENERATED ALWAYS AS (starts::date) STORED                -- starts::da
 CHECK (ends > starts)                                              -- strict: tsrange(t, t) is empty and would overlap nothing
 CHECK (mode IN ('pay', 'cto'))
 EXCLUDE USING gist (employee_id WITH =, tsrange(starts, ends) WITH &&)
+-- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
 ```
 
 `ends` is `NOT NULL` here and nullable on every other range in the schema: an order names the hours

@@ -261,4 +261,26 @@ class SuspensionTest extends TestCase
         $this->assertTrue($whole->wholeDay());
         $this->assertFalse($partial->wholeDay());
     }
+
+    /**
+     * actor_of_agency. The single-column `user_id` FK is wider than the
+     * intent it serves: it exists so a platform superuser who has entered the
+     * agency can do the data entry, not so an ordinary user of some third
+     * agency can be recorded as having declared this. No foreign key can say
+     * "this agency **or** the platform one", so a trigger does — the same
+     * division of labour `origin_is_platform()` makes for the other
+     * deliberate cross-agency pointer in the schema.
+     *
+     * Found by an adversarial review on 2026-09-11, which noticed the FK
+     * permitted what the application never produces.
+     */
+    public function test_the_recording_user_cannot_belong_to_a_third_agency(): void
+    {
+        $suspension = Suspension::factory()->create();
+        $stranger = User::factory()->create();
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('suspensions')->insert(
+            $this->suspensionRow($suspension, ['user_id' => $stranger->id])
+        ));
+    }
 }

@@ -27,7 +27,7 @@ class ExemptionTest extends TestCase
             'agency_id' => $like->agency_id,
             'employee_id' => $like->employee_id,
             'date' => $like->date->toDateString(),
-            'until' => null,
+            'until' => $like->date->toDateString(),
             'type' => 'leave',
             'starts' => null,
             'ends' => null,
@@ -190,28 +190,59 @@ class ExemptionTest extends TestCase
     }
 
     /**
-     * exemptions_span_ordered, and the reason it is strict: null is the
-     * canonical single day, so `until = date` is a second spelling of it and
-     * is refused rather than accepted-and-normalised. Without that, every
-     * reader would need COALESCE(until, date) to mean two things.
+     * `until` NOT NULL, which is decision 38 and the change that removed a
+     * trap rather than adding a rule. An earlier draft made it nullable with
+     * null meaning "one day"; `daterange(date, until, '[]')` with a null
+     * upper bound is **unbounded above**, so any future query or exclusion
+     * constraint built the way the rest of this schema builds ranges would
+     * have read a two-hour pass slip as excusing every day thereafter.
      */
-    public function test_a_span_cannot_end_on_the_day_it_starts(): void
+    public function test_until_is_required(): void
     {
         $exemption = Exemption::factory()->create();
 
-        $this->assertDatabaseRefuses('23514', fn () => DB::table('exemptions')->insert(
-            $this->exemptionRow($exemption, ['until' => $exemption->date->toDateString()])
-        ));
+        $this->assertDatabaseRefuses(
+            '23502',
+            fn () => DB::table('exemptions')->insert($this->exemptionRow($exemption, ['until' => null])),
+            'column "until"',
+        );
     }
 
-    /** Same CHECK, the obvious side. */
+    /**
+     * And the payoff, asserted in the schema's own idiom: a one-day exemption
+     * built as a daterange the way every exclusion constraint here builds one
+     * is **bounded**, and contains exactly its own day.
+     *
+     * This is the test the nullable version could not have passed. It is
+     * written in SQL rather than through the model deliberately — the hazard
+     * was never the Eloquent scope, which was correct either way, but SQL
+     * nobody had written yet.
+     */
+    public function test_a_one_day_exemption_is_a_bounded_range(): void
+    {
+        $exemption = Exemption::factory()->create(['date' => '2026-09-15']);
+
+        $range = DB::selectOne(
+            "select daterange(date, until, '[]')::text as span,
+                    upper_inf(daterange(date, until, '[]')) as unbounded,
+                    daterange(date, until, '[]') @> '2026-09-16'::date as covers_tomorrow
+               from exemptions where id = ?",
+            [$exemption->id],
+        );
+
+        $this->assertFalse($range->unbounded, 'a one-day exemption must not be an open range');
+        $this->assertFalse($range->covers_tomorrow);
+        $this->assertSame('[2026-09-15,2026-09-16)', $range->span, 'inclusive of its own day only');
+    }
+
+    /** exemptions_span_ordered: the last day cannot precede the first. */
     public function test_a_span_cannot_end_before_it_starts(): void
     {
         $exemption = Exemption::factory()->create();
 
         $this->assertDatabaseRefuses('23514', fn () => DB::table('exemptions')->insert(
             $this->exemptionRow($exemption, ['until' => $exemption->date->subDay()->toDateString()])
-        ));
+        ), 'exemptions_span_ordered');
     }
 
     /** exemptions_hours_paired. */
@@ -288,11 +319,10 @@ class ExemptionTest extends TestCase
     }
 
     /**
-     * **The trap decision 37 introduces, and the reason this model must not
-     * use Concerns\CoversDates.** Null `until` means *one day*; null `ends`
-     * on `deployments` and `rosters` means *no end*. Reusing that trait here
-     * would make a two-hour pass slip excuse every day of the rest of the
-     * employee's career.
+     * A single-day exemption covers exactly its day. Trivially true under
+     * decision 38 and emphatically not so under its first draft, where a null
+     * `until` read as an open end to anything building a range — see
+     * test_a_one_day_exemption_is_a_bounded_range.
      */
     public function test_a_single_day_exemption_does_not_cover_the_next_day(): void
     {
@@ -359,13 +389,35 @@ class ExemptionTest extends TestCase
      */
     public function test_the_shape_predicates_read_the_nullable_columns(): void
     {
-        $continuous = Exemption::factory()->spanning(105)->make();
-        $slip = Exemption::factory()->hours()->make();
+        $continuous = Exemption::factory()->spanning(105)->create();
+        $slip = Exemption::factory()->hours()->create();
 
         $this->assertTrue($continuous->spansDays());
         $this->assertTrue($continuous->wholeDay());
 
         $this->assertFalse($slip->spansDays());
         $this->assertFalse($slip->wholeDay());
+    }
+
+    /**
+     * actor_of_agency. The single-column `user_id` FK is wider than the
+     * intent it serves: it exists so a platform superuser who has entered the
+     * agency can do the data entry, not so an ordinary user of some third
+     * agency can be recorded as having entered this. No foreign key can say
+     * "this agency **or** the platform one", so a trigger does — the same
+     * division of labour `origin_is_platform()` makes for the other
+     * deliberate cross-agency pointer in the schema.
+     *
+     * Found by an adversarial review on 2026-09-11, which noticed the FK
+     * permitted what the application never produces.
+     */
+    public function test_the_recording_user_cannot_belong_to_a_third_agency(): void
+    {
+        $exemption = Exemption::factory()->create();
+        $stranger = User::factory()->create();
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('exemptions')->insert(
+            $this->exemptionRow($exemption, ['user_id' => $stranger->id])
+        ));
     }
 }

@@ -18,10 +18,11 @@ class ExemptionFactory extends Factory
     /**
      * Define the model's default state: a single whole day of leave.
      *
-     * `until` null is that single day and not an open end (decision 37), and
-     * `starts`/`ends` null is the whole of it — which also keeps the default
-     * clear of exemptions_span_is_whole_days, so span() and hours() can each
-     * be applied without the other refusing.
+     * `until` equals `date` for that single day (decision 38), as a closure so
+     * a caller's own `date` is honoured. `starts`/`ends` null is the whole of
+     * it, which also keeps the default clear of
+     * exemptions_span_is_whole_days, so spanning() and hours() can each be
+     * applied without the other refusing.
      *
      * employee_id and user_id are callbacks for the reason RosterFactory's
      * parents are: the paired FK requires the employee to share this row's
@@ -37,7 +38,7 @@ class ExemptionFactory extends Factory
                 'agency_id' => $attributes['agency_id'],
             ])->id,
             'date' => '2026-09-15',
-            'until' => null,
+            'until' => fn (array $merged): string => $merged['date'],
             'type' => ExemptionType::Leave,
             'starts' => null,
             'ends' => null,
@@ -64,6 +65,8 @@ class ExemptionFactory extends Factory
      * visible. Measured: computing it eagerly here made
      * `spanning(105)->create(['date' => '2026-09-01'])` produce a 119-day
      * range, and the test that caught it was asserting the day after the last.
+     *
+     * `spanning(1)` is legal and is the default shape, `until = date`.
      */
     public function spanning(int $days): static
     {
