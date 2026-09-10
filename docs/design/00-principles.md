@@ -1,4 +1,4 @@
-# 09 — principles for a generic system
+# 00 — principles for a generic system
 
 One rule: **variation between agencies is data, invariants are code.** Onboarding an agency must never need a deploy. Clockwork broke this with three duplicated compute branches (standard, shift, fallback) and a `span` column that changed meaning by case.
 
