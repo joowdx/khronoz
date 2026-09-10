@@ -37,11 +37,14 @@ import type { Employee, Unit } from '@/types';
  * `users_count`).
  *
  * `people_count` is the headcount to show: open deployments, the people who
- * are in the unit now. `deployments_count` is every placement it has ever
- * held, and it decides whether Remove is offered at all — a unit named by any
- * deployment row, closed ones included, is refused by
+ * are in the unit now — in it **or in anything under it**, which is what the
+ * row's link and its accessible name both already say, and what the server
+ * rolls the count up to (`UnitController::rollUpPeople`).
+ * `deployments_count` is every placement this unit itself has ever held, not
+ * its subtree's, and it decides whether Remove is offered at all — a unit
+ * named by any deployment row, closed ones included, is refused by
  * `deployments_unit_id_agency_id_foreign`'s RESTRICT. Two different questions,
- * two counts.
+ * two counts, and only one of them rolls up.
  */
 interface UnitRow extends Unit {
     people_count: number;

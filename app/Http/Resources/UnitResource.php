@@ -14,9 +14,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * flat list keyed by `parent_id`, so this resource carries no nested
  * `children` — see task-6-brief.md's units/index composition notes.
  *
- * `people_count` is the open-deployment headcount and `deployments_count`
- * every placement the unit has ever held; both are aliased by
- * UnitController::index's withCount and therefore present only there; every
+ * `people_count` is the open-deployment headcount of this unit **and
+ * everything under it** — UnitController::index rolls its own withCount
+ * aggregate up over the flat list before this resolves, because the number is
+ * a link to `/employees?unit=…` and that filter expands over the subtree
+ * (01-organization.md rule 4). `deployments_count` is every placement this
+ * unit itself has ever held and is deliberately not rolled up; see
+ * UnitController::rollUpPeople. Both are aliased by UnitController::index's
+ * withCount and therefore present only there; every
  * other place this resource appears (the parent and unit pickers, a unit's
  * own edit form) omits the key rather than sending zero, so a missing count
  * can never read as "nobody is here". The list's own row type is `UnitRow` in

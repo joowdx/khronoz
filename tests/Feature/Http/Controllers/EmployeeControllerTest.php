@@ -173,14 +173,15 @@ class EmployeeControllerTest extends TestCase
      * 175-184) — and says nothing about whether the controller actually
      * called it.
      *
-     * No search term: EmployeeController::index() runs Employee::search('')
-     * unconditionally (its own docblock — "even for a blank term"), and a
-     * blank Scout query skips DatabaseEngine's ilike text-match group
-     * entirely (Builder::addTextSearchConstraints() returns early on
-     * blank($builder->query)). A non-blank term would ilike-match every
-     * indexed column including agency_id — the separate, deliberately
-     * deferred toSearchableArray() finding — adding a third, unrelated
-     * `agency_id` substring and breaking the count this test relies on.
+     * A real search term, deliberately: the count is exactly 2 either way
+     * now, and a term is the shape that used to break it. DatabaseEngine
+     * ilike-matches `%term%` against every key of toSearchableArray(), and
+     * `agency_id` was one of them under this driver, adding a third,
+     * unrelated `agency_id` substring — so this test had to search for
+     * nothing at all to hold. It no longer does (Employee::toSearchableArray
+     * indexes the key only for an engine that filters through its own index),
+     * which makes the term free and makes this test fail if anyone puts an
+     * identifier back into the array under the `database` driver.
      */
     public function test_search_where_clause_carries_the_current_agency(): void
     {
@@ -197,7 +198,7 @@ class EmployeeControllerTest extends TestCase
             }
         });
 
-        $this->get(route('employees.index'))->assertOk();
+        $this->get(route('employees.index', ['search' => 'Cruz']))->assertOk();
 
         $this->assertNotEmpty($queries, 'expected at least one query against "employees"');
 
@@ -208,6 +209,62 @@ class EmployeeControllerTest extends TestCase
                 "expected both the explicit filter and AgencyScope in: {$sql}",
             );
         }
+    }
+
+    /**
+     * A short term must narrow the list, which is the whole job of the search
+     * box: a timekeeper finds a person by typing, in a list that will hold
+     * thousands.
+     *
+     * The fixture puts the term in every row's `id` and in exactly one row's
+     * name. DatabaseEngine ilike-matches `%term%` against every key of
+     * toSearchableArray(), so while `id` was one of those keys every row
+     * contributed 26 characters of ULID to the match set and a one- or
+     * two-character term matched everyone. MEASURED against the seeded Demo
+     * Agency before the fix: `q` returned 32 of 32 employees, `n2d7` 32 of 32,
+     * `zq` 0 and `Barton` 1 — the terms that failed were the short ones, i.e.
+     * every term on the way to a long one.
+     *
+     * Ids are assigned by hand here because a ULID's own characters are not
+     * knowable in advance; they stay valid Crockford base32 so nothing else
+     * about the row is unusual. Restoring `'id' => $this->id` to the array
+     * makes this return 3.
+     */
+    public function test_a_short_search_term_narrows_the_list(): void
+    {
+        $this->useDatabaseSearchDriver();
+        $agency = Agency::factory()->create();
+
+        $named = Employee::factory()->create([
+            'agency_id' => $agency->id,
+            'id' => '01MZQ7A'.str_repeat('0', 19),
+            'first_name' => 'Ana',
+            'last_name' => 'Zq7abalza',
+            'middle_name' => null,
+            'email' => 'ana@example.test',
+            'position' => 'Clerk',
+        ]);
+
+        foreach (['Cruz', 'Delgado'] as $index => $lastName) {
+            Employee::factory()->create([
+                'agency_id' => $agency->id,
+                'id' => '01MZQ7B'.str_repeat('0', 18).$index,
+                'first_name' => 'Ben',
+                'last_name' => $lastName,
+                'middle_name' => null,
+                'email' => "ben{$index}@example.test",
+                'position' => 'Clerk',
+            ]);
+        }
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        // Every id contains "zq7"; only one name does.
+        $this->get(route('employees.index', ['search' => 'zq7']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('employees', 1)
+                ->where('employees.0.id', $named->id)
+                ->where('pagination.total', 1));
     }
 
     /**
@@ -579,6 +636,136 @@ class EmployeeControllerTest extends TestCase
         ])->assertRedirect(route('employees.index'))->assertSessionHas('success');
 
         $this->assertSame('New', $employee->fresh()->first_name);
+    }
+
+    /**
+     * The form's own fields, unchanged apart from what a test overrides —
+     * update() writes every validated attribute, so a partial payload would
+     * silently blank the rest.
+     *
+     * @return array<string, mixed>
+     */
+    private function employeeForm(Employee $employee, array $overrides = []): array
+    {
+        return [
+            'number' => $employee->number,
+            'first_name' => $employee->first_name,
+            'last_name' => $employee->last_name,
+            'hired_at' => $employee->hired_at->toDateString(),
+            'separated_at' => $employee->separated_at?->toDateString(),
+            ...$overrides,
+        ];
+    }
+
+    /** An employee hired on $hired with one open placement from $starts. */
+    private function placed(Agency $agency, string $hired, string $starts): Employee
+    {
+        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => $hired]);
+
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'unit_id' => Unit::factory()->create(['agency_id' => $agency->id])->id,
+            'starts' => $starts,
+            'ends' => null,
+        ]);
+
+        return $employee;
+    }
+
+    /**
+     * Separating someone closes where they worked, at the date they left
+     * (App\Actions\SeparateEmployee). Before this, nothing in the application
+     * ever closed a deployment except a move, so one screen said both things
+     * at once — MEASURED against the seeded Demo Agency: header pill
+     * Separated, "Separated on 13 July 2026", and "Where they work — Records
+     * Section, Since 1 November 2023" with the history row reading Until:
+     * Present. Employee::currentDeployment() answered with a unit for someone
+     * who had left, and Milestone 3's rosters and Milestone 6's daily time
+     * records both resolve through exactly that.
+     */
+    public function test_update_closes_the_open_placement_when_the_employee_is_separated(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $employee = $this->placed($agency, '2020-01-01', '2024-06-01');
+
+        $this->put(route('employees.update', $employee), $this->employeeForm($employee, ['separated_at' => '2026-07-13']))
+            ->assertRedirect(route('employees.index'))->assertSessionHas('success');
+
+        $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'ends' => '2026-07-13']);
+        $this->assertNull($employee->fresh()->currentDeployment);
+    }
+
+    /**
+     * With the placement closed, the profile reaches the branch it has always
+     * carried and never could show: `current_deployment` comes back null, so
+     * employees/show renders "No open placement — They left on …" instead of
+     * a unit and a "Since" date, and offers no move.
+     */
+    public function test_the_profile_of_a_separated_employee_has_no_open_placement(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $employee = $this->placed($agency, '2020-01-01', '2024-06-01');
+
+        $this->put(route('employees.update', $employee), $this->employeeForm($employee, ['separated_at' => '2026-07-13']));
+
+        $this->get(route('employees.show', $employee))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('employees/show', false)
+                ->where('employee.separated_at', '2026-07-13')
+                ->where('employee.current_deployment', null)
+                // The history is still there, which is what anyone opening a
+                // former employee's profile came for — closed, not open.
+                ->has('employee.deployments', 1)
+                ->where('employee.deployments.0.ends', '2026-07-13'));
+    }
+
+    /**
+     * A separation earlier than the open placement's own `starts` would close
+     * it with `ends < starts` — `deployments_dates_ordered`, SQLSTATE 23514,
+     * a 500. UpdateEmployeeRequest turns it into a message on the field, and
+     * EmployeeController::update translates the refusal as the backstop; both
+     * exist, and this test proves the clerk gets a message either way.
+     */
+    public function test_update_refuses_a_separation_before_the_current_placement_began(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $employee = $this->placed($agency, '2020-01-01', '2024-06-01');
+
+        $this->put(route('employees.update', $employee), $this->employeeForm($employee, ['separated_at' => '2021-06-01']))
+            ->assertSessionHasErrors('separated_at');
+
+        $this->assertNull($employee->fresh()->separated_at);
+        $this->assertNotNull($employee->fresh()->currentDeployment);
+    }
+
+    /**
+     * Only the transition null → a date separates anyone. Re-saving an
+     * already separated employee's form is an ordinary edit: it must not
+     * re-close the placement at a new date, and it must not open or close
+     * anything else. The second save moves `separated_at` later, which is the
+     * shape that would rewrite `ends` if the transition were not tested.
+     */
+    public function test_re_saving_a_separated_employee_leaves_their_closed_placement_alone(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $employee = $this->placed($agency, '2020-01-01', '2024-06-01');
+
+        $this->put(route('employees.update', $employee), $this->employeeForm($employee, ['separated_at' => '2026-07-13']));
+
+        $this->put(route('employees.update', $employee->fresh()), $this->employeeForm($employee->fresh(), [
+            'first_name' => 'Renamed',
+            'separated_at' => '2026-08-01',
+        ]))->assertRedirect(route('employees.index'))->assertSessionHas('success');
+
+        $this->assertSame('Renamed', $employee->fresh()->first_name);
+        $this->assertSame('2026-08-01', $employee->fresh()->separated_at->toDateString());
+        $this->assertSame(1, Deployment::query()->where('employee_id', $employee->id)->count());
+        $this->assertDatabaseHas('deployments', ['employee_id' => $employee->id, 'ends' => '2026-07-13']);
     }
 
     public function test_destroy_soft_deletes_the_employee(): void

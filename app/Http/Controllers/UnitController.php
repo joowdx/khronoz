@@ -50,7 +50,8 @@ class UnitController extends Controller
             // worth drawing because people are in it, and counting per row
             // would be one SELECT per unit (N+1). The alias is `people`
             // rather than `deployments` because the number is a headcount,
-            // not a count of history rows.
+            // not a count of history rows. This aggregate is each unit's
+            // own; rollUpPeople() below turns it into the subtree's.
             ->withCount([
                 'deployments as people_count' => fn (Builder $query) => $query->whereNull('ends'),
                 // Every placement it has ever held, closed ones included.
@@ -65,10 +66,80 @@ class UnitController extends Controller
             ->orderBy('name')
             ->get();
 
+        $this->rollUpPeople($units);
+
         return Inertia::render('units/index', [
             'units' => UnitResource::collection($units)->resolve(),
             'employees' => fn () => $this->heads(),
         ]);
+    }
+
+    /**
+     * Turn each unit's own headcount into its subtree's, in place, before the
+     * resource resolves.
+     *
+     * `people_count` is read as "this unit and everything under it", because
+     * that is what the two things around the number already mean: it is a link
+     * to `/employees?unit=…`, whose filter expands over Unit::descendants()
+     * (EmployeeController::index), and 01-organization.md rule 4 makes the
+     * subtree the canonical answer to "who is in this unit". MEASURED before
+     * this existed, on the seeded Demo Agency: Administrative Division
+     * displayed 6 and the link it carried reported 15; Office of the Executive
+     * Director displayed 5 against 28.
+     *
+     * One arithmetic pass over the list the query already returned, not a
+     * recursive query per row: the whole tenant's tree is in hand (this index
+     * has no pagination, deliberately), so the rollup costs O(n) and adds no
+     * queries at all. Post-order over an explicit stack, so a unit is only
+     * added to its parent once its own subtree is complete — each unit is
+     * pushed exactly twice regardless of depth.
+     *
+     * A `parent_id` naming a row outside the list is treated as a root, the
+     * same convention flattenUnits() applies client-side
+     * (resources/js/lib/units.ts), so a future scoped list rolls up within
+     * itself rather than losing a subtree — and a cycle the units_acyclic
+     * trigger somehow did not refuse is simply never reached from a root
+     * rather than spinning here.
+     *
+     * `deployments_count` is deliberately NOT rolled up. It exists to keep
+     * Remove from being offered where deployments_unit_id_agency_id_foreign's
+     * RESTRICT would bite, and that FK names this unit's own rows; a subtree
+     * total would hide a removable leaf's zero behind its parent's history.
+     *
+     * @param  Collection<int, Unit>  $units
+     */
+    private function rollUpPeople(Collection $units): void
+    {
+        $byId = $units->keyBy('id');
+
+        /** @var array<string, array<int, string>> $children */
+        $children = [];
+
+        foreach ($units as $unit) {
+            $parent = $unit->parent_id !== null && $byId->has($unit->parent_id) ? $unit->parent_id : '';
+            $children[$parent][] = $unit->id;
+        }
+
+        /** @var array<int, array{0: string, 1: bool}> $stack */
+        $stack = array_map(fn (string $id): array => [$id, false], $children[''] ?? []);
+
+        while ($stack !== []) {
+            [$id, $rolled] = array_pop($stack);
+
+            if ($rolled) {
+                foreach ($children[$id] ?? [] as $child) {
+                    $byId[$id]->people_count += $byId[$child]->people_count;
+                }
+
+                continue;
+            }
+
+            $stack[] = [$id, true];
+
+            foreach ($children[$id] ?? [] as $child) {
+                $stack[] = [$child, false];
+            }
+        }
     }
 
     public function create(): Response

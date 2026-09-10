@@ -50,21 +50,40 @@ class Employee extends Model
     }
 
     /**
-     * agency_id must be here (R10): SCOUT_DRIVER=database happens to route
-     * search() through Model::newQuery(), which still carries AgencyScope —
-     * verified empirically, see task-3-report.md — but that is one engine's
-     * implementation detail, not a Scout guarantee. Algolia, Meilisearch and
-     * Typesense all return ids straight from their own index and bypass every
-     * Eloquent global scope entirely. Every ::search() call site must filter
-     * by agency_id explicitly regardless of driver (.ai/rules/models.md).
+     * Every key here is a column a search term is matched against, so an
+     * identifier in this array is a term that matches every row.
+     * `DatabaseEngine` builds its query from `array_keys(toSearchableArray())`
+     * and, on pgsql, adds one `orWhere(column, 'ilike', '%term%')` per key
+     * (vendor/laravel/scout/src/Engines/DatabaseEngine.php:221, 262-305);
+     * its `canSearchPrimaryKey` shortcut needs an integer key, so a ULID `id`
+     * is just another ilike column. MEASURED with `id` in the array, on the
+     * seeded Demo Agency: `q` matched 32 of 32 employees, `n2d7` 32 of 32,
+     * `a` 32 of 32 — 26 characters of ULID per row means the first keystroke
+     * of a search reliably fails to narrow, on the primary way a timekeeper
+     * finds a person. `id` is gone for that reason and nothing needs it back:
+     * an external engine takes the document key from `getScoutKey()`, merged
+     * in by the engine itself (MeilisearchEngine::update() line 87, and
+     * Algolia's `objectID`), never from this array.
+     *
+     * `agency_id` is R10's other half and stays for the engines that need
+     * it: Algolia, Meilisearch and Typesense match their own index and
+     * bypass every Eloquent global scope, so the id has to be *in* that index
+     * for a call site's `->where('agency_id', …)` to filter on it. Under the
+     * shipped `database` driver nothing filters through the index —
+     * `DatabaseEngine::newSearchQuery()` falls back to `Model::newQuery()`,
+     * which carries AgencyScope, and EmployeeController::index's explicit
+     * filter is a plain SQL condition either way — so including it there
+     * would only widen every ilike group by another 26-character identifier,
+     * for no protection at all. Either way every ::search() call site must
+     * filter by agency_id explicitly (.ai/rules/models.md).
      *
      * @return array<string, mixed>
      */
     public function toSearchableArray(): array
     {
         return [
-            'id' => $this->id,
-            'agency_id' => $this->agency_id,
+            // Indexed only where an index is what gets filtered — see above.
+            ...(config('scout.driver') === 'database' ? [] : ['agency_id' => $this->agency_id]),
             'number' => $this->number,
             'first_name' => $this->first_name,
             'middle_name' => $this->middle_name,

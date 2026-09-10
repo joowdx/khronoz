@@ -68,6 +68,10 @@ class UnitControllerTest extends TestCase
      * The fixture keeps them apart deliberately: one unit with a closed
      * deployment and no open one must read 0 people but 1 placement, so a
      * single count could not stand in for both.
+     *
+     * Three roots, so the two meanings of `people_count` — the unit's own and
+     * its subtree's — coincide here; the subtree half is
+     * test_the_headcount_covers_everything_under_the_unit below.
      */
     public function test_index_counts_who_is_in_each_unit_now_and_who_ever_was(): void
     {
@@ -97,6 +101,59 @@ class UnitControllerTest extends TestCase
                 ->where('units.1.deployments_count', 1)
                 ->where('units.2.people_count', 0)
                 ->where('units.2.deployments_count', 0));
+    }
+
+    /**
+     * `people_count` is the subtree's headcount, not the unit's own row's.
+     * The row labels it that way and links there — `aria-label` reads "N in
+     * Administrative Division and below" and the number is a link to
+     * `/employees?unit=…`, whose filter expands over Unit::descendants()
+     * (01-organization.md rule 4) — so the number has to be counted the same
+     * way. MEASURED against the seeded Demo Agency before UnitController
+     * rolled it up: Administrative Division displayed 6 while its own link
+     * reported 15.
+     *
+     * The fixture is three levels deep and every unit holds people of its
+     * own — 1, 2 and 3 — so the rollup is load-bearing twice over: without it
+     * the department reads 1, and with a one-level "sum of my children" it
+     * reads 3. Only a transitive rollup answers 6.
+     *
+     * One employee per deployment: `deployments_no_overlap` allows a person
+     * exactly one open placement, so a headcount of six needs six people.
+     */
+    public function test_the_headcount_covers_everything_under_the_unit(): void
+    {
+        $agency = Agency::factory()->create();
+        $department = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Aaa Department']);
+        $division = Unit::factory()->under($department)->create(['name' => 'Bbb Division']);
+        $section = Unit::factory()->under($division)->create(['name' => 'Ccc Section']);
+
+        foreach ([$department->id => 1, $division->id => 2, $section->id => 3] as $unitId => $people) {
+            for ($i = 0; $i < $people; $i++) {
+                Deployment::factory()->create([
+                    'agency_id' => $agency->id,
+                    'employee_id' => Employee::factory()->create(['agency_id' => $agency->id])->id,
+                    'unit_id' => $unitId,
+                    'starts' => '2022-01-01',
+                    'ends' => null,
+                ]);
+            }
+        }
+
+        $this->actingAsAgency($agency, Permission::ViewOrganization);
+
+        $this->get(route('units.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('units', 3)
+                // 1 of its own, 5 below it.
+                ->where('units.0.people_count', 6)
+                ->where('units.1.people_count', 5)
+                ->where('units.2.people_count', 3)
+                // Never rolled up: this one guards Remove against a RESTRICT
+                // on the unit's own deployment rows.
+                ->where('units.0.deployments_count', 1)
+                ->where('units.1.deployments_count', 2)
+                ->where('units.2.deployments_count', 3));
     }
 
     /**

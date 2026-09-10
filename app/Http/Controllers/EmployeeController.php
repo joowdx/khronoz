@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SeparateEmployee;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
@@ -11,10 +12,12 @@ use App\Models\Unit;
 use App\Tenancy\Tenant;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -230,9 +233,52 @@ class EmployeeController extends Controller
         ]);
     }
 
-    public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
+    /**
+     * One form, two operations. An ordinary edit is a plain update; the
+     * moment `separated_at` moves from null to a date the employee is
+     * leaving, and that is SeparateEmployee's job — it closes their open
+     * placement on the same date, in one transaction with the employee row
+     * (see that action for why it is its own class, and why `ends` is the
+     * separation date itself rather than the day before).
+     *
+     * The transition is tested here rather than inside the action because it
+     * is a property of what this request changes, not of the operation: only
+     * null → a date separates anyone. Re-saving an already separated
+     * employee's form must not re-close a placement that is already closed,
+     * and it does not, because this branch is never taken twice.
+     *
+     * | SQLSTATE | Constraint                | Reached by |
+     * | -------- | ------------------------- | ---------- |
+     * | 23514    | deployments_dates_ordered | a `separated_at` earlier than the open placement's `starts`, so closing it there leaves `ends < starts` — single-threaded UpdateEmployeeRequest gets there first, so what remains is the concurrency case: a move that opens a later placement between this request's validation and its write |
+     *
+     * 23514 on this path can only be that one. The `employees` table's own
+     * four CHECKs — employees_separation_after_hire, employees_sex_valid,
+     * employees_tags_valid, employees_tags_bounded — are each covered by an
+     * UpdateEmployeeRequest rule, so the reachable check violation is the
+     * placement's, and `separated_at` is the field the message belongs on.
+     * UpdateEmployeeRequest also checks that window itself; this is the
+     * backstop R19 asks for, a translation of the database's own refusal and
+     * never a pre-check that replaces it (the same relationship
+     * EmployeeDeploymentController has with `deployments_no_overlap`).
+     * Anything else is a real failure and re-throws untouched.
+     */
+    public function update(UpdateEmployeeRequest $request, Employee $employee, SeparateEmployee $separate): RedirectResponse
     {
-        $employee->update($request->validated());
+        $attributes = $request->validated();
+        $separating = $employee->separated_at === null && ($attributes['separated_at'] ?? null) !== null;
+
+        try {
+            if ($separating) {
+                $separate->handle($employee, $attributes);
+            } else {
+                $employee->update($attributes);
+            }
+        } catch (QueryException $e) {
+            throw match ($e->getCode()) {
+                '23514' => ValidationException::withMessages(['separated_at' => ['Before the current placement began.']]),
+                default => $e,
+            };
+        }
 
         return redirect()->route('employees.index')->with('success', "{$employee->name} updated.");
     }
