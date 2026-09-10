@@ -142,7 +142,7 @@ class UserControllerTest extends TestCase
     }
 
     /**
-     * The users_email index (0001_01_01_000000_create_users_table) is on
+     * The users_email index (0001_01_01_000001_create_users_table) is on
      * lower(email), so a duplicate submitted in a different case than the
      * stored row must still be caught here, before it ever reaches Postgres
      * as an uncaught constraint violation.

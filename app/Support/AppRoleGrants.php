@@ -9,7 +9,7 @@ use RuntimeException;
  * The GRANT, REVOKE and ALTER DEFAULT PRIVILEGES statements that give
  * khronoz_app row access on every present and future table and sequence,
  * except the write access on `migrations` it must never hold. Shared by
- * 0000_00_00_000001_prepare_database (a fresh install) and `php artisan
+ * 0000_00_00_000001_prepare_application_database (a fresh install) and `php artisan
  * db:grant` (GrantAppRolePrivileges): a rotated owner role's later migrations
  * create tables whose default privileges follow whichever role ran *them*,
  * not the original owner that first granted khronoz_app access, so re-running

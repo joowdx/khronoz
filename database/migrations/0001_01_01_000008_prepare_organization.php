@@ -73,7 +73,7 @@ return new class extends Migration
         //
         // A multi-row INSERT is the exception, and it is why the trigger this
         // function backs is AFTER and per-row on both events rather than
-        // BEFORE (see 0001_01_01_000009_create_workgroups_table and
+        // BEFORE (see 0001_01_01_000010_create_workgroups_table and
         // 07-constraints.md): several rows pointing at each other inside one
         // statement can close a cycle, and only a trigger firing after that
         // statement's rows are written sees them. By then the walk below

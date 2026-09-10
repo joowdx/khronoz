@@ -95,7 +95,7 @@ return new class extends Migration
 
     /**
      * Both triggers go with the table; their functions belong to
-     * 0001_01_01_000007_prepare_organization and are dropped only there.
+     * 0001_01_01_000008_prepare_organization and are dropped only there.
      */
     public function down(): void
     {

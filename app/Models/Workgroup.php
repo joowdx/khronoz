@@ -52,7 +52,7 @@ class Workgroup extends Model
      * and everything under it" (01-organization.md rule 4).
      *
      * UNION, not UNION ALL, in the recursive term — mirroring workgroups_acyclic()
-     * in 0001_01_01_000007_prepare_organization.php — so the walk dedupes
+     * in 0001_01_01_000008_prepare_organization.php — so the walk dedupes
      * and terminates in about a millisecond even over a cycle, instead of
      * running until cancelled. Cycles are already refused by the
      * workgroups_acyclic constraint trigger; this is defence in depth, and it

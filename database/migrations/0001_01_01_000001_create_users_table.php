@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('agency_id')->constrained('agencies')->restrictOnDelete()->restrictOnUpdate();
-            $table->ulid('employee_id')->nullable()->unique(); // paired FK to employees arrives with Milestone 2
+            $table->ulid('employee_id')->nullable()->unique();
             $table->string('name');
             $table->string('email');
             $table->timestamp('email_verified_at')->nullable();
@@ -25,6 +25,7 @@ return new class extends Migration
             $table->rememberToken();
             $table->timestamps();
             $table->unique(['id', 'agency_id']);
+
         });
 
         // A plain unique() on email would still block exact duplicates but let

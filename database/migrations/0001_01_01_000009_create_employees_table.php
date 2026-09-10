@@ -9,9 +9,9 @@ return new class extends Migration
 {
     /**
      * The people an agency keeps a DTR for (docs/design/01-organization.md).
-     * Created before `workgroups` because a workgroup's head is an employee, so
-     * `workgroups.head_id` can pair to this table's `UNIQUE (id, agency_id)` in its
-     * own migration instead of needing a trailing ALTER.
+     * Created after `users` so it can complete the user-to-employee pairing,
+     * and before `workgroups`, whose head can pair to this table's
+     * `UNIQUE (id, agency_id)` in its create migration.
      *
      * Every constraint the per-table block in docs/design/07-constraints.md
      * does not name is here anyway: `agency_id NOT NULL`, its FK, that FK's
@@ -54,6 +54,16 @@ return new class extends Migration
             $table->unique(['id', 'agency_id']);
         });
 
+        // Keep this relationship with the employee schema it depends on,
+        // rather than creating a standalone follow-up migration.
+        Schema::table('users', function (Blueprint $table) {
+            $table->foreign(['employee_id', 'agency_id'])
+                ->references(['id', 'agency_id'])
+                ->on('employees')
+                ->restrictOnDelete()
+                ->restrictOnUpdate();
+        });
+
         DB::unprepared(<<<'SQL'
             ALTER TABLE employees
                 ADD CONSTRAINT employees_sex_valid CHECK (sex IN ('male', 'female')),
@@ -89,11 +99,15 @@ return new class extends Migration
 
     /**
      * The trigger goes with the table and the index with it too; the shared
-     * functions belong to 0001_01_01_000007_prepare_organization and are
+     * functions belong to 0001_01_01_000008_prepare_organization and are
      * dropped only there.
      */
     public function down(): void
     {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['employee_id', 'agency_id']);
+        });
+
         Schema::dropIfExists('employees');
     }
 };

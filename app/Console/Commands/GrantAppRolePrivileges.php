@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 
 /**
  * Re-issues khronoz_app's row privileges. A fresh install gets them from
- * 0000_00_00_000001_prepare_database automatically; run this by hand as a
+ * 0000_00_00_000001_prepare_application_database automatically; run this by hand as a
  * post-deploy step after the owner role is rotated (README, Database roles),
  * because a later migration's default privileges follow whichever role ran
  * it, not the original owner that first granted khronoz_app access.

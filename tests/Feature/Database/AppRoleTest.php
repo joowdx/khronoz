@@ -29,7 +29,7 @@ class AppRoleTest extends TestCase
      * of AppRoleGrants::apply(). This proves the refusal on a fresh
      * migrate:fresh, which every test in this suite runs against; it does
      * not by itself prove the REVOKE reaches a database that already ran
-     * 0000_00_00_000001_prepare_database; that is what running `db:grant`
+     * 0000_00_00_000001_prepare_application_database; that is what running `db:grant`
      * against the dev database by hand verifies.
      */
     public function test_app_role_cannot_write_to_migrations(): void
@@ -114,7 +114,7 @@ class AppRoleTest extends TestCase
     }
 
     /**
-     * The grants a fresh install gets from 0000_00_00_000001_prepare_database
+     * The grants a fresh install gets from 0000_00_00_000001_prepare_application_database
      * must also work re-issued by hand (php artisan db:grant) after an owner
      * role rotation — see App\Support\AppRoleGrants. Runs against the same
      * already-migrated testing database, so this proves the statements are

@@ -25,7 +25,7 @@ Run the tests with `php artisan test --compact`.
 
 ### Database roles
 
-Migrations run as the database owner. The application itself connects as a separate, restricted role, `khronoz_app`, which cannot alter schema. It is also revoked from writing to `migrations` itself (`0000_00_00_000001_prepare_database`); later milestones REVOKE further columns and tables the same way as each one ships (`docs/design/07-constraints.md`). Never run migrations as the app role directly — a freshly created table has no grants for it yet, and later migrations REVOKE privileges a superuser connection would otherwise still have.
+Migrations run as the database owner. The application itself connects as a separate, restricted role, `khronoz_app`, which cannot alter schema. It is also revoked from writing to `migrations` itself (`0000_00_00_000001_prepare_application_database`); later milestones REVOKE further columns and tables the same way as each one ships (`docs/design/07-constraints.md`). Never run migrations as the app role directly — a freshly created table has no grants for it yet, and later migrations REVOKE privileges a superuser connection would otherwise still have.
 
 - Always migrate with `composer migrate` (`php artisan migrate --force --database=owner`), never a bare `php artisan migrate`.
 - **Fresh Docker volume:** `docker/pgsql/20-create-app-role.sh` creates the `khronoz_app` role automatically the first time the `khronoz-pgsql` volume initializes. Nothing to do.
