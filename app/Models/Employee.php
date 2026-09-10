@@ -121,7 +121,7 @@ class Employee extends Model
      * collapsed into one "operative placement" helper — this relation is the
      * *substantive* answer, which is what `head`, a transfer and a removal
      * each want. A work suspension wants the operative row instead
-     * (05-calendar.md rule 3, Milestone 5) and gets its own accessor then.
+     * (05-calendar.md rule 3, Milestone 4) and gets its own accessor then.
      *
      * Covering **today**, rather than the older "`ends IS NULL`". A
      * placement may be fixed-term — contractual, casual, co-terminous — so a
