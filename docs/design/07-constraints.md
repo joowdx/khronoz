@@ -462,11 +462,15 @@ CHECK (type IN ('regular', 'special', 'working', 'local'))
 declared_at timestamp(0) NOT NULL                                  -- prospective application, Res. 2600838 §2.5
 
 -- suspensions
-FOREIGN KEY (workgroup_id, agency_id) REFERENCES workgroups (id, agency_id)
-FOREIGN KEY (user_id) REFERENCES users (id)
+FOREIGN KEY (workgroup_id, agency_id) REFERENCES workgroups (id, agency_id)   -- nullable: null is agency-wide, and MATCH SIMPLE skips the pair
+FOREIGN KEY (user_id) REFERENCES users (id)                        -- single, not paired: a platform superuser may declare for an agency they entered
 CHECK ((starts IS NULL) = (ends IS NULL))
-CHECK (starts IS NULL OR ends > starts)
+CHECK (starts IS NULL OR ends > starts)                            -- strict, unlike the '>=' every date range uses: a zero-length window suspends nothing
+reason NOT NULL                                                    -- the operative justification, and it prints on the DTR
 declared_at timestamp(0) NOT NULL
+-- no uniqueness over (agency_id, workgroup_id, date), deliberately: two windows on one date are ordinary.
+-- One would also not work — workgroup_id is null on every agency-wide row and UNIQUE treats nulls as
+-- distinct, so it would refuse the legitimate workgroup pairs and permit unlimited agency-wide duplicates.
 
 -- exemptions
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
