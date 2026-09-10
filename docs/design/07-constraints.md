@@ -7,6 +7,26 @@ Everything here is enforced by Postgres, not by Laravel. The app is one client a
 3. **Triggers**: only for the few rules a constraint cannot say (cycles, date containment across tables, cycle completeness).
 4. **Application**: json slot shapes, business workflow. Everything in this tier is also re-checked by an audit query.
 
+## Database identities protect the schema boundary
+
+Migrations run as the database owner; the running application connects as
+`chronoz`. The owner grants the app role the row and sequence access it
+needs, including default privileges for tables a migration creates, then
+revokes writes to `migrations`. The app role has no schema ownership or schema
+creation privilege, so it cannot change a constraint, trigger or table, nor
+write a false migration history. Owner credentials belong only to the deploy
+and migration environment, never to a web, Octane or Horizon runtime.
+
+This protects **schema integrity**, not authorization of otherwise valid row
+writes. The app role may still read and change rows where this file does not
+declare a table- or column-level `REVOKE`; a compromised application can
+therefore still damage data within the constraints. Paired foreign keys prove
+that rows cannot point across agencies, but application scopes currently decide
+which same-agency rows a user may see. The workgroup-scoped visibility design in
+02-access.md leaves Postgres row-level security open as a later backstop for
+that second property; it must not be enabled until the request/job context and
+the platform/global-row cases have a settled, testable policy.
+
 ## The pattern that makes it strict: carry the parent's key
 
 A plain FK proves the row exists. It does not prove the row is the *right* one. Postgres can prove that too if the child repeats a column of the parent and the FK covers both columns. Every parent gets `UNIQUE (id, <column>)`, which is trivially satisfied since `id` is unique, and every child references the pair.
@@ -490,4 +510,4 @@ One extra `agency_id` column and one `UNIQUE (id, agency_id)` index per table, o
 - Exclusion constraints, `CHECK`, partial unique indexes, grants and triggers: `DB::statement()` inside the migration. Wrap each in `Schema::hasTable` guards only if the migration must be re-runnable; otherwise let it fail loudly.
 - `Timelog` has no `employee_id` or `enrollment_id` in `$fillable`, and the model never sets them; the database does. Ingestion reads them back with `RETURNING`.
 - Every constraint and trigger gets one Pest test that performs the violation, or the insert, and asserts what the database did. That is the test suite for this file.
-- The app connection uses `chronoz`; migrations run as the owner role (`khronoz`). Two `DB_` connections in `config/database.php`.
+- The app connection uses `chronoz`; migrations run as the owner connection. `config/database.php` defines both identities, and migrations refuse to run unless they use the owner connection.
