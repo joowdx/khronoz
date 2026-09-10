@@ -27,7 +27,6 @@ use Laravel\Scout\Searchable;
 #[Fillable([
     'agency_id', 'number', 'first_name', 'middle_name', 'last_name', 'suffix',
     'sex', 'birthdate', 'email', 'mobile', 'position', 'tags', 'exempt',
-    'hired_at', 'separated_at',
 ])]
 class Employee extends Model
 {
@@ -44,8 +43,6 @@ class Employee extends Model
             'sex' => Sex::class,
             'exempt' => 'boolean',
             'birthdate' => 'date',
-            'hired_at' => 'date',
-            'separated_at' => 'date',
         ];
     }
 

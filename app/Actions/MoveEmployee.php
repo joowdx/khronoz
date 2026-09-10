@@ -27,9 +27,8 @@ final class MoveEmployee
      * on `starts` for its own caller; that is a translation of this
      * method's own refusal, not a second check, so it changes nothing here.
      *
-     * The hire-window check (starts inside [hired_at, separated_at]) is
-     * deliberately NOT here either — see MoveEmployeeRequest, the only place
-     * it lives.
+     * A rehire is the same operation after a gap: with no open deployment,
+     * nothing is closed and a new range preserves every previous placement.
      */
     public function handle(Employee $employee, Unit $unit, CarbonInterface $starts): Deployment
     {

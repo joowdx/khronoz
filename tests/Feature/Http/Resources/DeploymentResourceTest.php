@@ -10,7 +10,7 @@ class DeploymentResourceTest extends TestCase
 {
     /**
      * Important 3: starts/ends are `date`-cast columns — same defect and fix
-     * as EmployeeResource's hired_at/birthdate/separated_at (see that test's
+     * as EmployeeResource's birthdate (see that test's
      * docblock). json_encode/decode round-trips the resource the same way
      * the real HTTP response does, so this pins the literal wire value.
      */

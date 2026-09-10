@@ -3,22 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Actions\MoveEmployee;
+use App\Http\Requests\EndEmployeeDeploymentRequest;
 use App\Http\Requests\MoveEmployeeRequest;
 use App\Models\Employee;
 use App\Models\Unit;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Move an employee to a new unit. The only write this controller makes is
- * through MoveEmployee (R16): close the currently open deployment, then open
- * the new one, in one transaction, with no overlap pre-check — see that
- * action's own docblock for why. There is no index/show/update/destroy here:
- * deployment history is read through EmployeeController::show, and a
- * deployment row is never edited or removed once written, only superseded by
- * the next move.
- */
+/** Move to a new placement or end the open one; deployment history is read on the employee profile. */
 class EmployeeDeploymentController extends Controller
 {
     /**
@@ -66,5 +60,41 @@ class EmployeeDeploymentController extends Controller
         }
 
         return redirect()->route('employees.show', $employee)->with('success', "{$employee->name} moved to {$unit->name}.");
+    }
+
+    /**
+     * End the placement on its last day, inclusive. Unlike a move, this
+     * opens no replacement row, so ends is the supplied day, not day - 1.
+     *
+     * The open-row guard is part of the UPDATE, never a model read followed
+     * by save(): re-dating a closed deployment violates no constraint, so
+     * the application is the only guard against a stale close rewriting
+     * history. Zero affected rows means there was nothing left to end.
+     * Eloquent supplies updated_at on this query-builder update.
+     *
+     * | SQLSTATE | Constraint | Reached by |
+     * | --- | --- | --- |
+     * | 23514 | deployments_dates_ordered | a placement that starts after ends; the request checks first, but a concurrent move can change the open placement before this write |
+     *
+     * The transaction makes a caught refusal recoverable even inside another
+     * transaction. Other failures propagate unchanged.
+     */
+    public function update(EndEmployeeDeploymentRequest $request, Employee $employee): RedirectResponse
+    {
+        try {
+            $closed = DB::transaction(fn () => $employee->deployments()->whereNull('ends')
+                ->update(['ends' => $request->date('ends')]));
+        } catch (QueryException $e) {
+            throw match ($e->getCode()) {
+                '23514' => ValidationException::withMessages(['ends' => ['Before the current placement began.']]),
+                default => $e,
+            };
+        }
+
+        if ($closed === 0) {
+            return redirect()->route('employees.show', $employee)->with('error', 'No open placement to end.');
+        }
+
+        return redirect()->route('employees.show', $employee)->with('success', 'Placement ended.');
     }
 }

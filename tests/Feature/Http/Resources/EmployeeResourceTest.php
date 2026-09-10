@@ -9,7 +9,7 @@ use Tests\TestCase;
 class EmployeeResourceTest extends TestCase
 {
     /**
-     * Important 3: birthdate/hired_at/separated_at are `date`-cast columns.
+     * Important 3: birthdate is a `date`-cast column.
      * app.timezone is Asia/Manila (UTC+8), and an un-normalised date-cast
      * attribute JSON-serializes as a UTC instant — a stored 2020-01-01
      * crosses the wire as "2019-12-31T16:00:00.000000Z", the day before,
@@ -22,14 +22,10 @@ class EmployeeResourceTest extends TestCase
     {
         $employee = Employee::factory()->create([
             'birthdate' => '1990-05-05',
-            'hired_at' => '2020-01-01',
-            'separated_at' => '2023-12-31',
         ]);
 
         $wire = json_decode(json_encode(EmployeeResource::make($employee)->resolve()), true);
 
         $this->assertSame('1990-05-05', $wire['birthdate']);
-        $this->assertSame('2020-01-01', $wire['hired_at']);
-        $this->assertSame('2023-12-31', $wire['separated_at']);
     }
 }

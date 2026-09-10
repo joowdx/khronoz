@@ -12,7 +12,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * and `deployments`), so re-including it would only invite a cycle.
  *
  * `starts`/`ends` are `date`-cast columns, sent as plain `YYYY-MM-DD` strings
- * (->toDateString()) for the same reason as EmployeeResource's `hired_at` —
+ * (->toDateString()) for the same reason as EmployeeResource's `birthdate` —
  * see that class's docblock.
  *
  * @mixin \App\Models\Deployment

@@ -3,10 +3,12 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Http\Requests\EndEmployeeDeploymentRequest;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Unit;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class EmployeeDeploymentControllerTest extends TestCase
@@ -14,7 +16,7 @@ class EmployeeDeploymentControllerTest extends TestCase
     public function test_moves_the_employee_closing_the_current_deployment_and_opening_the_new_one(): void
     {
         $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
         $unitB = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Records']);
         $current = Deployment::factory()->create([
@@ -39,41 +41,10 @@ class EmployeeDeploymentControllerTest extends TestCase
         $this->assertNull($new->ends);
     }
 
-    /** R17, the ONLY place the hire-window gap is checked (docs/design/07-constraints.md:118-121). */
-    public function test_refuses_a_start_date_before_the_employees_hire_date(): void
-    {
-        $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2024-01-01']);
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
-        $this->actingAsAgency($agency, Permission::ManageOrganization);
-
-        $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $unit->id,
-            'starts' => '2023-01-01',
-        ])->assertSessionHasErrors('starts');
-
-        $this->assertDatabaseMissing('deployments', ['employee_id' => $employee->id]);
-    }
-
-    public function test_refuses_a_start_date_after_the_employees_separation_date(): void
-    {
-        $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01', 'separated_at' => '2024-06-30']);
-        $unit = Unit::factory()->create(['agency_id' => $agency->id]);
-        $this->actingAsAgency($agency, Permission::ManageOrganization);
-
-        $this->post(route('employees.deployments.store', $employee), [
-            'unit_id' => $unit->id,
-            'starts' => '2024-07-01',
-        ])->assertSessionHasErrors('starts');
-
-        $this->assertDatabaseMissing('deployments', ['employee_id' => $employee->id]);
-    }
-
     public function test_refuses_a_unit_from_another_agency(): void
     {
         $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $foreignUnit = Unit::factory()->create(); // a different agency
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
@@ -95,7 +66,7 @@ class EmployeeDeploymentControllerTest extends TestCase
     public function test_refuses_a_move_that_overlaps_an_existing_deployment(): void
     {
         $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
         $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
         Deployment::factory()->create([
@@ -135,7 +106,7 @@ class EmployeeDeploymentControllerTest extends TestCase
     public function test_refuses_a_move_dated_before_the_current_placement_began(): void
     {
         $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2019-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
         $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
         $current = Deployment::factory()->create([
@@ -161,7 +132,7 @@ class EmployeeDeploymentControllerTest extends TestCase
     public function test_view_only_is_forbidden(): void
     {
         $agency = Agency::factory()->create();
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unit = Unit::factory()->create(['agency_id' => $agency->id]);
         $this->actingAsAgency($agency, Permission::ViewOrganization);
 
@@ -174,7 +145,7 @@ class EmployeeDeploymentControllerTest extends TestCase
     /** Same cross-tenant binding protection as EmployeeControllerTest's other routes, exercised through the deployment endpoint. */
     public function test_moving_an_employee_of_another_agency_is_not_found(): void
     {
-        $stranger = Employee::factory()->create(['hired_at' => '2020-01-01']);
+        $stranger = Employee::factory()->create([]);
         $agency = Agency::factory()->create();
         $unit = Unit::factory()->create(['agency_id' => $agency->id]);
         $this->actingAsAgency($agency, Permission::ManageOrganization);
@@ -183,5 +154,119 @@ class EmployeeDeploymentControllerTest extends TestCase
             'unit_id' => $unit->id,
             'starts' => '2026-01-01',
         ])->assertNotFound();
+    }
+
+    /** A close includes its last day; a rehire opens a new range without changing that history. */
+    public function test_ends_a_placement_and_rehires_after_a_gap(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01']);
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+        $this->withTenant(Agency::findOrFail($placement->agency_id));
+        $employee = $placement->employee;
+
+        $this->patch(route('employees.deployments.update', $employee), ['ends' => '2025-06-30'])
+            ->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+
+        $this->assertSame('2025-06-30', $placement->fresh()->ends->toDateString());
+        $this->assertNull($employee->fresh()->currentDeployment);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'unit_id' => $placement->unit_id, 'starts' => '2026-01-01',
+        ])->assertRedirect(route('employees.show', $employee))->assertSessionHas('success');
+
+        $this->assertSame('2025-06-30', $placement->fresh()->ends->toDateString());
+        $this->assertSame(2, $employee->deployments()->count());
+        $this->assertSame('2026-01-01', $employee->fresh()->currentDeployment->starts->toDateString());
+    }
+
+    /** @return array<string, array{0: mixed}> */
+    public static function invalidEndDates(): array
+    {
+        return ['missing' => [null], 'malformed' => ['not-a-date'], 'before start' => ['2023-12-31']];
+    }
+
+    #[DataProvider('invalidEndDates')]
+    public function test_end_placement_rejects_invalid_dates(mixed $ends): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01']);
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+
+        $response = $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => $ends]);
+        $response->assertSessionHasErrors($ends === '2023-12-31'
+            ? ['ends' => 'Before the current placement began.'] : ['ends']);
+        $this->assertNull($placement->fresh()->ends);
+    }
+
+    public function test_end_placement_accepts_the_start_date_itself(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01']);
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+
+        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2024-01-01'])
+            ->assertRedirect()->assertSessionHas('success');
+
+        $this->assertSame('2024-01-01', $placement->fresh()->ends->toDateString());
+    }
+
+    public function test_end_placement_does_not_redate_closed_history(): void
+    {
+        $placement = Deployment::factory()->closed()->create(['starts' => '2024-01-01', 'ends' => '2024-12-31']);
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+
+        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2025-06-30'])
+            ->assertRedirect(route('employees.show', $placement->employee_id))
+            ->assertSessionHas('error', 'No open placement to end.');
+
+        $this->assertSame('2024-12-31', $placement->fresh()->ends->toDateString());
+    }
+
+    public function test_end_placement_without_any_history_returns_an_error_flash(): void
+    {
+        $employee = Employee::factory()->create();
+        $this->actingAsAgency(Agency::findOrFail($employee->agency_id), Permission::ManageOrganization);
+
+        $this->patch(route('employees.deployments.update', $employee), ['ends' => '2025-06-30'])
+            ->assertRedirect(route('employees.show', $employee))
+            ->assertSessionHas('error', 'No open placement to end.');
+
+        $this->assertSame(0, $employee->deployments()->count());
+    }
+
+    public function test_end_placement_requires_manage_permission(): void
+    {
+        $placement = Deployment::factory()->create();
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ViewOrganization);
+
+        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2026-09-10'])
+            ->assertForbidden();
+        $this->assertNull($placement->fresh()->ends);
+    }
+
+    public function test_end_placement_of_another_agencys_employee_is_not_found(): void
+    {
+        $placement = Deployment::factory()->create();
+        $this->actingAsAgency(Agency::factory()->create(), Permission::ManageOrganization);
+
+        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2026-09-10'])
+            ->assertNotFound();
+    }
+
+    /** Bypass only request validation to isolate the database-refusal translation and its savepoint. */
+    public function test_end_placement_translates_a_database_refusal_independently_of_validation(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01']);
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+        $this->app->bind(EndEmployeeDeploymentRequest::class, fn () => new class extends EndEmployeeDeploymentRequest
+        {
+            public function after(): array
+            {
+                return [];
+            }
+        });
+
+        $this->patch(route('employees.deployments.update', $placement->employee_id), ['ends' => '2023-12-31'])
+            ->assertSessionHasErrors(['ends' => 'Before the current placement began.']);
+
+        $this->assertNull($placement->fresh()->ends);
     }
 }

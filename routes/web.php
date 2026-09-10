@@ -32,9 +32,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // The org tree and its people (docs/design/01-organization.md). UnitPolicy
     // and EmployeePolicy gate on organization.view/organization.manage.
-    // EmployeeDeploymentController is the one place a deployment is ever
-    // written, through the MoveEmployee action (R16) — a deployment row is
-    // otherwise read-only once created, so there is no update/destroy for it.
+    // Deployment moves and endings share the nested employee boundary;
+    // removal is a distinct transaction owned by RemoveEmployee.
     //
     // `agency` (EnsureAgency) is the boundary, not a courtesy: both tables
     // carry an agency_not_platform trigger, so a platform user sitting on the
@@ -44,6 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('agency')->group(function () {
         Route::resource('employees', EmployeeController::class);
         Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
+        Route::patch('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'update'])->name('employees.deployments.update');
         Route::resource('units', UnitController::class)->except(['show']);
     });
 

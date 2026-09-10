@@ -17,12 +17,16 @@ import { addDay, formatDay, laterDay, manilaToday } from '@/lib/dates';
 import { flattenUnits, unitPath } from '@/lib/units';
 import { cn } from '@/lib/utils';
 import { edit, index } from '@/routes/employees';
-import { store } from '@/routes/employees/deployments';
+import { store, update } from '@/routes/employees/deployments';
 import type { Employee, Unit } from '@/types';
 
 /** Sections divided by a rule with 32 either side, never by a box (§1 rule 3) — the same rhythm the dashboard reads in. */
 function Stack({ children }: { children: ReactNode }) {
-    return <div className="[&>section+section]:border-border [&>section+section]:mt-8 [&>section+section]:border-t [&>section+section]:pt-8">{children}</div>;
+    return (
+        <div className="[&>section+section]:border-border [&>section+section]:mt-8 [&>section+section]:border-t [&>section+section]:pt-8">
+            {children}
+        </div>
+    );
 }
 
 function SectionHead({ title, action }: { title: string; action?: ReactNode }) {
@@ -68,9 +72,11 @@ export default function Show({ employee, units }: { employee: Employee; units: U
     const can = useCan();
     const manage = can('organization.manage');
     const [moving, setMoving] = useState(false);
+    const [ending, setEnding] = useState(false);
 
     const current = employee.current_deployment ?? null;
     const history = employee.deployments ?? [];
+    const lastEnd = history[0]?.ends ?? null;
     const deployed = current !== null;
 
     // Always the outline variant, deployed or not. §5.2 gives a page one
@@ -94,12 +100,12 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                 description={
                     <>
                         <span className="tabular-nums">Employee no. {employee.number}</span>
-                        {employee.separated_at !== null ? (
-                            <StatusPill variant="secondary">Separated</StatusPill>
-                        ) : employee.exempt ? (
+                        {employee.exempt ? (
                             <StatusPill variant="secondary">Exempt</StatusPill>
-                        ) : (
+                        ) : deployed ? (
                             <StatusPill variant="positive">Active</StatusPill>
+                        ) : (
+                            <StatusPill variant="secondary">No open placement</StatusPill>
                         )}
                     </>
                 }
@@ -123,7 +129,21 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                   the only thing on this screen with an action attached.
                 */}
                 <section>
-                    <SectionHead title="Where they work" action={deployed ? move : undefined} />
+                    <SectionHead
+                        title="Where they work"
+                        action={
+                            deployed ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {move}
+                                    {manage && (
+                                        <Button variant="outline" onClick={() => setEnding(true)}>
+                                            End placement
+                                        </Button>
+                                    )}
+                                </div>
+                            ) : undefined
+                        }
+                    />
                     {current?.unit ? (
                         <div className="flex flex-wrap items-start justify-between gap-4 pt-4">
                             <div className="min-w-0">
@@ -142,24 +162,15 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                                 Since {formatDay(current.starts)}
                             </p>
                         </div>
-                    ) : employee.separated_at !== null ? (
-                        // Someone who has left has no open placement and needs
-                        // none. Offering Deploy to a unit here would be
-                        // inviting an action that means nothing — the third of
-                        // §5.20's cases, said plainly and with no action
-                        // attached. Their history is still below, because that
-                        // is what anyone opening a former employee's profile
-                        // came for.
-                        <EmptyState
-                            className="pb-0"
-                            title="No open placement"
-                            description={`They left on ${formatDay(employee.separated_at)}. Every unit they worked in is below.`}
-                        />
                     ) : (
                         <EmptyState
                             className="pb-0"
-                            title="Not deployed yet"
-                            description="A deployment says which unit this person belongs to, and from when. Their schedule and their daily time record both follow the unit they are in."
+                            title={history.length > 0 ? 'No open placement' : 'Not deployed yet'}
+                            description={
+                                lastEnd !== null
+                                    ? `Their last placement ended on ${formatDay(lastEnd)}. Deploy them again to start a new placement; their history stays below.`
+                                    : 'A deployment records which unit this person belongs to and when their placement starts.'
+                            }
                             action={move ?? undefined}
                         />
                     )}
@@ -174,9 +185,7 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                                 {employee.birthdate ? formatDay(employee.birthdate) : <Blank />}
                             </Fact>
                             <Fact label="Sex">{employee.sex ? SEX[employee.sex] : <Blank />}</Fact>
-                            <Fact label="Email">
-                                {employee.email ?? <Blank />}
-                            </Fact>
+                            <Fact label="Email">{employee.email ?? <Blank />}</Fact>
                             <Fact label="Mobile">{employee.mobile ?? <Blank />}</Fact>
                         </dl>
                     </div>
@@ -184,14 +193,6 @@ export default function Show({ employee, units }: { employee: Employee; units: U
                         <SectionHead title="Employment" />
                         <dl>
                             <Fact label="Position">{employee.position ?? <Blank />}</Fact>
-                            <Fact label="Hired on">{formatDay(employee.hired_at)}</Fact>
-                            <Fact label="Separated on">
-                                {employee.separated_at ? (
-                                    formatDay(employee.separated_at)
-                                ) : (
-                                    <Blank>Still employed</Blank>
-                                )}
-                            </Fact>
                             <Fact label="Daily time record">
                                 {employee.exempt ? <Blank>Not expected</Blank> : 'Expected'}
                             </Fact>
@@ -295,6 +296,9 @@ export default function Show({ employee, units }: { employee: Employee; units: U
             </Stack>
 
             {manage && <MoveSheet employee={employee} units={units} open={moving} onOpenChange={setMoving} />}
+            {manage && current && (
+                <EndSheet employee={employee} starts={current.starts} open={ending} onOpenChange={setEnding} />
+            )}
         </AppLayout>
     );
 }
@@ -327,22 +331,8 @@ function MoveSheet({
     const current = employee.current_deployment ?? null;
     const tree = flattenUnits(units);
 
-    /*
-     * The earliest date this move can carry, and the field enforces exactly
-     * it. A move closes the open placement the day before the new one starts,
-     * so anything on or before that placement's own `starts` would leave it
-     * ending before it began and `deployments_dates_ordered` refuses the
-     * whole transaction.
-     *
-     * MEASURED: with `min` at `hired_at` alone, an employee hired in 2019
-     * whose current placement began in 2026 was offered a seven-year window
-     * in which every single date was fatal — and before the controller
-     * translated 23514 it answered with a 500. The constraint is still what
-     * decides (R16: no pre-check, and a concurrent move can still make a
-     * legal-looking date illegal between render and submit); this is the
-     * control no longer inviting the refusal.
-     */
-    const earliest = current === null ? employee.hired_at : laterDay(employee.hired_at, addDay(current.starts));
+    // A move ends the current placement the day before the new one starts.
+    const earliest = current === null ? undefined : addDay(current.starts);
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -404,14 +394,10 @@ function MoveSheet({
                                     label="Effective from"
                                     htmlFor="starts"
                                     error={errors.starts}
-                                    // The hint says what the control enforces,
-                                    // and which fact set the floor — a clerk
-                                    // who cannot pick last month should be
-                                    // able to read why without guessing.
                                     hint={
-                                        earliest === employee.hired_at
-                                            ? `On or after ${formatDay(employee.hired_at)}, the day they were hired.`
-                                            : `On or after ${formatDay(earliest)}, the day after the current placement began.`
+                                        earliest
+                                            ? `On or after ${formatDay(earliest)}, the day after the current placement began.`
+                                            : 'Choose the first day in this unit. Previous placements stay in the history.'
                                     }
                                 >
                                     {({ id, invalid, describedBy }) => (
@@ -419,9 +405,8 @@ function MoveSheet({
                                             id={id}
                                             name="starts"
                                             type="date"
-                                            defaultValue={laterDay(manilaToday(), earliest)}
+                                            defaultValue={earliest ? laterDay(manilaToday(), earliest) : manilaToday()}
                                             min={earliest}
-                                            max={employee.separated_at ?? undefined}
                                             aria-invalid={invalid}
                                             aria-describedby={describedBy}
                                         />
@@ -441,6 +426,72 @@ function MoveSheet({
                                 */}
                                 <Button type="submit" disabled={processing}>
                                     {current ? 'Move employee' : 'Deploy employee'}
+                                </Button>
+                                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                                    Cancel
+                                </Button>
+                            </SheetFooter>
+                        </>
+                    )}
+                </Form>
+            </SheetContent>
+        </Sheet>
+    );
+}
+
+/** Ending keeps the selected day in the placement and opens no replacement. */
+function EndSheet({
+    employee,
+    starts,
+    open,
+    onOpenChange,
+}: {
+    employee: Employee;
+    starts: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+            <SheetContent aria-describedby="end-what-happens">
+                <Form
+                    {...update.form(employee)}
+                    className="flex h-full min-h-0 flex-col"
+                    onSuccess={() => onOpenChange(false)}
+                >
+                    {({ errors, processing }) => (
+                        <>
+                            <SheetHeader>
+                                <SheetTitle>End placement</SheetTitle>
+                            </SheetHeader>
+                            <div className="min-h-0 flex-1 overflow-auto p-5">
+                                <SheetDescription id="end-what-happens" className="text-[13px] leading-[18px]">
+                                    {employee.name}'s placement includes this last day. No new placement is opened, and
+                                    their history is kept.
+                                </SheetDescription>
+                                <Field
+                                    className="mt-5"
+                                    label="Last day"
+                                    htmlFor="ends"
+                                    error={errors.ends}
+                                    hint={`On or after ${formatDay(starts)}, the day this placement began.`}
+                                >
+                                    {({ id, invalid, describedBy }) => (
+                                        <Input
+                                            id={id}
+                                            name="ends"
+                                            type="date"
+                                            min={starts}
+                                            defaultValue={laterDay(manilaToday(), starts)}
+                                            aria-invalid={invalid}
+                                            aria-describedby={describedBy}
+                                        />
+                                    )}
+                                </Field>
+                            </div>
+                            <SheetFooter>
+                                <Button type="submit" disabled={processing}>
+                                    End placement
                                 </Button>
                                 <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                                     Cancel

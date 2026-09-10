@@ -84,8 +84,6 @@ export interface Employee {
     tags: string[];
     /** No daily time record expected. */
     exempt: boolean;
-    hired_at: string;
-    separated_at: string | null;
     current_deployment?: Deployment | null;
     deployments?: Deployment[];
 }

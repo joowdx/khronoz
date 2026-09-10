@@ -229,18 +229,16 @@ class UnitController extends Controller
     /**
      * Who may be a unit's head: this tenant's employees, still employed.
      *
-     * `separated_at` is the filter and not a nicety — a person who has left
-     * cannot run a unit, so offering them is offering a mistake. The whole
-     * list travels to the browser because the picker searches client-side
-     * (§5.14's popover with cmdk); a very large agency wants a search
-     * endpoint instead, which is carried forward rather than guessed at here.
+     * An open deployment is current employment. Someone with only closed
+     * placements, or no placement yet, cannot run a unit. The unit requests
+     * enforce the same condition for IDs submitted outside this picker.
      *
      * @return array<int, array<string, mixed>>
      */
     private function heads(): array
     {
         return EmployeeResource::collection(
-            Employee::query()->whereNull('separated_at')->orderBy('last_name')->orderBy('first_name')->get()
+            Employee::query()->whereHas('currentDeployment')->orderBy('last_name')->orderBy('first_name')->get()
         )->resolve();
     }
 

@@ -37,8 +37,6 @@ return new class extends Migration
             $table->string('position')->nullable();
             $table->jsonb('tags')->default(DB::raw("'[]'::jsonb"));
             $table->boolean('exempt')->default(false);
-            $table->date('hired_at');
-            $table->date('separated_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
 
@@ -58,7 +56,6 @@ return new class extends Migration
 
         DB::unprepared(<<<'SQL'
             ALTER TABLE employees
-                ADD CONSTRAINT employees_separation_after_hire CHECK (separated_at IS NULL OR separated_at >= hired_at),
                 ADD CONSTRAINT employees_sex_valid CHECK (sex IN ('male', 'female')),
                 ADD CONSTRAINT employees_tags_valid CHECK (string_set_valid(tags)),
                 ADD CONSTRAINT employees_tags_bounded CHECK (jsonb_typeof(tags) <> 'array' OR jsonb_array_length(tags) <= 20);

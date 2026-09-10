@@ -42,17 +42,7 @@ class EmployeeFactory extends Factory
             // `settings` default, which needs `{}` and so uses (object) [].
             'tags' => [],
             'exempt' => false,
-            'hired_at' => fake()->dateTimeBetween('-15 years', 'now'),
-            'separated_at' => null,
         ];
-    }
-
-    /** No longer with the agency. separated_at is on or after hired_at (employees_separation_after_hire). */
-    public function separated(): static
-    {
-        return $this->state(fn (array $attributes): array => [
-            'separated_at' => fake()->dateTimeBetween($attributes['hired_at'], 'now'),
-        ]);
     }
 
     /** No DTR expected of this employee. */

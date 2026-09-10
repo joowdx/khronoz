@@ -29,7 +29,7 @@ class UpdateUnitRequest extends FormRequest
      * Get the validation rules that apply to the request.
      *
      * See StoreUnitRequest for why parent_id/head_id are explicitly scoped
-     * by agency_id, why head_id also refuses a removed or separated employee,
+     * by agency_id, why head_id also refuses a removed, departed or unplaced employee,
      * and why a self-parent or a cycle is left to the database.
      *
      * @return array<string, array<int, mixed>>
@@ -43,7 +43,11 @@ class UpdateUnitRequest extends FormRequest
             'kind' => ['nullable', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:255', Rule::unique('units', 'code')->where('agency_id', $unit->agency_id)->ignore($unit->id)],
             'name' => ['required', 'string', 'max:255'],
-            'head_id' => ['nullable', 'string', Rule::exists('employees', 'id')->where('agency_id', $unit->agency_id)->whereNull('deleted_at')->whereNull('separated_at')],
+            'head_id' => ['nullable', 'string', Rule::exists('employees', 'id')->where('agency_id', $unit->agency_id)->whereNull('deleted_at')->where(fn ($query) => $query->whereExists(fn ($deployment) => $deployment
+                ->selectRaw('1')->from('deployments')
+                ->whereColumn('deployments.employee_id', 'employees.id')
+                ->whereColumn('deployments.agency_id', 'employees.agency_id')
+                ->whereNull('deployments.ends')))],
         ];
     }
 }

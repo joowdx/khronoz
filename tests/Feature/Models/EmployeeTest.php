@@ -22,8 +22,6 @@ class EmployeeTest extends TestCase
             'sex' => null,
             'tags' => '[]',
             'exempt' => false,
-            'hired_at' => '2020-01-01',
-            'separated_at' => null,
             'created_at' => now(),
             'updated_at' => now(),
         ], $overrides);
@@ -72,15 +70,6 @@ class EmployeeTest extends TestCase
         // Same number, a different agency: accepted.
         $elsewhere = Employee::factory()->create(['number' => 'EMP1']);
         $this->assertDatabaseHas('employees', ['id' => $elsewhere->id, 'number' => 'EMP1']);
-    }
-
-    public function test_separation_cannot_precede_hiring(): void
-    {
-        $agency = Agency::factory()->create();
-
-        $this->assertDatabaseRefuses('23514', fn () => DB::table('employees')->insert(
-            $this->employeeRow($agency->id, ['hired_at' => '2026-03-01', 'separated_at' => '2026-02-28'])
-        ));
     }
 
     public function test_sex_must_be_a_recognized_value(): void
@@ -150,16 +139,6 @@ class EmployeeTest extends TestCase
         $employee->delete();
 
         $this->assertDatabaseRefuses('23505', fn () => Employee::factory()->create(['agency_id' => $agency->id, 'number' => 'EMP1']));
-    }
-
-    /** hired_at is NOT NULL: a null value makes employees_separation_after_hire evaluate to NULL and pass, which would hide a missing date. */
-    public function test_hired_at_is_required(): void
-    {
-        $agency = Agency::factory()->create();
-
-        $this->assertDatabaseRefuses('23502', fn () => DB::table('employees')->insert(
-            $this->employeeRow($agency->id, ['hired_at' => null])
-        ));
     }
 
     /** exempt is NOT NULL: it has a database default of false, which an omitted column would mask — this inserts an explicit null instead. */

@@ -193,11 +193,7 @@ function Person({ employee }: { employee: Employee }) {
                     >
                         {employee.name}
                     </Link>
-                    {employee.separated_at !== null ? (
-                        <Badge variant="secondary">Separated</Badge>
-                    ) : (
-                        employee.exempt && <Badge variant="secondary">Exempt</Badge>
-                    )}
+                    {employee.exempt && <Badge variant="secondary">Exempt</Badge>}
                 </span>
                 <span className="text-muted-foreground block truncate text-xs leading-4 tabular-nums">
                     {employee.number}
@@ -518,10 +514,7 @@ export default function Index({
                                         // left keeps their pill and drops their
                                         // ink, so the state reads without
                                         // relying on colour.
-                                        className={cn(
-                                            'group/row',
-                                            employee.separated_at !== null && '[&>td]:text-muted-foreground',
-                                        )}
+                                        className={cn('group/row')}
                                     >
                                         <TableCell className="h-[52px]">
                                             <Person employee={employee} />

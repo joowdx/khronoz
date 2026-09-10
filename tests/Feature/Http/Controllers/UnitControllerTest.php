@@ -165,11 +165,11 @@ class UnitControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $unit = Unit::factory()->create(['agency_id' => $agency->id]);
-        $employed = Employee::factory()->create(['agency_id' => $agency->id, 'separated_at' => null]);
-        // The factory's own state, not a hard-coded date: `hired_at` is random,
-        // and employees_separation_after_hire refuses a separation before it.
-        Employee::factory()->separated()->create(['agency_id' => $agency->id]);
-        Employee::factory()->create(); // another agency entirely
+        $employed = Employee::factory()->create(['agency_id' => $agency->id]);
+        Deployment::factory()->create(['agency_id' => $agency->id, 'employee_id' => $employed->id, 'unit_id' => $unit->id]);
+        Deployment::factory()->closed()->create(['agency_id' => $agency->id, 'unit_id' => $unit->id]);
+        Employee::factory()->create(['agency_id' => $agency->id]); // never placed
+        Deployment::factory()->create(); // another agency entirely
 
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
@@ -205,6 +205,7 @@ class UnitControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $head = Employee::factory()->create(['agency_id' => $agency->id]);
         $parent = Unit::factory()->create(['agency_id' => $agency->id, 'name' => 'Aaa Root', 'head_id' => $head->id]);
+        Deployment::factory()->create(['agency_id' => $agency->id, 'employee_id' => $head->id, 'unit_id' => $parent->id]);
         $child = Unit::factory()->under($parent)->create(['name' => 'Zzz Child']);
         Unit::factory()->create(); // another agency entirely
 
@@ -293,6 +294,7 @@ class UnitControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $head = Employee::factory()->create(['agency_id' => $agency->id]);
         $unit = Unit::factory()->create(['agency_id' => $agency->id, 'head_id' => $head->id]);
+        Deployment::factory()->create(['agency_id' => $agency->id, 'employee_id' => $head->id, 'unit_id' => $unit->id]);
         $this->actingAsAgency($agency, Permission::ManageOrganization);
 
         $this->get(route('units.edit', $unit))
@@ -445,7 +447,7 @@ class UnitControllerTest extends TestCase
     }
 
     /**
-     * M5: the picker's own query offers neither a removed nor a separated
+     * M5: the picker's own query offers neither a removed nor a departed or unplaced
      * employee (test_the_head_picker_offers_only_this_agency_s_employees_who_
      * are_still_employed), and the request must refuse one submitted anyway.
      * Accepting it wrote a `head_id` the screen could never display: the unit
@@ -456,7 +458,7 @@ class UnitControllerTest extends TestCase
      */
     public static function ineligibleHeadCases(): array
     {
-        return ['separated' => ['separated'], 'removed' => ['removed']];
+        return ['departed' => ['departed'], 'unplaced' => ['unplaced'], 'removed' => ['removed']];
     }
 
     #[DataProvider('ineligibleHeadCases')]
@@ -486,15 +488,15 @@ class UnitControllerTest extends TestCase
         $this->assertNull($unit->fresh()->head_id);
     }
 
-    /** Separated uses the factory's own state, since employees_separation_after_hire refuses a separation before a random hired_at. */
     private function ineligibleHead(Agency $agency, string $state): Employee
     {
-        if ($state === 'separated') {
-            return Employee::factory()->separated()->create(['agency_id' => $agency->id]);
-        }
-
         $head = Employee::factory()->create(['agency_id' => $agency->id]);
-        $head->delete();
+        if ($state === 'departed') {
+            Deployment::factory()->closed()->create(['agency_id' => $agency->id, 'employee_id' => $head->id]);
+        } elseif ($state === 'removed') {
+            Deployment::factory()->create(['agency_id' => $agency->id, 'employee_id' => $head->id]);
+            $head->delete();
+        }
 
         return $head;
     }
@@ -521,5 +523,20 @@ class UnitControllerTest extends TestCase
         $this->actingAsAgency(Agency::factory()->create(), Permission::ManageOrganization);
 
         $this->delete(route('units.destroy', $stranger))->assertNotFound();
+    }
+
+    public function test_an_employee_with_an_open_placement_can_head_a_new_and_an_existing_unit(): void
+    {
+        $placement = Deployment::factory()->create();
+        $this->actingAsAgency(Agency::findOrFail($placement->agency_id), Permission::ManageOrganization);
+
+        $this->post(route('units.store'), ['code' => 'HEAD', 'name' => 'Headed unit', 'head_id' => $placement->employee_id])
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('units', ['code' => 'HEAD', 'head_id' => $placement->employee_id]);
+
+        $unit = Unit::findOrFail($placement->unit_id);
+        $this->put(route('units.update', $unit), ['code' => $unit->code, 'name' => $unit->name, 'head_id' => $placement->employee_id])
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertSame($placement->employee_id, $unit->fresh()->head_id);
     }
 }

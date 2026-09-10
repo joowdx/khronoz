@@ -41,14 +41,10 @@ class StoreUnitRequest extends FormRequest
      * pass validation here and only be caught by the database's own paired
      * FK as an unhandled 23503.
      *
-     * `head_id`'s exists rule also carries ->whereNull('deleted_at')
-     * ->whereNull('separated_at'), which is not decoration: the picker's own
-     * query (UnitController::heads) deliberately offers neither a removed nor
-     * a separated employee, and without these the request would accept one by
-     * id and the unit would then silently show no head at all, because
-     * ->with('head') resolves through the model's own soft-delete scope and
-     * comes back null. A rule that accepts a value the screen cannot display
-     * is worse than one that refuses it.
+     * The head must also be visible and have an open deployment. Rule::exists
+     * reads the raw employees table, so both deleted_at and the correlated
+     * deployment EXISTS are explicit. Pair employee and agency in that EXISTS
+     * to mirror UnitController::heads without relying on Eloquent scopes.
      *
      * Cycles and self-parenting are left to the database (units_parent_not_self,
      * units_acyclic): both are pure structural checks with no concurrency
@@ -67,7 +63,11 @@ class StoreUnitRequest extends FormRequest
             'kind' => ['nullable', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:255', Rule::unique('units', 'code')->where('agency_id', $agencyId)],
             'name' => ['required', 'string', 'max:255'],
-            'head_id' => ['nullable', 'string', Rule::exists('employees', 'id')->where('agency_id', $agencyId)->whereNull('deleted_at')->whereNull('separated_at')],
+            'head_id' => ['nullable', 'string', Rule::exists('employees', 'id')->where('agency_id', $agencyId)->whereNull('deleted_at')->where(fn ($query) => $query->whereExists(fn ($deployment) => $deployment
+                ->selectRaw('1')->from('deployments')
+                ->whereColumn('deployments.employee_id', 'employees.id')
+                ->whereColumn('deployments.agency_id', 'employees.agency_id')
+                ->whereNull('deployments.ends')))],
         ];
     }
 }

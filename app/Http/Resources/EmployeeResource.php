@@ -16,7 +16,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * of two or more can. `deployments` (the full history, plural) is present
  * only on ::show, which is why it uses whenLoaded and can come back absent.
  *
- * `birthdate`, `hired_at` and `separated_at` are `date`-cast columns, sent as
+ * `birthdate` is a `date`-cast column, sent as
  * plain `YYYY-MM-DD` strings (->toDateString()), not the Carbon instance
  * itself: app.timezone is Asia/Manila, and a bare date-cast attribute
  * JSON-serializes as a UTC instant, which for a positive UTC offset always
@@ -50,8 +50,6 @@ class EmployeeResource extends JsonResource
             'position' => $this->position,
             'tags' => $this->tags,
             'exempt' => $this->exempt,
-            'hired_at' => $this->hired_at?->toDateString(),
-            'separated_at' => $this->separated_at?->toDateString(),
             'current_deployment' => $this->whenLoaded('currentDeployment', fn ($deployment) => DeploymentResource::make($deployment)->resolve()),
             'deployments' => $this->whenLoaded('deployments', fn ($deployments) => DeploymentResource::collection($deployments)->resolve()),
         ];

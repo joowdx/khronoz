@@ -17,7 +17,7 @@ class MoveEmployeeTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unit = Unit::factory()->create(['agency_id' => $agency->id]);
 
         $deployment = app(MoveEmployee::class)->handle($employee, $unit, Carbon::parse('2026-01-01'));
@@ -35,7 +35,7 @@ class MoveEmployeeTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
         $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
 
@@ -75,7 +75,7 @@ class MoveEmployeeTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
         $unitB = Unit::factory()->create(['agency_id' => $agency->id]);
 
@@ -109,7 +109,7 @@ class MoveEmployeeTest extends TestCase
 
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'hired_at' => '2020-01-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $unitA = Unit::factory()->create(['agency_id' => $agency->id]);
 
         $current = Deployment::factory()->create([

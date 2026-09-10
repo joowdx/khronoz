@@ -75,7 +75,6 @@ CHECK (parent_id IS DISTINCT FROM id)
 
 ```sql
 UNIQUE (agency_id, number)
-CHECK (separated_at IS NULL OR separated_at >= hired_at)
 CHECK (sex IN ('male', 'female'))                                 -- nullable; the enum rule above, mirrored by App\Enums\Sex
 tags jsonb NOT NULL DEFAULT '[]'                                  -- free-form agency labels; no rule reads them
 CHECK (string_set_valid(tags))                                    -- array of distinct, non-empty strings
@@ -115,10 +114,10 @@ EXCLUDE USING gist (employee_id WITH =, daterange(starts, ends, '[]') WITH &&)
 
 The exclusion forbids any overlap, which implies at most one open deployment.
 
-Open item: nothing here proves a deployment stays inside the employee's service. A row with
-`starts` before `hired_at`, or `ends` after `separated_at`, is accepted. Postgres cannot say it
-declaratively — the dates live on the parent — so it would need a trigger on both tables, and
-the tightening is deliberately deferred rather than forgotten.
+Decision 28 removes the former employment-window gap: employees has no separate hire or
+separation dates. These deployment ranges **are** the employment history, so there is no
+parent window to contain them. The exclusion constraint permits rehire after a gap and
+refuses two open rows or two ranges sharing the same day.
 
 ### users
 

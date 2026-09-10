@@ -24,8 +24,8 @@ const MANILA_DAY = new Intl.DateTimeFormat('en-US', {
  * Read a `YYYY-MM-DD` string as "1 March 2024".
  *
  * It splits the string and never builds a `Date`, which is the whole point.
- * Every date the API sends is a plain calendar date — `birthdate`, `hired_at`,
- * `separated_at`, a deployment's `starts` and `ends` — and the resources send
+ * Every date the API sends is a plain calendar date — `birthdate`, a deployment's
+ * `starts` and `ends` — and the resources send
  * them as `YYYY-MM-DD` strings precisely so nothing has to guess an instant
  * for them. `new Date('2024-03-01')` is parsed as UTC midnight and printed in
  * the browser's zone, so west of Greenwich it renders 29 February; that class

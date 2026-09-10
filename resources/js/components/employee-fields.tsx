@@ -13,7 +13,7 @@ const UNRECORDED = 'unrecorded';
  * A pair of fields on one row: §4.1's `--s3` (12) is "gap between controls in
  * a row", and a first and middle name read as one thing. §6.1's one column is
  * the form's column, not a rule that every field must own a whole line — four
- * stacked name boxes would push the hire date below the fold for no gain.
+ * stacked name boxes would push the other fields below the fold for no gain.
  */
 function Pair({ className = 'sm:grid-cols-2', children }: { className?: string; children: ReactNode }) {
     return <div className={`mt-6 grid grid-cols-1 gap-3 ${className}`}>{children}</div>;
@@ -23,8 +23,7 @@ function Pair({ className = 'sm:grid-cols-2', children }: { className?: string; 
  * A new subject inside the form. §6.1 gives a group that starts one 32 of top
  * margin; the rule is §4.1's `--s6` "section gap either side of the rule",
  * which is how every other long surface in this product divides itself
- * (dashboard.tsx's `Stack`). Without it a thirteen-field column reads as one
- * undifferentiated list and nobody finds the hire date.
+ * (dashboard.tsx's `Stack`). It separates personal details from the position and timekeeping fields.
  */
 function Subject({ title, children }: { title: string; children: ReactNode }) {
     return (
@@ -37,7 +36,7 @@ function Subject({ title, children }: { title: string; children: ReactNode }) {
 
 /**
  * Every column of `employees`, in one 560px column — shared by the add and the
- * edit screens because they are the same thirteen fields against the same
+ * edit screens because they are the same fields against the same
  * rules, and a second copy would drift the moment one rule changes.
  *
  * Three things this component owns rather than the page:
@@ -246,38 +245,6 @@ export function EmployeeFields({
                     )}
                 </Field>
 
-                <Pair>
-                    <Field label="Hired on" htmlFor="hired_at" error={errors.hired_at}>
-                        {({ id, invalid, describedBy }) => (
-                            <Input
-                                id={id}
-                                name="hired_at"
-                                type="date"
-                                defaultValue={employee?.hired_at ?? ''}
-                                aria-invalid={invalid}
-                                aria-describedby={describedBy}
-                            />
-                        )}
-                    </Field>
-                    <Field
-                        label="Separated on"
-                        htmlFor="separated_at"
-                        error={errors.separated_at}
-                        hint="Leave empty while they are still employed."
-                    >
-                        {({ id, invalid, describedBy }) => (
-                            <Input
-                                id={id}
-                                name="separated_at"
-                                type="date"
-                                defaultValue={employee?.separated_at ?? ''}
-                                aria-invalid={invalid}
-                                aria-describedby={describedBy}
-                            />
-                        )}
-                    </Field>
-                </Pair>
-
                 <Field
                     className="mt-6"
                     label="Tags"
@@ -286,13 +253,7 @@ export function EmployeeFields({
                     hint="Your agency's own labels: a ward, a cohort, a job family. You can filter and select people by them."
                 >
                     {({ id, invalid, describedBy }) => (
-                        <TagInput
-                            id={id}
-                            value={tags}
-                            onChange={setTags}
-                            invalid={invalid}
-                            describedBy={describedBy}
-                        />
+                        <TagInput id={id} value={tags} onChange={setTags} invalid={invalid} describedBy={describedBy} />
                     )}
                 </Field>
 
@@ -316,8 +277,8 @@ export function EmployeeFields({
                             No daily time record expected
                         </label>
                         <p className="text-muted-foreground pt-1 text-xs leading-4">
-                            For the officials and consultants your agency does not require a DTR from. They still
-                            appear in the lists, and nothing is computed for them.
+                            For the officials and consultants your agency does not require a DTR from. They still appear
+                            in the lists, and nothing is computed for them.
                         </p>
                     </div>
                 </div>

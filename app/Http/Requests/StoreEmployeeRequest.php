@@ -54,8 +54,6 @@ class StoreEmployeeRequest extends FormRequest
             'tags' => ['array', 'max:20'],
             'tags.*' => ['string', 'max:40', 'distinct'],
             'exempt' => ['boolean'],
-            'hired_at' => ['required', 'date'],
-            'separated_at' => ['nullable', 'date', 'after_or_equal:hired_at'],
         ];
     }
 }
