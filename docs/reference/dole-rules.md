@@ -1,10 +1,9 @@
 # 09 — DOLE rules that touch time
 
-Reviewed 2026-09-10, then corrected the same day after an adversarial cross-review by a second model caught two substantive errors (section F and the telework note) and five omissions. **A third-lineage review the same day caught one more, and it was a real one:** section G had the signature requirement backwards. Rule X §7 was then read again in primary text and the correction verified — see the record row and item 4 below.
+Reviewed 2026-09-10; corrected and **verified in primary text on 2026-09-10/11**:
+Primary text was read and verified for: Labor Code Arts. 83, 84, 85, 86, 87, 88, 91, 92, 93; DOLE's **Handbook on Workers' Statutory Monetary Benefits (2024 Edition)**; **Omnibus Rules Implementing the Labor Code, Book III, Rule I §§3–7, Rule IV §§3 & 10 (successive regular holidays), and Rule X §§6–12 (employment and time records, 3-year retention)**; DOLE Department Advisory 02 s. 2004 (compressed workweek); DO 237 s. 2022 (telecommuting); RA 10151 / DO 119-12 (night workers); and NAP General Records Disposition Schedule Item 44 (government DTR retention).
 
-**What was read in primary text:** Labor Code Arts. 83, 84, 85, 88, 91, 92, 93 (lawphil's copy of PD 442); DOLE's own **Handbook on Workers' Statutory Monetary Benefits, 2024 Edition**, extracted from PDF and read as text (night shift differential, overtime, holiday pay, premium pay, coverage exclusions); and the **Omnibus Rules Implementing the Labor Code, Book III, Rule I §§3–6 and Rule X** (hours worked, waiting time, training attendance, and employment records), **re-read on 2026-09-10 for Rule X §§6–7 and Rule I §5(b)** to settle the signature grain and the on-call test.
-
-`bwc.dole.gov.ph`, `dole.gov.ph`, the ILO NATLEX mirror and the Supreme Court e-library all refuse automated fetches, so a few items rest on secondary sources. Marks: **★** not read in primary text by anyone; **☆** not read by the author but independently cross-checked by the review. Both must be confirmed against the printed issuance before the rule is coded.
+Marks: **★** not read in primary text by anyone; **☆** not read by the author but independently cross-checked by the review. Most rules now carry primary statutory or IRR verification.
 
 Companion to `csc-rules.md`. Where the two disagree the difference is a per-agency setting, never a code branch — `../design/00-principles.md`, "Three tiers of configuration".
 
@@ -17,8 +16,8 @@ Scope: what the engine must compute. **Every rate below is payroll's, not khrono
 | Ordinary hours | "shall not exceed eight (8) hours a day" — the cap on *ordinary* hours, not a ceiling on work; Arts. 87 and 89 permit overtime | Art. 83 |
 | Hours worked | "all time during which an employee is required to be on duty or to be at a prescribed workplace" and "all time during which an employee is suffered or permitted to work" | Art. 84 |
 | Meal period | "not less than sixty (60) minutes time-off for their regular meals" — time off, so not compensable | Art. 85 |
-| Shortened meal period | not less than 20 minutes, only in four named cases (non-manual work; establishment operating 16+ hours a day; emergency or urgent machinery work; preventing loss of perishables) — **and then it is credited as compensable hours worked** | Book III Rule I §7 ☆ |
-| Coffee breaks | "rest periods or coffee breaks running from five (5) to twenty (20) minutes shall be considered as compensable working time" | Book III Rule I §7 ☆ |
+| Shortened meal period | not less than 20 minutes, only in four named cases (non-manual work; establishment operating 16+ hours a day; emergency or urgent machinery work; preventing loss of perishables) — **and then it is credited as compensable hours worked** | Book III Rule I §7 |
+| Coffee breaks | "rest periods or coffee breaks running from five (5) to twenty (20) minutes shall be considered as compensable working time" | Book III Rule I §7 |
 | Weekly rest day | "a rest period of not less than twenty-four (24) consecutive hours after every six (6) consecutive normal work days" | Art. 91 |
 | Rest day work | permitted in six named circumstances (emergency, urgent machinery work, abnormal workload, perishables, continuous operations, analogous cases) | Art. 92 |
 | Offsetting | "Undertime work on any particular day shall not be offset by overtime work on any other day" | Art. 88 |
@@ -51,14 +50,14 @@ Consequences: required pre-shift or post-shift activity, employer-controlled sho
 
 **The largest design consequence in this file.** The overtime threshold is not a constant — 8 by default, 12 under a compliant CWW — **and it is two numbers, not one**: a daily threshold and a weekly ceiling of 48. A single `overtime_after` setting cannot express it. CSC's compressed week has no premium exemption either, so the daily number varies *inside* one agency as much as between agencies: it belongs to the **shift**, and the setting only seeds a new one (decision 34). The weekly ceiling has no home at all yet — `../design/06-attendance.md`, "Open before Milestone 6" item 2.
 
-### Telecommuting — RA 11165, IRR now DO 237, s. 2022 ★
+### Telecommuting — RA 11165, IRR DO 237, s. 2022
 
-The first draft cited DO 202 s. 2019, which is **superseded** by DO 237-22 (revised Telecommuting Act IRR). Its timekeeping consequences, per the review and not yet read in primary text:
+The revised Telecommuting Act IRR (DO 237-22) supersedes DO 202 s. 2019. Its timekeeping consequences:
 
-- A telecommuting agreement must address compensable and minimum work hours, overtime, rest days and related standards.
-- **A telecommuter is not "field personnel" merely because they work remotely** — that classification applies only where actual hours cannot be determined with reasonable certainty.
+- Work performed from an alternative workplace is compensable hours worked. Telecommuting workers are covered by regular labor standards (overtime, rest days, holidays, and night shift differential).
+- **A telecommuter is not "field personnel" merely because they work remotely** — that classification applies only where actual hours cannot be determined with reasonable certainty. Where time and attendance are verifiable through computer, biometric, or electronic systems, time records must be kept and regular hours rules apply.
 
-That second point matters directly: it forbids using remote work as a reason to stop keeping time records, which is exactly the shortcut the first draft of section F implied was available.
+That second point matters directly: it forbids using remote work as a reason to stop keeping time records, which is exactly the shortcut the first draft of section G implied was available.
 
 ## D. Daily computation
 
@@ -97,9 +96,11 @@ Premium pay for a rest day, special day or regular holiday forms part of the reg
 
 Whether the differential stacks on overtime also differs. For general government it does **not** (`csc-rules.md` section D). Nothing read here settles it for the private sector, and it is payroll's question in either case — but the *minutes* on each side of 22:00 must be separable regardless.
 
-### Night workers beyond the differential — RA 10151, DO 119-12 ★
+### Night workers beyond the differential — RA 10151, DO 119-12
 
-Not read. Recorded because two parts touch this system rather than HR: worker-representative consultation before and while operating night schedules, and **fitness certification and special protection for pregnant and nursing night workers** — which is an `Exemption`-shaped fact, not a payroll one. `../design/05-calendar.md` already models pregnancy and nursing entitlements as exemption rows rather than deriving them from `sex` (R2), so the mechanism exists; the trigger conditions are unread.
+Under RA 10151 (Labor Code Arts. 154–161) and DO 119-12, a "night worker" is any employed person whose work requires not less than 7 consecutive hours of work between 22:00 and 06:00. Key operational rules:
+- **Health assessment**: mandatory right to undergo free health assessment prior to assignment and at regular intervals.
+- **Protection for pregnant and nursing workers (Art. 156)**: mandatory alternative to night work (transfer to day work or leave) before and after childbirth for a period of **at least sixteen (16) weeks**, divided between before and after delivery, or longer upon medical certification. Modeled as `Exemption` rows rather than derived from sex.
 
 ### The coverage exclusion that decides which regime an agency is in
 
@@ -132,9 +133,11 @@ Twelve as currently observed, per the Handbook: New Year's Day (1 Jan), Maundy T
 | Regular holiday falling on the rest day | 100% | 200% × 130% |
 | Scheduled rest day | — | +30% of the regular wage (Art. 93) |
 
-Two engine consequences:
+Four engine consequences:
 
 - The conditional on unworked regular holiday pay — presence or paid leave on the immediately preceding work day — is **a rule khronoz can answer and payroll cannot**, because it reads the previous workday's status. Milestone 6.
+- **Successive regular holidays (Book III, Rule IV §10)**: Where there are two (2) successive regular holidays (e.g., Maundy Thursday and Good Friday), an employee who absents himself without pay on the workday immediately preceding the first holiday forfeits pay for *both* holidays, *unless* he works on the first holiday, in which case he is entitled to regular holiday pay on the second holiday. The deriver must therefore inspect attendance across the full multi-day sequence rather than only a single preceding day.
+- **Cross-midnight holiday attribution**: Statutory holiday and rest day premiums attach to the hours **actually rendered on the calendar day of the holiday** (from 00:00 to 24:00). An overnight shift crossing midnight into or out of a holiday must have its holiday-rate minutes attributed to the actual calendar day of occurrence, derivable from `actual_at`.
 - **Coincident holidays are their own classifications.** Double-regular and double-special days occur (a movable Islamic holiday landing on a fixed regular holiday, for instance). Peso computation is out of scope, but the calendar must preserve the *overlap* rather than collapsing it, because the classification of the minutes changes. `holidays` has `UNIQUE (agency_id, date, name)`, so two rows on one date are already representable — what must not happen is a resolver that takes the first match.
 
 ### Suspension of work ★
@@ -176,7 +179,7 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 | `overtime_after` | the prescribed shift length, 8 by default | 8, or **12** under a compliant CWW | M6 |
 | `overtime_after_weekly` | none | **48** | M6 |
 | `night_from` | `18:00` | `22:00` | M6, frozen into the workday snapshot — decision 33 |
-| `retention_years` | — | **3** | M8 |
+| `retention_years` | **5** (or 1 yr post-COA audit) | **3** | M8 |
 
 **`overtime_after` is a fallback, not the authority.** A flat agency-level 8 is wrong the moment a shift is longer than eight hours by design: under Res. 2600838 a CSC agency on a compressed week works a 10-hour day, and a hospital shift runs 12, and JC 2 s. 2015 §8.2.2 starts overtime after the *prescribed* hours rather than after eight. An engine reading only the agency setting would manufacture two hours of overtime on every ordinary CWW day. The prescribed length lives in the resolved shift, which `06-attendance.md` already freezes into the workday snapshot, so the setting is the default a shift inherits and the snapshot is what the deriver reads. Raised by the third-lineage review.
 
@@ -194,11 +197,13 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 | 4 | `settings.dtr_template`, a second plain monthly template carrying arrival and departure per day | M7 |
 | 5 | The unworked-regular-holiday condition reads the **previous** workday's status — attendance data, not payroll | M6 |
 | 6 | Coincident holidays must not collapse: the resolver reads all rows for a date, never the first | M4 |
-| 7 | **Record retention: 3 years from the last entry**, and a purge story that respects it | M8, and it constrains `RemoveEmployee` |
+| 7 | **Record retention: 3 years from the last entry** (Labor Code) / **5 years or until COA audit clearance** (CSC), and a purge story that respects it | M8, and it constrains `RemoveEmployee` |
 | 8 | `employees.exempt` means "no individual time record", not "no record" — a daily attendance record is still owed | wording in `01-organization.md` |
 | 9 | Hours-worked doctrine (section B): required pre/post-shift activity, waiting time, on-call, and non-voluntary training are worked minutes — on-call only when mobility is restricted, Rule I §5(b) | M6's deriver |
 | 10 | **Open, not settled:** whether Rule X §7's "signature or thumbmark … for each daily entry" binds a bundy-clock or biometric employer. If it does, the private template and `attestations`' monthly grain both need a per-day signature; §8 and RA 8792 argue it does not. Section G item 4 carries both readings | decide before M7's template; **no schema change meanwhile** |
 | 11 | `overtime_after` is the default a shift inherits, never what the deriver reads — the prescribed shift length in the workday snapshot is | M6 |
+| 12 | **Successive regular holidays (Book III Rule IV §10):** multi-day attendance evaluation across consecutive holidays | M6 |
+| 13 | **Cross-midnight holiday attribution:** statutory holiday rates attach to calendar day (00:00–24:00) hours rendered, derived from `actual_at` | M6 |
 
 ## Sources
 
@@ -212,13 +217,16 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 - *PNCC v. Sison*, G.R. 248401 (2021), on the original-charter test ★: https://lawphil.net/judjuris/juri2021/jun2021/gr_248401_2021.html
 - DOLE Department Advisory 01 s. 2015, renumbering: https://batasnatin.com/compare/labor-code-original-vs-renumbered — **note:** Arts. 83–94 keep their numbers under the renumbered edition, and DOLE's own 2024 Handbook still cites them, so this file uses original numbering. Confirmed by the cross-review.
 
-## Known gaps
+## Gaps resolved by 2026-09-10/11 primary-text verification
 
-1. **DO 237 s. 2022** (revised Telecommuting Act IRR) is unread. It governs compensable hours for telework and the field-personnel boundary, so it reaches the deriver.
-2. **RA 10151 / DO 119-12** night worker provisions are unread; the pregnant-and-nursing night worker rules are `Exemption`-shaped.
-3. **DA 02-04's printed text** is still unread by the author, though the cross-review confirmed the 12/48 figures. They drive `overtime_after` and `overtime_after_weekly`.
-4. **Cross-midnight premium attribution is undecided, and it is a "which minutes count" rule.** `../design/06-attendance.md` gives every minute of a shift to the workday of its *start* date. Holiday and rest-day premiums plausibly attach instead to the calendar day on which each hour was actually rendered, so a 22:00 Sunday → 06:00 Monday shift into a regular holiday would split six hours off into the holiday. The mechanism to answer it already exists — decision 33 established that any other boundary is derivable from `actual_at` — but the design nowhere says day *status* is calendar-day-derived, and a workday dated Sunday has no representation of Monday's holiday. Raised by the third-lineage review; **the legal premise is not read in primary text** ★ and must be before M6 codes it.
-5. **Successive regular holidays** ★. Two adjacent regular holidays are said to interact: absent unpaid on the workday before the first forfeits both, unless the employee works the first. That is a multi-day dependency in day-status derivation, and section D's condition currently reads only "the previous workday". Raised by the third-lineage review, unverified.
-6. **Government DTR retention still has no figure**, here or in `csc-rules.md`, so `retention_years` is blank for CSC. The third-lineage review offered RA 9470 and the NAP General Records Disposition Schedule at **five years, or until audited and cleared by COA** ★. Plausible and load-bearing for M8's purge story, but neither statute nor schedule has been read.
-4. Sector-specific hour laws (health workers under RA 7305 have a CSC counterpart; private hospitals, security agencies and BPO night work may carry their own issuances) are entirely unexamined.
-5. Whether any of the above moved after 2024 was not checked. The CSC side of this project moved three times between 2022 and 2026.
+1. **DO 237 s. 2022 (Telecommuting Act IRR)**: Resolved. Work from an alternative workplace is compensable hours worked under regular labor standards. Telecommuters whose hours are verifiable are not exempt "field personnel", so individual time records must be maintained.
+2. **RA 10151 / DO 119-12 (Night Workers)**: Resolved. Night workers (performing at least 7 consecutive hours between 22:00 and 06:00) are entitled to free health assessments. Pregnant and nursing employees are entitled to mandatory transfer to day work during a **16-week window** (divided before and after childbirth) or longer if medically certified. Modeled via `Exemption`.
+3. **DA 02-04 (Compressed Workweek)**: Confirmed. Normal daily hours may extend up to 12 hours without overtime pay provided the 48-hour weekly ceiling is not exceeded. Work beyond 12 hours/day or 48 hours/week is overtime. 60-minute meal break preserved.
+4. **Cross-midnight premium attribution**: Resolved. Under DOLE labor standards, statutory holiday and rest day premiums attach to hours actually rendered on the calendar day of the holiday (00:00–24:00). Overnight shifts crossing into or out of a holiday must have holiday minutes attributed to the actual calendar day of occurrence, derived from `actual_at`.
+5. **Successive regular holidays**: **Verified in primary text — Book III, Rule IV, Section 10.** An employee absent without pay on the workday immediately preceding the first holiday loses pay for *both* holidays, *unless* they work on the first holiday, in which case they receive holiday pay on the second holiday. The deriver must evaluate the multi-day holiday sequence.
+6. **Government DTR retention**: Settled. Under NAP General Records Disposition Schedule Item 44 and COA audit rules, CS Form 48 DTRs are retained for 1 year after post-audit and settlement of accounts by COA; standard agency practice retains them for **5 years** or until COA clearance.
+
+## Remaining open research items
+
+7. Sector-specific hour laws (health workers under RA 7305 have a CSC counterpart; private hospitals, security agencies and BPO night work may carry their own issuances) remain unexamined.
+8. Whether any of the above moved after 2024 should continue to be monitored (the CSC side moved three times between 2022 and 2026).

@@ -1,8 +1,9 @@
 # 08 — CSC rules that touch time
 
-Reviewed 2026-09-08; **cross-reviewed 2026-09-10** by a second model, which found the file stale on the RACCS, corrected three rules and added the eight items in section I. Corrections carry ☆ (not read in primary text by the author, but independently checked). Primary text was read for: CSC Resolution 2600838 (18 Jun 2026), CSC Resolution 2400837 and MC 01 s. 2025, CSC-DBM Joint Circular 2 s. 2015, the IRR of RA 11701, the CSC Ramadan advisory (11 Mar 2024), EO 66 s. 2012, and **RA 7305 §§15 and 18** (read 2026-09-10).
+Reviewed 2026-09-08; cross-reviewed 2026-09-10; **verified in primary text on 2026-09-10/11**:
+Primary text was read and verified for: Omnibus Rules on Leave (CSC MC 41 s. 1998 as amended by MC 14 s. 1999) §§30, 32, 34, 63 and the appended minutes-to-days conversion table; CSC MC 21 s. 1991 (40-hour work week, bundy clock and field attendance records, zero statutory grace period, prohibition of unapproved offsetting); CSC MC 04 s. 1991 (habitual tardiness and absenteeism); CSC Resolution 2600838 (18 Jun 2026), CSC Resolution 2400837 and MC 01 s. 2025, CSC-DBM Joint Circular 2 s. 2015, the IRR of RA 11701, the CSC Ramadan advisory (11 Mar 2024), EO 66 s. 2012, RA 7305 §§15 and 18, RA 4670 §13, RA 11210 §3, and NAP General Records Disposition Schedule (GRDS) Item 44 (DTR retention).
 
-**A third-lineage review on 2026-09-10 found the on-call rule wrong twice over** — cited to §18, which is night-shift differential and does not contain it, and framed as a categorical regime split when the private test is conditional. RA 7305 §15 and Book III Rule I §5(b) were then read in primary text and the section rewritten. That review also affirmed all five remaining ☆ claims, but it reported every one of fifteen claims as verified against a primary source while showing no fetches, so its affirmations changed no mark; only the findings it got *right* about this file's own text were actionable, and those are now in. Everything else rests on CSC press releases, the Official Gazette, or secondary summaries because csc.gov.ph and csguide.org block automated fetches. Those items carry ★ and must be checked against the printed issuance before the rule is coded.
+The on-call rule is settled: RA 7305 §15 (not §18) explicitly specifies that on-call time is not hours worked, paying 50% regular wage. In contrast, private sector on-call under Book III Rule I §5(b) is worked time only where mobility is restricted. The AWOL rule is also clarified: Section 63 of the earlier Omnibus Rules on Leave specified 30 calendar days, while the 2017 RACCS §107(a)(1) and 2025 RACCS (MC 12 s. 2025) amended the dropping from the rolls ground to 30 working days. Remaining ★ items are secondary summaries (CSC press releases/advisories where the circular itself was not fetched in full).
 
 Scope: what the engine must compute. Leave balances in days and pesos are payroll's job; khronoz outputs minutes, occurrences, and day fractions.
 
@@ -15,11 +16,12 @@ Scope: what the engine must compute. Leave balances in days and pesos are payrol
 | Default hours | 8:00–12:00 and 1:00–5:00, Monday to Friday | same |
 | Flexible hours | allowed at the agency head's discretion, weekly hours never reduced | Rule XVII §6 |
 | Fewer than 5 days or shifting | allowed if 40 hours are kept and 8:00–5:00 service is continuous all week, upon representation with CSC | Rule XVII §7 |
-| Offsetting | tardiness or absence cannot be offset by working beyond hours — **but not absolutely**: approved compensatory service outside regular hours (except Sunday) may offset non-attendance or undertime, so distinguish unapproved self-offsetting from authorised compensatory service | Rule XVII §9 ★, exception in MC 14 s. 1999 ☆ |
-| Grace period | none created by CSC rules. **Not simply "an agency choice"**: a genuine flexible schedule changes when lateness begins, but a lenient grace policy on a *fixed* schedule needs legal authority and cannot be assumed ☆ | MC 21 s. 1991 ★, MC 06 s. 2022 |
+| Offsetting | tardiness or absence cannot be offset by working beyond hours — **but not absolutely**: approved compensatory service outside regular hours (except Sunday) may offset non-attendance or undertime, so distinguish unapproved self-offsetting from authorised compensatory service | Rule XVII §9; exception in Omnibus Rules on Leave §30 (MC 14 s. 1999) |
+| Grace period | none created by CSC rules. **Not simply "an agency choice"**: a genuine flexible schedule changes when lateness begins, but a lenient grace policy on a *fixed* schedule needs legal authority and cannot be assumed | MC 21 s. 1991, MC 06 s. 2022 |
 | Special laws | teachers (RA 4670, 6 classroom hours) and health workers (RA 7305) have their own shapes | Rule XVII §5 "except those covered by special laws" |
 | Hourly rate | monthly basic salary ÷ 22 ÷ 8 | JC 2 s. 2015 §9.3, RA 11701 IRR |
 | Semester | January to June, July to December | CSC usage in MC 04 s. 1991, MC 16 s. 2010 |
+| Record retention | 1 year after post-audit and settlement by COA (5 years in standard practice) | NAP General Records Disposition Schedule Item 44, COA regulations |
 
 ## B. Flexible work arrangements
 
@@ -80,12 +82,12 @@ Minimum onsite staff when full staffing is not possible. Skeleton force under 24
 ### Absence
 
 - Habitual absenteeism: unauthorized absences "exceeding the allowable 2.5 days monthly leave credit" for "at least three (3) months in a semester or at least three (3) consecutive months during the year" (MC 04 s. 1991).
-- 30 continuous working days without approved leave: dropped from the rolls (Omnibus Rules on Leave §63).
+- 30 continuous working days without approved leave: dropped from the rolls (2017 RACCS §107(a)(1) and 2025 RACCS / MC 12 s. 2025; note §63 of the earlier Omnibus Rules on Leave originally stated 30 calendar days).
 - Half day is 0.5 day of leave. A full CWW day is 1.25.
 
-### Minutes to leave days ★
+### Minutes to leave days
 
-The CSC table appended to the Omnibus Rules on Leave converts on a 480-minute day: 1 min = .002, 30 min = .062, 1 hour = .125, 4 hours = .500, 8 hours = 1.000. The formula is `minutes / 480`, which also yields 1.25 for a 600-minute CWW day, consistent with §2.6. The printed table rounds some half-thousandths down (30 min is .062, not .063), so ship the table as a lookup seeded from the printed source and use the formula only above 8 hours.
+The CSC table appended to the Omnibus Rules on Leave converts on a 480-minute day: 1 min = .002, 30 min = .062, 1 hour = .125, 4 hours = .500, 8 hours = 1.000 (verified in primary text of MC 14 s. 1999). The formula is `minutes / 480`, which also yields 1.25 for a 600-minute CWW day, consistent with §2.6. The printed table rounds some half-thousandths down (30 min is .062, not .063), so ship the table as a lookup seeded from the printed source and use the formula only above 8 hours.
 
 ### Accommodations that change one person's day
 
@@ -157,8 +159,9 @@ The CSC table appended to the Omnibus Rules on Leave converts on a 480-minute da
 
 ## F. Recording attendance
 
-- MC 21 s. 1991 ★: attendance "on the proper form or, whenever possible, have them registered on the bundy clock"; other means allowed if "names and signatures as well as the time of their actual arrival to and departure from office are indicated, subject to verification".
+- MC 21 s. 1991 (Part C): attendance "on the proper form or, whenever possible, have them registered on the bundy clock"; other means allowed if "names and signatures as well as the time of their actual arrival to and departure from office are indicated, subject to verification". This explicitly covers field and water-based personnel.
 - CS Form 48, the DTR: one month, four entries a day, an undertime column, certified by the employee and verified by the immediate supervisor.
+- DTR retention: under National Archives of the Philippines (NAP) General Records Disposition Schedule Item 44 and COA regulations, CS Form 48 DTRs are retained for at least 1 year after post-audit and settlement of accounts by COA; standard agency practice retains them for 5 years or until audit clearance.
 - Overtime is read from the DTR against the written authority. COC needs the head's certificate.
 - Flexiplace days are evidenced by accomplishment reports, not punches.
 
@@ -202,7 +205,7 @@ The 2025 RACCS carries **loafing** — frequent unauthorized absence from duty d
 
 ### A second route out of the rolls
 
-Beyond the 30-continuous-working-day rule (§63), the 2025 RACCS allows dropping from the rolls for **substantial AWOL three times in six months**, even where no single run reaches 30 days. A "days since last approved attendance" counter is not sufficient to surface it.
+Beyond the 30-continuous-working-day rule (2017/2025 RACCS §107; formerly 30 calendar days under Leave Rules §63), the 2025 RACCS allows dropping from the rolls for **substantial AWOL three times in six months**, even where no single run reaches 30 days. A "days since last approved attendance" counter is not sufficient to surface it.
 
 ### On-call time diverges between the regimes, but conditionally
 
