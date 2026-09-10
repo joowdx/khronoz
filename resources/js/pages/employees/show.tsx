@@ -7,6 +7,7 @@ import { Field } from '@/components/field';
 import { PageHeader } from '@/components/page-header';
 import { Badge, StatusPill } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -77,6 +78,8 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
     const current = employee.current_deployment ?? null;
     const history = employee.deployments ?? [];
     const lastEnd = history[0]?.ends ?? null;
+    const placementCount = history.filter((deployment) => deployment.parent_id === null).length;
+    const reassignmentCount = history.length - placementCount;
     const deployed = current !== null;
 
     // Always the outline variant, deployed or not. §5.2 gives a page one
@@ -224,7 +227,15 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                         <CardHeader>
                             <CardTitle>Deployment history</CardTitle>
                             <CardDescription className="ml-auto tabular-nums">
-                                {history.length} {history.length === 1 ? 'placement' : 'placements'}
+                                {/*
+                                  Counted separately because they are not the
+                                  same thing: `history.length` would call a
+                                  reassignment a placement, and this card's
+                                  own rows now distinguish them.
+                                */}
+                                {placementCount} {placementCount === 1 ? 'placement' : 'placements'}
+                                {reassignmentCount > 0 &&
+                                    ` · ${reassignmentCount} ${reassignmentCount === 1 ? 'reassignment' : 'reassignments'}`}
                             </CardDescription>
                         </CardHeader>
                         <Table>
@@ -250,7 +261,7 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    history.map((deployment) => (
+                                    nestDeployments(history).map(({ deployment, nested }) => (
                                         <TableRow
                                             key={deployment.id}
                                             // The open placement takes the
@@ -261,11 +272,30 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                                         >
                                             <TableCell className="max-w-0 truncate">
                                                 {deployment.workgroup ? (
-                                                    <span className="flex items-center gap-2.5">
+                                                    <span
+                                                        className="flex items-center gap-2.5"
+                                                        style={{ paddingLeft: nested ? 14 : 0 }}
+                                                    >
                                                         <span className="truncate font-medium">
                                                             {deployment.workgroup.name}
                                                         </span>
-                                                        {deployment.workgroup.kind && (
+                                                        {/*
+                                                          The indent alone would
+                                                          be colour-of-position:
+                                                          a word carries the
+                                                          meaning, since a
+                                                          reassignment overlapping
+                                                          its placement is
+                                                          otherwise two rows
+                                                          covering one date for no
+                                                          visible reason.
+                                                        */}
+                                                        {nested && (
+                                                            <span className="text-muted-foreground shrink-0 text-xs">
+                                                                reassigned
+                                                            </span>
+                                                        )}
+                                                        {!nested && deployment.workgroup.kind && (
                                                             <span className="text-muted-foreground shrink-0 text-xs">
                                                                 {deployment.workgroup.kind}
                                                             </span>
@@ -304,6 +334,43 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
 }
 
 /**
+ * Order the history so a reassignment sits directly under the placement it
+ * departs from, rather than floating by date among rows it overlaps.
+ *
+ * The controller already sorts by `starts` descending. A reassignment always
+ * begins on or after its parent's start, so sorting alone puts it *above* the
+ * row it belongs to — which reads as an unexplained second placement on the
+ * same dates. This regroups without re-sorting: each placement keeps its
+ * position and its own reassignments follow it, newest first.
+ *
+ * A reassignment whose parent is not in the list is emitted at its own
+ * position rather than dropped, so a filtered or paginated history can never
+ * silently lose a row.
+ */
+function nestDeployments(history: Deployment[]): { deployment: Deployment; nested: boolean }[] {
+    const placements = history.filter((deployment) => deployment.parent_id === null);
+    const shown = new Set<string>();
+
+    const rows = placements.flatMap((placement) => {
+        shown.add(placement.id);
+
+        const nested = history.filter((deployment) => deployment.parent_id === placement.id);
+        nested.forEach((deployment) => shown.add(deployment.id));
+
+        return [
+            { deployment: placement, nested: false },
+            ...nested.map((deployment) => ({ deployment, nested: true })),
+        ];
+    });
+
+    const orphans = history
+        .filter((deployment) => !shown.has(deployment.id))
+        .map((deployment) => ({ deployment, nested: true }));
+
+    return [...rows, ...orphans];
+}
+
+/**
  * §5.15's sheet: a focused task against context that must stay visible. The
  * history behind it is exactly what someone checks before choosing a date, so
  * this is a sheet rather than a dialog — §5.16 reserves the centred box for
@@ -328,11 +395,20 @@ function MoveSheet({
     onOpenChange: (open: boolean) => void;
 }) {
     const [workgroup, setWorkgroup] = useState<string | null>(null);
+    const [reassigning, setReassigning] = useState(false);
     const current = employee.current_deployment ?? null;
     const tree = flattenWorkgroups(workgroups);
 
-    // A move ends the current placement the day before the new one starts.
-    const earliest = current === null ? undefined : addDay(current.starts);
+    // A transfer ends the current placement the day before the new one starts,
+    // so it cannot begin on or before the day that placement began. A
+    // reassignment closes nothing and nests inside it, so it may begin on that
+    // first day — the bound is the placement's own start, not the day after.
+    const earliest = current === null ? undefined : reassigning ? current.starts : addDay(current.starts);
+
+    // There is nothing to nest a reassignment inside without an open
+    // placement, and the request refuses it. The box is disabled rather than
+    // hidden so the option is discoverable, and the hint says why.
+    const canReassign = current !== null;
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -345,14 +421,31 @@ function MoveSheet({
                     {({ errors, processing }) => (
                         <>
                             <SheetHeader>
-                                <SheetTitle>{current ? 'Move to another workgroup' : 'Deploy to a workgroup'}</SheetTitle>
+                                <SheetTitle>
+                                    {reassigning
+                                        ? 'Reassign elsewhere'
+                                        : current
+                                          ? 'Move to another workgroup'
+                                          : 'Deploy to a workgroup'}
+                                </SheetTitle>
                             </SheetHeader>
 
                             <div className="min-h-0 flex-1 overflow-auto p-5">
+                                {/*
+                                  The description states the consequence for
+                                  the verb currently selected, because the two
+                                  differ in exactly the thing a clerk cannot
+                                  see: whether the current placement closes.
+                                  A reassignment leaving it open is the whole
+                                  point of the arrangement — the plantilla item
+                                  never moved.
+                                */}
                                 <SheetDescription id="move-what-happens" className="text-[13px] leading-[18px]">
-                                    {current
-                                        ? `${employee.name} leaves ${current.workgroup?.name ?? 'their current workgroup'} the day before this date, and joins the new one on it.`
-                                        : `${employee.name} joins the workgroup on this date. Nothing before it changes.`}
+                                    {reassigning
+                                        ? `${employee.name} works in the new workgroup for this period. Their placement in ${current?.workgroup?.name ?? 'their current workgroup'} stays open, because the plantilla item does not move.`
+                                        : current
+                                          ? `${employee.name} leaves ${current.workgroup?.name ?? 'their current workgroup'} the day before this date, and joins the new one on it.`
+                                          : `${employee.name} joins the workgroup on this date. Nothing before it changes.`}
                                 </SheetDescription>
 
                                 <Field className="mt-5" label="Workgroup" htmlFor="workgroup_id" error={errors.workgroup_id}>
@@ -389,6 +482,45 @@ function MoveSheet({
                                     )}
                                 </Field>
 
+                                {/*
+                                  A checkbox and not a segmented control:
+                                  §5.10 caps that pattern at two uses, and
+                                  §5.9 sends anything a form submits here. The
+                                  hidden `0` companion is what makes the
+                                  unchecked state reach the server as false
+                                  rather than as an absent key.
+                                */}
+                                <div className="mt-4">
+                                    <input type="hidden" name="reassignment" value="0" />
+                                    <label className="flex items-start gap-2.5 text-sm">
+                                        <Checkbox
+                                            name="reassignment"
+                                            value="1"
+                                            checked={reassigning}
+                                            disabled={!canReassign}
+                                            onCheckedChange={(checked) => setReassigning(checked === true)}
+                                            aria-describedby="reassignment-hint"
+                                            className="mt-0.5"
+                                        />
+                                        <span>
+                                            <span className={cn('font-medium', !canReassign && 'text-muted-foreground')}>
+                                                Reassignment or detail
+                                            </span>
+                                            <span
+                                                id="reassignment-hint"
+                                                className="text-muted-foreground mt-0.5 block text-[13px] leading-[18px]"
+                                            >
+                                                {canReassign
+                                                    ? 'The person moves; the plantilla item stays. Leave this clear for a transfer, which closes the current placement.'
+                                                    : 'Available once this employee has an open placement to be reassigned from.'}
+                                            </span>
+                                        </span>
+                                    </label>
+                                    {errors.reassignment && (
+                                        <p className="text-fault mt-1.5 text-[13px]">{errors.reassignment}</p>
+                                    )}
+                                </div>
+
                                 <Field
                                     className="mt-4"
                                     label="Effective from"
@@ -396,7 +528,9 @@ function MoveSheet({
                                     error={errors.starts}
                                     hint={
                                         earliest
-                                            ? `On or after ${formatDay(earliest)}, the day after the current placement began.`
+                                            ? reassigning
+                                                ? `On or after ${formatDay(earliest)}, the day the current placement began.`
+                                                : `On or after ${formatDay(earliest)}, the day after the current placement began.`
                                             : 'Choose the first day in this workgroup. Previous placements stay in the history.'
                                     }
                                 >
@@ -406,6 +540,36 @@ function MoveSheet({
                                             name="starts"
                                             type="date"
                                             defaultValue={earliest ? laterDay(manilaToday(), earliest) : manilaToday()}
+                                            min={earliest}
+                                            aria-invalid={invalid}
+                                            aria-describedby={describedBy}
+                                        />
+                                    )}
+                                </Field>
+
+                                {/*
+                                  Optional on both verbs and for different
+                                  reasons: a reassignment normally runs for a
+                                  stated period, while a placement carries one
+                                  only when the appointment is fixed-term —
+                                  contractual, casual or co-terminous.
+                                */}
+                                <Field
+                                    className="mt-4"
+                                    label="Until"
+                                    htmlFor="ends"
+                                    error={errors.ends}
+                                    hint={
+                                        reassigning
+                                            ? 'The last day away. Leave blank for an open-ended reassignment, which needs the placement to be open-ended too.'
+                                            : 'Optional. Set it only for a fixed-term appointment; leave blank for an open placement.'
+                                    }
+                                >
+                                    {({ id, invalid, describedBy }) => (
+                                        <Input
+                                            id={id}
+                                            name="ends"
+                                            type="date"
                                             min={earliest}
                                             aria-invalid={invalid}
                                             aria-describedby={describedBy}
@@ -425,7 +589,7 @@ function MoveSheet({
                                   specific.
                                 */}
                                 <Button type="submit" disabled={processing}>
-                                    {current ? 'Move employee' : 'Deploy employee'}
+                                    {reassigning ? 'Reassign employee' : current ? 'Move employee' : 'Deploy employee'}
                                 </Button>
                                 <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                                     Cancel

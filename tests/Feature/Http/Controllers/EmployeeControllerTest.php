@@ -675,6 +675,30 @@ class EmployeeControllerTest extends TestCase
     }
 
     /** The headcount queries deployments, so hiding the employee alone cannot fix it. */
+    /**
+     * The profile has to be able to tell a reassignment from a placement, and
+     * `parent_id` is the only thing on the wire that does — there is no type
+     * field (decision 31). The page indents nested rows by it and counts the
+     * two kinds separately, so a resource that stopped sending it would
+     * silently flatten the history into rows that overlap for no visible
+     * reason.
+     */
+    public function test_the_profile_carries_the_nesting_the_history_table_renders(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        $reassignment = Deployment::factory()->under($placement)->create(['starts' => '2026-03-01', 'ends' => '2026-05-31']);
+
+        $this->get(route('employees.show', $placement->employee_id))->assertInertia(fn (Assert $page) => $page
+            ->where('employee.current_deployment.parent_id', null)
+            ->has('employee.deployments', 2)
+            ->where('employee.deployments', fn ($deployments) => collect($deployments)
+                ->firstWhere('id', $reassignment->id)['parent_id'] === $placement->id
+            ));
+    }
+
     public function test_removal_closes_a_started_placement_and_reduces_the_workgroup_headcount(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-10 00:30:00'));
