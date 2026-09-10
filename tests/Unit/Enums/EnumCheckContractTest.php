@@ -4,6 +4,7 @@ namespace Tests\Unit\Enums;
 
 use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
+use App\Enums\OvertimeMode;
 use App\Enums\Sex;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -31,6 +32,7 @@ class EnumCheckContractTest extends TestCase
             'employees.sex' => [Sex::class, '0001_01_01_000009_create_employees_table.php', 'employees_sex_valid'],
             'holidays.type' => [HolidayType::class, '0001_01_01_000018_create_holidays_table.php', 'holidays_type_valid'],
             'exemptions.type' => [ExemptionType::class, '0001_01_01_000020_create_exemptions_table.php', 'exemptions_type_valid'],
+            'overtimes.mode' => [OvertimeMode::class, '0001_01_01_000021_create_overtimes_table.php', 'overtimes_mode_valid'],
         ];
     }
 

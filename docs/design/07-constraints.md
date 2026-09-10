@@ -492,13 +492,30 @@ approved_at timestamp(0) NOT NULL                                  -- v1 sets it
 
 ```sql
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
-FOREIGN KEY (user_id) REFERENCES users (id)
+FOREIGN KEY (user_id) REFERENCES users (id)                        -- single, not paired, for the reason suspensions.user_id is
 starts timestamp(0) NOT NULL, ends timestamp(0) NOT NULL          -- timestamps, so overnight authority is one row
-date date GENERATED ALWAYS AS (starts::date) STORED
-CHECK (ends > starts)
+purpose NOT NULL                                                   -- the justification, and it prints
+date date GENERATED ALWAYS AS (starts::date) STORED                -- starts::date, so an overnight authority belongs to the day it began
+CHECK (ends > starts)                                              -- strict: tsrange(t, t) is empty and would overlap nothing
 CHECK (mode IN ('pay', 'cto'))
 EXCLUDE USING gist (employee_id WITH =, tsrange(starts, ends) WITH &&)
 ```
+
+`ends` is `NOT NULL` here and nullable on every other range in the schema: an order names the hours
+it grants, so an open-ended overtime authority is not a thing the domain has.
+
+Two deliberate departures in `overtimes_no_overlap`, neither of which is an oversight to tidy up.
+`tsrange` rather than `daterange`, because these are instants — two authorities on one calendar day,
+one ending at 02:00 and the next beginning that evening, must not collide. And the **default `[)`
+bound** where every daterange here is `'[]'`: two authorities meeting at an instant, 18:00–20:00 and
+20:00–22:00, do not conflict, because the first has ended when the second begins. Two date ranges
+sharing a day *do* conflict, because the employee really is in both on that day. Same operator,
+opposite answer, because a day is an interval and an instant is not. Both are measured by tests.
+
+`STORED` is spelled out here for the reason it is on `workdays`: Postgres 18 defaults a generated
+column to `VIRTUAL`, and a virtual column can be neither indexed nor referenced by a foreign key.
+`OvertimeTest` asserts `pg_attribute.attgenerated = 's'` directly, since nothing in the migration's
+own text would reveal a regression to `virtualAs()`.
 
 ### ledgers
 

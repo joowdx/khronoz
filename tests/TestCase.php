@@ -64,13 +64,34 @@ abstract class TestCase extends BaseTestCase
      * Takes no $attempts argument and must not gain one: retrying $statement
      * would re-run a statement this method expects to fail, not recover from
      * a transient error.
+     *
+     * $mentioning is a fragment the refusal message must contain, for the few
+     * rules where the SQLSTATE alone cannot tell two constraints apart. Note
+     * what to pass: Postgres names the constraint for CHECK, FK, unique and
+     * exclusion violations, but a **not-null** message names only the column
+     * ('null value in column "starts" ... violates not-null constraint'), so
+     * a 23502 wants `column "starts"` and not `overtimes_starts_not_null`.
+     *
+     * Found needed by mutation testing on `overtimes`: `starts` is NOT NULL
+     * *and* is the generation expression of a NOT NULL generated column, so
+     * making `starts` nullable still produced a 23502 — from `date` — and a
+     * test asserting only the code passed against the very change it existed
+     * to catch. Pass it sparingly; the SQLSTATE is the contract.
      */
-    protected function assertDatabaseRefuses(string $sqlstate, Closure $statement): void
+    protected function assertDatabaseRefuses(string $sqlstate, Closure $statement, ?string $mentioning = null): void
     {
         try {
             DB::transaction($statement);
         } catch (QueryException $e) {
             $this->assertSame($sqlstate, $e->getCode(), "expected SQLSTATE {$sqlstate}, got {$e->getCode()}: {$e->getMessage()}");
+
+            if ($mentioning !== null) {
+                $this->assertStringContainsString(
+                    $mentioning,
+                    $e->getMessage(),
+                    "expected the refusal to mention {$mentioning}: {$e->getMessage()}",
+                );
+            }
 
             return;
         }
