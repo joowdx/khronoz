@@ -55,6 +55,27 @@ export function formatDay(iso: string): string {
  * to the wrong day. Assembled from `formatToParts` rather than trusting a
  * locale to emit ISO order, the same rule the clock follows.
  */
+/**
+ * `YYYY-MM-DD` as a short day and month — "12 Sep" — for somewhere a full
+ * `formatDay()` will not fit. Same string-slicing discipline and the same
+ * pass-through on an unrecognisable input: no `Date`, so no timezone can move
+ * the day.
+ *
+ * No year, deliberately. This is a secondary date shown beside a primary one
+ * that already carries the year; repeating it is noise, and a stretch running
+ * across New Year is rare enough to read from the row it belongs to.
+ */
+export function formatShortDay(iso: string): string {
+    const [, month, day] = iso.split('-');
+    const name = MONTHS[Number(month) - 1];
+
+    if (name === undefined || day === undefined) {
+        return iso;
+    }
+
+    return `${Number(day)} ${name.slice(0, 3)}`;
+}
+
 export function manilaToday(): string {
     const parts = Object.fromEntries(
         MANILA_DAY.formatToParts(new Date())

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\RemoveEmployee;
 use App\Enums\Sex;
+use App\Http\Controllers\Concerns\TranslatesUniqueCollisions;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
@@ -27,6 +28,8 @@ use Inertia\Response;
  */
 class EmployeeController extends Controller
 {
+    use TranslatesUniqueCollisions;
+
     /** A large agency (a hospital, task-6-brief.md's Shape C) can hold far more employees than it has system users, so unlike workgroups this list is genuinely paged. */
     private const PER_PAGE = 25;
 
@@ -196,7 +199,7 @@ class EmployeeController extends Controller
 
     public function store(StoreEmployeeRequest $request): RedirectResponse
     {
-        $employee = Employee::create($request->validated());
+        $employee = $this->translatingCollisions(['employees_agency_id_number_unique' => 'number'], fn () => Employee::create($request->validated()));
 
         return redirect()->route('employees.index')->with('success', "{$employee->name} added.");
     }
@@ -237,7 +240,7 @@ class EmployeeController extends Controller
 
     public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
     {
-        $employee->update($request->validated());
+        $this->translatingCollisions(['employees_agency_id_number_unique' => 'number'], fn () => $employee->update($request->validated()));
 
         return redirect()->route('employees.index')->with('success', "{$employee->name} updated.");
     }

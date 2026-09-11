@@ -39,6 +39,7 @@ import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
 import { create, destroy, edit } from '@/routes/terminals';
 import { index as enrollments } from '@/routes/terminals/enrollments';
+import { index as timelogs } from '@/routes/timelogs';
 import { store as importTimelogs } from '@/routes/terminals/syncs';
 import type { Terminal } from '@/types';
 
@@ -51,13 +52,21 @@ import type { Terminal } from '@/types';
  * can say about a newly registered terminal, because a device with none cannot
  * resolve a single punch it captures; they arrive and sit unresolved.
  *
- * `timelogs_count` is every punch it has ever captured, and it decides whether
- * Remove is offered: every foreign key into `terminals` RESTRICTs (decision
- * 41), so a device that has captured anything cannot be deleted at all.
+ * `timelogs_count` is every punch it has ever captured.
+ *
+ * Whether Remove is offered takes **all three** of the counts below, because
+ * all three foreign keys into `terminals` RESTRICT (decision 41). Gating on
+ * the punch count alone offered Remove for a device that had people enrolled
+ * or import runs on record, and the refusal then named a constraint that had
+ * not fired. `enrolled_count` cannot serve for this: it is scoped to today, so
+ * a device whose enrollments have all ended counts zero and still cannot be
+ * deleted.
  */
 interface TerminalRow extends Terminal {
     enrolled_count: number;
     timelogs_count: number;
+    enrollments_count: number;
+    syncs_count: number;
     /**
      * When punches were last successfully imported — from the `syncs` row, not
      * from `synced_at`. Decision 40 forbids an import touching `synced_at`
@@ -228,8 +237,23 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                                             )}
                                         </Link>
                                     </TableCell>
+                                    {/*
+                                      Linked, because this controller's own
+                                      docblock says the row links to the
+                                      punches rather than to a page about the
+                                      device — and it did not. The enrolled
+                                      count above has always linked; this cell
+                                      was plain text, so the one thing a reader
+                                      most wants next was the one thing they
+                                      could not click.
+                                    */}
                                     <TableCell className="text-right tabular-nums">
-                                        {terminal.timelogs_count.toLocaleString()}
+                                        <Link
+                                            href={timelogs.url({ query: { terminal: terminal.id } })}
+                                            className="hover:text-foreground underline-offset-4 hover:underline"
+                                        >
+                                            {terminal.timelogs_count.toLocaleString()}
+                                        </Link>
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <RowMenu terminal={terminal} manage={manage} />
@@ -262,7 +286,7 @@ function RowMenu({ terminal, manage }: { terminal: TerminalRow; manage: boolean 
         return null;
     }
 
-    const removable = terminal.timelogs_count === 0;
+    const removable = terminal.timelogs_count === 0 && terminal.enrollments_count === 0 && terminal.syncs_count === 0;
 
     return (
         <>

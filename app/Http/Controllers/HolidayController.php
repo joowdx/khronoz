@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\HolidayType;
+use App\Http\Controllers\Concerns\TranslatesUniqueCollisions;
 use App\Http\Requests\StoreHolidayRequest;
 use App\Http\Requests\UpdateHolidayRequest;
 use App\Http\Resources\HolidayResource;
@@ -29,6 +30,8 @@ use Inertia\Response;
  */
 class HolidayController extends Controller
 {
+    use TranslatesUniqueCollisions;
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', Holiday::class);
@@ -62,7 +65,7 @@ class HolidayController extends Controller
 
     public function store(StoreHolidayRequest $request): RedirectResponse
     {
-        $holiday = Holiday::create($request->validated());
+        $holiday = $this->translatingCollisions(['holidays_agency_id_date_name_unique' => 'name'], fn () => Holiday::create($request->validated()));
 
         return to_route('holidays.index', ['year' => $holiday->date->year])
             ->with('success', 'Holiday added.');
@@ -80,7 +83,7 @@ class HolidayController extends Controller
 
     public function update(UpdateHolidayRequest $request, Holiday $holiday): RedirectResponse
     {
-        $holiday->update($request->validated());
+        $this->translatingCollisions(['holidays_agency_id_date_name_unique' => 'name'], fn () => $holiday->update($request->validated()));
 
         return to_route('holidays.index', ['year' => $holiday->date->year])
             ->with('success', 'Holiday updated.');

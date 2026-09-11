@@ -3,8 +3,10 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Http\Requests\StoreTerminalRequest;
 use App\Models\Agency;
 use App\Models\Enrollment;
+use App\Models\Sync;
 use App\Models\Terminal;
 use App\Models\Timelog;
 use App\Models\Workgroup;
@@ -250,5 +252,97 @@ class TerminalControllerTest extends TestCase
         $theirs = Terminal::factory()->create();
 
         $this->get(route('terminals.edit', $theirs))->assertNotFound();
+    }
+
+    /**
+     * The collision a `Rule::unique` cannot catch: two administrators
+     * submitting the same device number at the same moment both pass
+     * validation, and the loser reached the unique index.
+     *
+     * 23505 was the one SQLSTATE this application did not translate, while it
+     * translates 23514, 23P01, 23001, 428C9 and P0001 everywhere — so that
+     * loser got a 500 rather than `Already taken`. Driven by binding a request
+     * whose rules drop the mirror, standing in for a write that lands between
+     * the check and the insert, because a genuine interleaving cannot be
+     * produced from one test process.
+     */
+    public function test_a_duplicate_code_landing_after_validation_is_still_a_field_error(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        Terminal::factory()->create(['agency_id' => $agency->id, 'code' => '7']);
+
+        $this->app->bind(StoreTerminalRequest::class, fn () => new class extends StoreTerminalRequest
+        {
+            /** @return array<string, mixed> */
+            public function rules(): array
+            {
+                return array_merge(parent::rules(), ['code' => ['required', 'string']]);
+            }
+        });
+
+        $this->post(route('terminals.store'), [
+            'code' => '7',
+            'name' => 'Annex',
+            'kind' => 'terminal',
+            'protocol' => 'file',
+        ])->assertSessionHasErrors(['code' => 'Already taken']);
+
+        $this->assertSame(1, Terminal::where('agency_id', $agency->id)->count());
+    }
+
+    /**
+     * The refusal names the constraint that actually fired.
+     *
+     * Every 23001 was answered with "has captured timelogs", and `enrollments`
+     * and `syncs` RESTRICT too — so removing a device that had people enrolled
+     * and had never imported anything was refused with a sentence about
+     * punches that did not exist. Reproduced: 302, `timelogs = 0`, that
+     * message, the row still there.
+     */
+    public function test_removing_a_terminal_with_enrollments_says_so(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = Terminal::factory()->create(['agency_id' => $agency->id, 'name' => 'Lobby']);
+        Enrollment::factory()->on($terminal)->create(['uid' => '0042']);
+
+        $this->delete(route('terminals.destroy', $terminal));
+
+        $this->assertSame(0, $terminal->timelogs()->count());
+        $this->assertStringContainsString('enrollments', session('error'));
+        $this->assertStringNotContainsString('timelogs', session('error'));
+        $this->assertTrue(Terminal::whereKey($terminal->id)->exists());
+    }
+
+    /**
+     * And Remove is not offered for it in the first place.
+     *
+     * The index gated on `timelogs_count === 0` alone. `enrolled_count` cannot
+     * serve either — it is scoped to today, so a device whose enrollments have
+     * all ended counts zero and is still undeletable.
+     */
+    public function test_the_index_offers_removal_only_when_nothing_points_at_the_terminal(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+
+        $bare = Terminal::factory()->create(['agency_id' => $agency->id, 'code' => '1']);
+        $enrolled = Terminal::factory()->create(['agency_id' => $agency->id, 'code' => '2']);
+        Enrollment::factory()->on($enrolled)->create(['uid' => '0042', 'starts' => '2020-01-01', 'ends' => '2020-12-31']);
+        $imported = Terminal::factory()->create(['agency_id' => $agency->id, 'code' => '3']);
+        Sync::factory()->on($imported)->completed()->create();
+
+        $this->get(route('terminals.index'))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('terminals.0.enrollments_count', 0)
+                ->where('terminals.0.syncs_count', 0)
+                ->where('terminals.0.timelogs_count', 0)
+                // The ended enrollment counts zero for *today* and one in all,
+                // which is the distinction the gate was missing.
+                ->where('terminals.1.enrolled_count', 0)
+                ->where('terminals.1.enrollments_count', 1)
+                ->where('terminals.2.syncs_count', 1)
+        );
     }
 }

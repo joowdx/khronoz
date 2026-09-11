@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\TranslatesUniqueCollisions;
 use App\Http\Requests\StoreWorkgroupRequest;
 use App\Http\Requests\UpdateWorkgroupRequest;
 use App\Http\Resources\EmployeeResource;
@@ -27,6 +28,8 @@ use Inertia\Response;
  */
 class WorkgroupController extends Controller
 {
+    use TranslatesUniqueCollisions;
+
     /**
      * List every workgroup of the current tenant, flat with `parent_id` so the
      * front end can compose the tree (task-6-brief.md's workgroups/index — "a
@@ -154,7 +157,7 @@ class WorkgroupController extends Controller
 
     public function store(StoreWorkgroupRequest $request): RedirectResponse
     {
-        $workgroup = Workgroup::create($request->validated());
+        $workgroup = $this->translatingCollisions(['workgroups_agency_id_code_unique' => 'code'], fn () => Workgroup::create($request->validated()));
 
         return redirect()->route('workgroups.index')->with('success', "{$workgroup->name} added.");
     }
@@ -203,7 +206,7 @@ class WorkgroupController extends Controller
     public function update(UpdateWorkgroupRequest $request, Workgroup $workgroup): RedirectResponse
     {
         try {
-            DB::transaction(fn () => $workgroup->update($request->validated()));
+            $this->translatingCollisions(['workgroups_agency_id_code_unique' => 'code'], fn () => $workgroup->update($request->validated()));
         } catch (QueryException $e) {
             throw match ($e->getCode()) {
                 'P0001' => ValidationException::withMessages(['parent_id' => ['Under one of its own workgroups.']]),

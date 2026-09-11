@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\TerminalKind;
 use App\Enums\TerminalProtocol;
+use App\Http\Controllers\Concerns\TranslatesUniqueCollisions;
 use App\Http\Requests\StoreTerminalRequest;
 use App\Http\Requests\UpdateTerminalRequest;
 use App\Http\Resources\TerminalResource;
@@ -33,6 +34,8 @@ use Inertia\Response;
  */
 class TerminalController extends Controller
 {
+    use TranslatesUniqueCollisions;
+
     public function index(): Response
     {
         Gate::authorize('viewAny', Terminal::class);
@@ -46,10 +49,18 @@ class TerminalController extends Controller
                 // about a newly registered device.
                 'enrollments as enrolled_count' => fn (Builder $query) => $query->coveringToday(),
                 // Every punch it has ever captured, closed enrollments
-                // included. This is also what decides whether Remove can be
-                // offered: timelogs_terminal_id_agency_id_foreign RESTRICTs,
-                // and destroy() translates that refusal for a stale page.
+                // included.
                 'timelogs',
+                // The other two counts exist only to decide whether Remove can
+                // be offered, and they are separate from `enrolled_count`
+                // because that one is scoped to today. **All three** foreign
+                // keys into `terminals` RESTRICT — enrollments, syncs and
+                // timelogs — so a device is removable only when nothing at all
+                // points at it. Gating on the punch count alone offered Remove
+                // for a device that had people enrolled or runs on record, and
+                // the refusal then named a constraint that had not fired.
+                'enrollments as enrollments_count',
+                'syncs',
             ])
             // When punches were last successfully brought in. **Not**
             // `synced_at`: decision 40 forbids an import touching that column,
@@ -83,7 +94,7 @@ class TerminalController extends Controller
 
     public function store(StoreTerminalRequest $request): RedirectResponse
     {
-        Terminal::create($request->validated());
+        $this->translatingCollisions(['terminals_agency_id_code_unique' => 'code', 'terminals_serial' => 'serial'], fn () => Terminal::create($request->validated()));
 
         return to_route('terminals.index')->with('success', 'Terminal registered.');
     }
@@ -102,7 +113,7 @@ class TerminalController extends Controller
 
     public function update(UpdateTerminalRequest $request, Terminal $terminal): RedirectResponse
     {
-        $terminal->update($request->validated());
+        $this->translatingCollisions(['terminals_agency_id_code_unique' => 'code', 'terminals_serial' => 'serial'], fn () => $terminal->update($request->validated()));
 
         return to_route('terminals.index')->with('success', 'Terminal updated.');
     }
@@ -132,13 +143,40 @@ class TerminalController extends Controller
             DB::transaction(fn () => $terminal->delete());
         } catch (QueryException $e) {
             if ($e->getCode() === '23001') {
-                return back()->with('error', 'This terminal has captured timelogs and cannot be removed. Mark it inactive instead.');
+                return back()->with('error', $this->restricted($e, $terminal));
             }
 
             throw $e;
         }
 
         return to_route('terminals.index')->with('success', 'Terminal removed.');
+    }
+
+    /**
+     * Which of the three RESTRICTs refused, in words.
+     *
+     * It used to answer every 23001 with "this terminal has captured
+     * timelogs", and `enrollments` and `syncs` RESTRICT too — so removing a
+     * device that had people enrolled and had never imported anything was
+     * refused with a sentence about punches that did not exist. Reproduced:
+     * 302, `timelogs = 0`, that message, the row still there.
+     *
+     * Read off the constraint name, the way `TerminalEnrollmentController`
+     * distinguishes its two exclusion constraints. The operator's next move
+     * differs for each: end the enrollments, or accept that a device with
+     * runs on record is history and mark it inactive.
+     */
+    private function restricted(QueryException $e, Terminal $terminal): string
+    {
+        if (str_contains($e->getMessage(), 'enrollments_terminal_id_agency_id_foreign')) {
+            return "{$terminal->name} still has enrollments. End them first, or mark the device inactive instead — a terminal that has identified somebody is part of the record.";
+        }
+
+        if (str_contains($e->getMessage(), 'syncs_terminal_id_agency_id_foreign')) {
+            return "{$terminal->name} has import runs on record and cannot be removed. Mark it inactive instead.";
+        }
+
+        return "{$terminal->name} has captured timelogs and cannot be removed. Mark it inactive instead.";
     }
 
     /**

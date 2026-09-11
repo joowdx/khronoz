@@ -62,6 +62,12 @@ class TerminalResource extends JsonResource
             // captured anything", which are two different questions.
             'enrolled_count' => $this->whenCounted('enrolled'),
             'timelogs_count' => $this->whenCounted('timelogs'),
+            // Not displayed — these two exist so the index can offer Remove
+            // honestly. All three foreign keys into `terminals` RESTRICT, and
+            // `enrolled_count` is scoped to today, so a device whose only
+            // enrollments have ended was offered Remove and then refused.
+            'enrollments_count' => $this->whenCounted('enrollments'),
+            'syncs_count' => $this->whenCounted('syncs'),
             // `whenHas`, not `whenNotNull`: the latter evaluates its argument
             // eagerly, so on a terminal loaded without the index's `withMax`
             // — `edit`, or the enrollments page — Model::shouldBeStrict()

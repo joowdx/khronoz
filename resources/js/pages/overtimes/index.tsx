@@ -27,7 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
-import { formatDay } from '@/lib/dates';
+import { formatDay, formatShortDay } from '@/lib/dates';
 import { create, destroy, edit, index } from '@/routes/overtimes';
 import type { Choice, Employee, Overtime } from '@/types';
 
@@ -160,7 +160,12 @@ export default function Index({
                 </Field>
                 <Field className="w-[160px]" label="From" htmlFor="from">
                     {({ id }) => (
-                        <Input id={id} type="date" value={filters.from} onChange={(e) => go({ from: e.target.value })} />
+                        <Input
+                            id={id}
+                            type="date"
+                            value={filters.from}
+                            onChange={(e) => go({ from: e.target.value })}
+                        />
                     )}
                 </Field>
                 <Field className="w-[160px]" label="To" htmlFor="to">
@@ -236,18 +241,36 @@ export default function Index({
                                     {/*
                                       An overnight stretch is marked, because
                                       "22:00–02:00" on its own reads as running
-                                      backwards. The moon carries the day it
-                                      ends on for anyone who needs it.
+                                      backwards.
+
+                                      The **date is drawn**, not only spoken.
+                                      It used to be an `aria-label` on a 14px
+                                      moon, so a screen reader was told which
+                                      day the stretch ended on and a sighted
+                                      operator was not — they saw two times
+                                      that disagreed and no way to resolve
+                                      them.
+
+                                      And the label said "the next day", which
+                                      `overtimes_dates_ordered` does not
+                                      guarantee: it requires only `ends >
+                                      starts`, so a 30-hour authorisation is
+                                      storable and ends two days later. The
+                                      date says what is true for any span; the
+                                      moon is now decoration beside it and is
+                                      hidden from the reading.
                                     */}
                                     <TableCell className="tabular-nums">
                                         <span className="flex items-center gap-1.5">
                                             {clock(overtime.starts)}–{clock(overtime.ends)}
                                             {overtime.overnight && (
-                                                <MoonIcon
-                                                    aria-label={`Ends the next day, ${formatDay(overtime.ends.slice(0, 10))}`}
-                                                    strokeWidth={1.5}
-                                                    className="text-muted-foreground size-3.5 shrink-0"
-                                                />
+                                                <span className="text-muted-foreground flex shrink-0 items-center gap-1">
+                                                    <MoonIcon aria-hidden strokeWidth={1.5} className="size-3.5" />
+                                                    <span className="text-xs">
+                                                        <span className="sr-only">ending </span>
+                                                        {formatShortDay(overtime.ends.slice(0, 10))}
+                                                    </span>
+                                                </span>
                                             )}
                                         </span>
                                     </TableCell>
@@ -329,7 +352,10 @@ function RowMenu({ overtime, manage }: { overtime: Overtime; manage: boolean }) 
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel>Keep it</AlertDialogCancel>
-                            <AlertDialogAction variant="destructive" onClick={() => router.delete(destroy.url(overtime))}>
+                            <AlertDialogAction
+                                variant="destructive"
+                                onClick={() => router.delete(destroy.url(overtime))}
+                            >
                                 Withdraw authorisation
                             </AlertDialogAction>
                         </AlertDialogFooter>
