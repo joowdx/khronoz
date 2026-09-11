@@ -88,6 +88,7 @@ erDiagram
         ulid user_id FK "who recorded it, manual only"
         timestamp voided_at
         string reason
+        ulid voided_by FK "who voided it"
         timestamp created_at
     }
     AGENCIES {
@@ -106,7 +107,7 @@ erDiagram
 
 ## Rules
 
-1. A timelog is immutable. Bad timelogs get `voided_at` and `reason`. Nothing is ever pruned. Enforced by privilege: the app role cannot delete and can only update `voided_at` and `reason` (07-constraints.md).
+1. A timelog is immutable. Bad timelogs get `voided_at`, `reason` and `voided_by`. Nothing is ever pruned. Enforced by privilege: the app role cannot delete and can only update those three columns (07-constraints.md) — `user_id` is deliberately outside the grant, so a void can never rewrite whose punch it was. **A void is also final**, which privilege cannot say: with all three columns writable, a second void would be a legal UPDATE overwriting the first one's timestamp, reason and actor, so `timelogs_void_is_final` refuses every update of an already-voided row (decision 48).
 2. Natural key: unique on `terminal_id, uid, time, state, mode`. Import is `INSERT ... ON CONFLICT DO NOTHING` on it; inserted rows are `accepted`, skipped rows `duplicates`. Only accepted rows trigger workday recompute.
 3. `employee_id` and `enrollment_id` are set by the database, not the app. A `BEFORE INSERT` trigger picks the enrollment covering `terminal_id, uid, time::date`; the exclusion constraints on enrollments guarantee there is at most one. A paired FK on `(enrollment_id, employee_id, terminal_id, uid)` stays as a second lock. Null means unresolved and stays visible. Creating or moving an enrollment re-resolves the affected timelogs by trigger; the app then queues recompute for the touched employee-dates.
 4. `sync_id` gives every device timelog its ingestion time and the clock drift observed in that run. `drift` is a measurement for alerts and disputes, never a correction; `time` is never adjusted. Manual timelogs have no sync, carry `source = manual`, and require `user_id`.

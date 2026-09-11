@@ -58,6 +58,7 @@ class TimelogFactory extends Factory
             'user_id' => null,
             'voided_at' => null,
             'reason' => null,
+            'voided_by' => null,
         ];
     }
 
@@ -112,12 +113,24 @@ class TimelogFactory extends Factory
         ]);
     }
 
-    /** Marked bad. Both columns together: an unexplained void is refused. */
-    public function voided(string $reason = 'Duplicate scan'): static
+    /**
+     * Marked bad. All three columns together: `timelogs_void_needs_reason`
+     * refuses an unexplained void and `timelogs_void_pairs_actor` refuses an
+     * unattributable one, so a state that set only `voided_at` would be
+     * refused by the database rather than merely incomplete.
+     *
+     * The voider defaults to a user of this row's own agency, resolved after
+     * the states merge for the reason DeploymentFactory's parents are
+     * closures.
+     */
+    public function voided(string $reason = 'Duplicate scan', ?User $by = null): static
     {
         return $this->state(fn (array $attributes): array => [
             'voided_at' => now(),
             'reason' => $reason,
+            'voided_by' => $by?->id ?? fn (array $merged) => User::factory()->create([
+                'agency_id' => $merged['agency_id'],
+            ])->id,
         ]);
     }
 }

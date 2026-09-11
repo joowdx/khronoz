@@ -69,6 +69,14 @@ return new class extends Migration
             $table->ulid('user_id')->nullable();
             $table->timestamp('voided_at')->nullable();
             $table->string('reason')->nullable();
+            // Who voided it. A second actor column rather than a reuse of
+            // user_id, because they are different facts: user_id is who
+            // *recorded* a manual punch, and the app role's UPDATE deliberately
+            // cannot touch it — a void must never be able to rewrite who
+            // punched. Single-column FK for the same reason user_id is one:
+            // the voider may be a platform superuser who has entered the
+            // agency, whose own agency_id is the platform row.
+            $table->ulid('voided_by')->nullable();
             // created_at only. See the docblock: `updated_at` would make
             // voiding through Eloquent fail 42501 once UPDATE is revoked.
             $table->timestamp('created_at')->nullable();
@@ -93,6 +101,7 @@ return new class extends Migration
                 ->restrictOnUpdate();
 
             $table->foreign('user_id')->references('id')->on('users')->restrictOnDelete()->restrictOnUpdate();
+            $table->foreign('voided_by')->references('id')->on('users')->restrictOnDelete()->restrictOnUpdate();
         });
 
         // **The attlog natural key**, and the upsert target (rule 2). Import is
@@ -176,6 +185,13 @@ return new class extends Migration
         // nothing to audit.
         DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_void_needs_reason CHECK (voided_at IS NULL OR reason IS NOT NULL)');
 
+        // And it must say **who**. Both directions, the shape
+        // timelogs_user_pairs_source already uses: a void with no actor cannot
+        // be audited, and an actor on a standing row records a void that never
+        // happened. MC 21 s. 1991 requires a manual time record to name who
+        // recorded it; striking one out is the same weight.
+        DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_void_pairs_actor CHECK ((voided_at IS NULL) = (voided_by IS NULL))');
+
         // Postgres has no tinyint — Laravel's unsignedTinyInteger is a
         // smallint — so these bounds are the only thing keeping the raw attlog
         // ints inside the byte the device actually sends.
@@ -189,6 +205,34 @@ return new class extends Migration
             CREATE TRIGGER timelogs_resolve
                 BEFORE INSERT ON timelogs
                 FOR EACH ROW EXECUTE FUNCTION timelogs_resolve();
+        SQL);
+
+        // **A void is final.** Privilege alone cannot say this: the app role
+        // holds UPDATE on exactly the void columns, so re-voiding an already
+        // voided row is a legal statement, and it overwrites the original
+        // `voided_at`, `reason` and actor — the audit record erases itself and
+        // the second void looks like the only one there ever was. A CHECK
+        // cannot see OLD, so this is the one place on this table a trigger is
+        // the right instrument rather than a privilege.
+        //
+        // Refusing every UPDATE of a voided row, not just a second void, is
+        // deliberate: editing the reason rewrites the record too. Correcting
+        // a void is not an operation this table offers, the way correcting a
+        // punch is not.
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION timelogs_void_is_final() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+            BEGIN
+                RAISE EXCEPTION 'timelog % was voided at % and cannot be changed', OLD.id, OLD.voided_at;
+            END;
+            $$;
+        SQL);
+
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER timelogs_void_is_final
+                BEFORE UPDATE ON timelogs
+                FOR EACH ROW WHEN (OLD.voided_at IS NOT NULL)
+                EXECUTE FUNCTION timelogs_void_is_final();
         SQL);
 
         // Immutability. `03-terminals.md` rule 1 is enforced by privilege, not
@@ -218,5 +262,9 @@ return new class extends Migration
         DB::unprepared('DROP TRIGGER IF EXISTS enrollments_reresolve ON enrollments');
 
         Schema::dropIfExists('timelogs');
+
+        // db:wipe never drops functions, which is why this one is CREATE OR
+        // REPLACE — but a real rollback still cleans up (.ai/rules/migrations.md).
+        DB::unprepared('DROP FUNCTION IF EXISTS timelogs_void_is_final()');
     }
 };

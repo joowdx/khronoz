@@ -328,8 +328,18 @@ export default function Index({
                                                 )}
                                             </span>
                                             {timelog.voided_at && (
+                                                // Named, because an
+                                                // attribution nobody can read
+                                                // is not one — and voiding a
+                                                // punch changes what somebody
+                                                // is paid. The name is
+                                                // omitted rather than faked
+                                                // if the resource did not
+                                                // load it.
                                                 <span className="text-muted-foreground truncate text-xs">
-                                                    Voided — {timelog.reason}
+                                                    Voided
+                                                    {timelog.voider ? ` by ${timelog.voider.name}` : ''} —{' '}
+                                                    {timelog.reason}
                                                 </span>
                                             )}
                                         </span>

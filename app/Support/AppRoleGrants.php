@@ -100,14 +100,18 @@ class AppRoleGrants
         static::narrow($db, 'migrations', ["REVOKE INSERT, UPDATE, DELETE ON migrations FROM {$role}"]);
 
         // A timelog is what the device said. The app may add one and may mark
-        // one bad; it may not change what was recorded, say who punched, or
-        // remove the row. The predecessor had four independent ways to delete
+        // one bad — recording who did so — but it may not change what was
+        // recorded, say who punched, or remove the row. `voided_by` is in the
+        // grant and `user_id` is not, and that asymmetry is the point: a void
+        // must be attributable without being able to rewrite whose punch it
+        // was. Re-voiding is refused by timelogs_void_is_final, because a
+        // column grant cannot see the row's previous value. The predecessor had four independent ways to delete
         // one of these — a flush verb, a two-year prune scheduled every
         // minute, and cascades from both the scanner and its own self-FK — and
         // this is what makes all four unbuildable rather than merely unwritten.
         static::narrow($db, 'timelogs', [
             "REVOKE DELETE, UPDATE ON timelogs FROM {$role}",
-            "GRANT UPDATE (voided_at, reason) ON timelogs TO {$role}",
+            "GRANT UPDATE (voided_at, reason, voided_by) ON timelogs TO {$role}",
         ]);
 
         // A run record that can be deleted is a run that can be denied.

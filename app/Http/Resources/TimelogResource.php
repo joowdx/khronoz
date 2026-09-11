@@ -51,6 +51,14 @@ class TimelogResource extends JsonResource
             ),
             'voided_at' => $this->voided_at?->toDateTimeString(),
             'reason' => $this->reason,
+            // Who struck it out. The whole point of `voided_by` is that the
+            // strike-out of a pay record is attributable, and an attribution
+            // nobody can read is not one. `{id, name}` rather than a
+            // UserResource, matching SuspensionResource::user.
+            'voider' => $this->whenLoaded(
+                'voider',
+                fn () => $this->voider === null ? null : ['id' => $this->voider->id, 'name' => $this->voider->name],
+            ),
         ];
     }
 }

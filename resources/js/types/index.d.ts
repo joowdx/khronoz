@@ -208,6 +208,8 @@ export interface Timelog {
     employee?: Employee | null;
     voided_at: string | null;
     reason: string | null;
+    /** Who struck it out. Present exactly when `voided_at` is. */
+    voider?: { id: string; name: string } | null;
 }
 
 /**

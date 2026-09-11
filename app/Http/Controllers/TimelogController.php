@@ -8,8 +8,10 @@ use App\Http\Resources\TimelogResource;
 use App\Models\Terminal;
 use App\Models\Timelog;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -50,7 +52,7 @@ class TimelogController extends Controller
         $to = $this->day($request->string('to')->trim()->toString());
 
         $timelogs = Timelog::query()
-            ->with(['terminal', 'employee'])
+            ->with(['terminal', 'employee', 'voider'])
             ->when($terminal !== null, fn (Builder $query) => $query->where('terminal_id', $terminal->id))
             ->when($unresolved, fn (Builder $query) => $query->whereNull('employee_id'))
             // Voided rows are **included by default**, unlike a soft delete:
@@ -98,9 +100,24 @@ class TimelogController extends Controller
      * two columns the app role may write, which is what makes "nothing is ever
      * pruned" a property of the database rather than a promise.
      */
+    /**
+     * A void is final, and `timelogs_void_is_final` says so with a P0001 —
+     * translated here rather than surfacing as a 500. Re-voiding used to
+     * overwrite the original timestamp, reason and actor, so the audit record
+     * erased itself and the second void looked like the only one there had
+     * ever been. The row is already struck out; there is nothing to retry.
+     */
     public function void(VoidTimelogRequest $request, Timelog $timelog): RedirectResponse
     {
-        $timelog->void($request->string('reason')->toString());
+        try {
+            DB::transaction(fn () => $timelog->void($request->string('reason')->toString(), $request->user()));
+        } catch (QueryException $e) {
+            if ($e->getCode() !== 'P0001') {
+                throw $e;
+            }
+
+            return back()->with('error', 'That punch was already voided. A void is final, and its reason stays as first recorded.');
+        }
 
         return back()->with('success', 'Timelog voided.');
     }

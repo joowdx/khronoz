@@ -41,7 +41,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'agency_id', 'terminal_id', 'sync_id', 'uid', 'time', 'state', 'mode',
-    'source', 'user_id', 'voided_at', 'reason',
+    'source', 'user_id', 'voided_at', 'reason', 'voided_by',
 ])]
 class Timelog extends Model
 {
@@ -94,12 +94,29 @@ class Timelog extends Model
 
     /**
      * Mark a record bad without removing it — the only correction this table
-     * allows. `reason` is required by `timelogs_void_needs_reason`: an
-     * unexplained void takes a punch out of the record with nothing to audit.
+     * allows. `reason` is required by `timelogs_void_needs_reason` and the
+     * actor by `timelogs_void_pairs_actor`: an unexplained or unattributable
+     * void takes a punch out of the record with nothing to audit.
+     *
+     * `$by` is the acting user, passed in rather than read from `auth()`, for
+     * the reason ImportTimelogs takes its actor as an argument — the same
+     * method has to work from a console command and a queued job, neither of
+     * which has a session.
+     *
+     * A second void is refused by `timelogs_void_is_final` (P0001), not by a
+     * check here: the guard belongs where it cannot be bypassed. Before it
+     * existed, re-voiding overwrote the original timestamp, reason and actor,
+     * and the audit record erased itself.
      */
-    public function void(string $reason): bool
+    public function void(string $reason, User $by): bool
     {
-        return $this->update(['voided_at' => now(), 'reason' => $reason]);
+        return $this->update(['voided_at' => now(), 'reason' => $reason, 'voided_by' => $by->id]);
+    }
+
+    /** Who struck this record out, if anybody has. */
+    public function voider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'voided_by');
     }
 
     /** Rows still standing. A voided row stays readable; it is simply not counted. */

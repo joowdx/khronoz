@@ -6,6 +6,7 @@ use App\Models\Agency;
 use App\Models\Enrollment;
 use App\Models\Sync;
 use App\Models\Timelog;
+use App\Models\User;
 use App\Support\AppRoleGrants;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -81,7 +82,7 @@ class TimelogImmutabilityTest extends TestCase
     {
         $timelog = Timelog::factory()->create();
 
-        $this->assertTrue($timelog->void('Duplicate scan'));
+        $this->assertTrue($timelog->void('Duplicate scan', $this->clerk()));
 
         $voided = $timelog->fresh();
 
@@ -89,11 +90,67 @@ class TimelogImmutabilityTest extends TestCase
         $this->assertSame('Duplicate scan', $voided->reason);
     }
 
+    /**
+     * The void's own three columns, asserted together — the actor is in the
+     * grant and `user_id` is not, which is the asymmetry that makes a void
+     * attributable without letting it rewrite whose punch it was.
+     */
+    public function test_the_app_role_may_attribute_a_void_but_not_a_punch(): void
+    {
+        $timelog = Timelog::factory()->create();
+        $clerk = $this->clerk();
+
+        $timelog->void('Duplicate scan', $clerk);
+
+        $this->assertSame($clerk->id, $timelog->fresh()->voided_by);
+        $this->assertDatabaseRefuses('42501', fn () => DB::table('timelogs')->where('id', $timelog->id)->update(['user_id' => $clerk->id]));
+    }
+
+    /**
+     * `timelogs_void_pairs_actor`, both directions. A void with no actor
+     * cannot be audited; an actor on a standing row records a void that never
+     * happened.
+     */
+    public function test_a_void_must_name_an_actor_and_an_actor_implies_a_void(): void
+    {
+        $timelog = Timelog::factory()->create();
+
+        $this->assertDatabaseRefuses('23514', fn () => DB::table('timelogs')->where('id', $timelog->id)
+            ->update(['voided_at' => now(), 'reason' => 'Duplicate scan']));
+
+        $this->assertDatabaseRefuses('23514', fn () => DB::table('timelogs')->where('id', $timelog->id)
+            ->update(['voided_by' => $this->clerk()->id]));
+    }
+
+    /**
+     * **A void is final**, and the guard has to be a trigger.
+     *
+     * Privilege cannot express it: the app role holds UPDATE on exactly the
+     * void columns, so a second void is a perfectly legal statement that
+     * overwrites the first one's timestamp, reason and actor. The audit record
+     * erases itself, and no CHECK can see OLD.
+     *
+     * Every UPDATE of a voided row is refused, not only a second void —
+     * editing the reason rewrites the record too.
+     */
+    public function test_a_voided_timelog_cannot_be_changed_again(): void
+    {
+        $timelog = Timelog::factory()->voided('Duplicate scan')->create();
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('timelogs')->where('id', $timelog->id)
+            ->update(['voided_at' => now(), 'reason' => 'oops', 'voided_by' => $this->clerk()->id]));
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('timelogs')->where('id', $timelog->id)
+            ->update(['reason' => 'a better reason']));
+
+        $this->assertSame('Duplicate scan', $timelog->fresh()->reason);
+    }
+
     /** A voided row stays visible. Nothing is ever pruned, and nothing is hidden by scope. */
     public function test_a_voided_timelog_remains_readable(): void
     {
         $timelog = Timelog::factory()->create();
-        $timelog->void('Duplicate scan');
+        $timelog->void('Duplicate scan', $this->clerk());
 
         $this->withTenant(Agency::findOrFail($timelog->agency_id));
 
@@ -157,15 +214,20 @@ class TimelogImmutabilityTest extends TestCase
         $this->assertDatabaseRefuses('42501', fn () => DB::table('syncs')->where('id', $timelog->sync_id)->delete());
 
         // And the narrow grant it must not have widened.
-        $this->assertTrue($timelog->fresh()->void('Duplicate scan'));
+        $this->assertTrue($timelog->fresh()->void('Duplicate scan', $this->clerk()));
     }
 
     /**
      * The privileges are invisible to every constraint catalog, so they get a
      * read-back of their own: table-level INSERT and SELECT, no DELETE, no
-     * table-wide UPDATE, and UPDATE on exactly two columns.
+     * table-wide UPDATE, and UPDATE on exactly the three columns a void
+     * writes.
+     *
+     * `voided_by` is granted and `user_id` is not, and that asymmetry is the
+     * assertion worth making: a void must be attributable without being able
+     * to rewrite whose punch it was.
      */
-    public function test_the_granted_privileges_are_exactly_insert_select_and_a_two_column_update(): void
+    public function test_the_granted_privileges_are_exactly_insert_select_and_a_three_column_update(): void
     {
         $table = DB::table('information_schema.table_privileges')
             ->where('grantee', 'chronoz')->where('table_name', 'timelogs')
@@ -176,6 +238,17 @@ class TimelogImmutabilityTest extends TestCase
             ->orderBy('column_name')->pluck('column_name')->all();
 
         $this->assertSame(['INSERT', 'SELECT'], $table);
-        $this->assertSame(['reason', 'voided_at'], $columns);
+        $this->assertSame(['reason', 'voided_at', 'voided_by'], $columns);
+    }
+
+    /**
+     * Somebody to attribute a void to. `timelogs_void_pairs_actor` refuses a
+     * void with no actor, so every void in this file needs one — and it is
+     * created on the *app* connection deliberately, because that is the role
+     * whose privileges these tests are about.
+     */
+    private function clerk(): User
+    {
+        return User::factory()->create();
     }
 }

@@ -152,6 +152,65 @@ class TimelogControllerTest extends TestCase
         $this->assertDatabaseHas('timelogs', ['id' => $timelog->id]);
     }
 
+    /**
+     * A void says who performed it.
+     *
+     * It could not before: the app role's UPDATE was granted on
+     * `(voided_at, reason)` only, so writing an actor failed **42501**. The
+     * strike-out of a pay record was the one act in the application nobody
+     * could be held to. `voided_by` is a second column rather than a reuse of
+     * `user_id`, which stays out of the grant so a void can never rewrite
+     * whose punch it was.
+     */
+    public function test_a_void_records_who_performed_it(): void
+    {
+        $agency = Agency::factory()->create();
+        $user = $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = Terminal::factory()->create(['agency_id' => $agency->id]);
+        $timelog = Timelog::factory()->on($terminal)->create();
+
+        $this->patch(route('timelogs.void', $timelog), ['reason' => 'Duplicate scan'])
+            ->assertSessionHas('success');
+
+        $this->assertSame($user->id, $timelog->fresh()->voided_by);
+
+        // And the screen says so. An attribution nobody can read is not one.
+        $this->get(route('timelogs.index', ['voided' => 1]))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('timelogs.0.voider.id', $user->id)
+                ->where('timelogs.0.voider.name', $user->name)
+        );
+    }
+
+    /**
+     * A void is final, and a second one cannot erase the first.
+     *
+     * `voided_at`, `reason` and the actor were all inside the column grant, so
+     * re-voiding was a legal UPDATE that overwrote every one of them — the
+     * audit record erased itself and the second void looked like the only one
+     * there had ever been. Reproduced before the fix: reason became "oops" and
+     * `voided_at` moved. No CHECK can see OLD, so `timelogs_void_is_final` is
+     * a trigger, and its P0001 is translated rather than surfacing as a 500.
+     */
+    public function test_a_voided_punch_cannot_be_voided_again(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = Terminal::factory()->create(['agency_id' => $agency->id]);
+        $timelog = Timelog::factory()->on($terminal)->voided('Duplicate scan')->create();
+
+        $first = $timelog->fresh();
+
+        $this->patch(route('timelogs.void', $timelog), ['reason' => 'oops'])
+            ->assertSessionHas('error');
+
+        $again = $timelog->fresh();
+
+        $this->assertSame('Duplicate scan', $again->reason);
+        $this->assertSame($first->voided_at->toDateTimeString(), $again->voided_at->toDateTimeString());
+        $this->assertSame($first->voided_by, $again->voided_by);
+    }
+
     /** `timelogs_void_needs_reason`, mirrored so the refusal lands on the field. */
     public function test_a_void_without_a_reason_is_refused(): void
     {

@@ -425,7 +425,7 @@ class TimelogTest extends TestCase
 
         $timelog = Timelog::factory()->create();
 
-        $this->assertTrue($timelog->void('Duplicate scan'));
+        $this->assertTrue($timelog->void('Duplicate scan', User::factory()->create(['agency_id' => $timelog->agency_id])));
         $this->assertNotNull($timelog->fresh()->voided_at);
         $this->assertSame('Duplicate scan', $timelog->fresh()->reason);
     }

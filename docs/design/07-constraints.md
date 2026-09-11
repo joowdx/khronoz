@@ -278,9 +278,11 @@ CHECK ((enrollment_id IS NULL) = (employee_id IS NULL))           -- resolved me
 CHECK ((source = 'device') = (sync_id IS NOT NULL))
 CHECK (source <> 'manual' OR user_id IS NOT NULL)                 -- MC 21 s. 1991: who recorded it
 CHECK (voided_at IS NULL OR reason IS NOT NULL)
+CHECK ((voided_at IS NULL) = (voided_by IS NULL))                 -- decision 48: a void says who, both directions
 CHECK (state BETWEEN 0 AND 255) CHECK (mode BETWEEN 0 AND 255)    -- raw ints, unknown values allowed
 -- trigger timelogs_resolve, BEFORE INSERT: sets enrollment_id and employee_id from the enrollment covering
 --   (terminal_id, uid, time::date), or leaves both null; see "Resolution is the database's job"
+-- trigger timelogs_void_is_final, BEFORE UPDATE WHEN (OLD.voided_at IS NOT NULL): raises P0001 (decision 48)
 ```
 
 Immutability is a privilege, not a trigger:
@@ -288,10 +290,14 @@ Immutability is a privilege, not a trigger:
 ```sql
 REVOKE DELETE ON timelogs FROM chronoz;
 REVOKE UPDATE ON timelogs FROM chronoz;
-GRANT  UPDATE (voided_at, reason) ON timelogs TO chronoz;
+GRANT  UPDATE (voided_at, reason, voided_by) ON timelogs TO chronoz;
 ```
 
 The app role can insert and void. It cannot change what the device said, it cannot say who punched, and it cannot delete. Same `REVOKE DELETE` on `syncs`.
+
+`voided_by` is in the grant and `user_id` is not, and that asymmetry is the guarantee: a void is attributable without being able to rewrite whose punch it was.
+
+Privilege stops there, though. With all three void columns writable, a **second** void is a legal UPDATE that overwrites the first one's timestamp, reason and actor — the audit record erases itself. A CHECK cannot see `OLD`, so finality is the one thing on this table enforced by trigger rather than privilege (decision 48).
 
 ### Resolution is the database's job
 
@@ -596,7 +602,8 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 | Can a month be locked while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
 | Can someone certify moving numbers, or move certified numbers? | trigger `attestations_locked`, trigger `ledgers_unlock_clean` |
 | Can a signer be from another agency, or sign a role twice? | paired FK on `(user_id, agency_id)`, `UNIQUE (ledger_id, role)` |
-| Can anyone alter or delete a timelog the device recorded, or claim it for another person? | the app role has no `DELETE`, `UPDATE` only on `voided_at` and `reason`; resolution columns are written by trigger alone |
+| Can anyone alter or delete a timelog the device recorded, or claim it for another person? | the app role has no `DELETE`, `UPDATE` only on `voided_at`, `reason` and `voided_by`; resolution columns and `user_id` are outside the grant |
+| Can a void be untraceable, or quietly rewritten? | `timelogs_void_pairs_actor` requires an actor; `timelogs_void_is_final` refuses every update of an already-voided row |
 
 ## Cost
 
