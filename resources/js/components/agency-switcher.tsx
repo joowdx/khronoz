@@ -48,7 +48,15 @@ function Identity({ agency }: { agency: Agency }) {
             >
                 {tile(agency)}
             </span>
-            <span className="min-w-0 flex-1">
+            {/*
+              The tile survives into the rail and this does not: the tile is
+              already the agency's code, so collapsing loses the full name and
+              nothing else. It is `aria-hidden`, so the name here is the only
+              one a screen reader hears — which is why the switch is `hidden`
+              and not a render branch: the markup stays, the rail just does not
+              draw it.
+            */}
+            <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                 <span className="line-clamp-2 block text-sm leading-[18px] font-semibold">{agency.name}</span>
                 <span className="text-muted-foreground block truncate text-xs leading-4">{descriptor(agency)}</span>
             </span>
@@ -69,8 +77,8 @@ export function AgencySwitcher() {
     // menu form's hover tint can bleed past the text.
     if (!auth?.user?.platform) {
         return (
-            <div className="px-2.5 pt-2.5">
-                <div className="flex items-center gap-2.5 p-1.5">
+            <div className="px-2.5 pt-2.5 group-data-[collapsible=icon]:px-4">
+                <div className="flex items-center gap-2.5 p-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0">
                     <Identity agency={agency} />
                 </div>
             </div>
@@ -78,18 +86,18 @@ export function AgencySwitcher() {
     }
 
     return (
-        <div className="px-2.5 pt-2.5">
+        <div className="px-2.5 pt-2.5 group-data-[collapsible=icon]:px-4">
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <button
                         type="button"
-                        className="hover:bg-side-hover aria-expanded:bg-side-hover flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left transition-[color,background-color,border-color]"
+                        className="hover:bg-side-hover aria-expanded:bg-side-hover flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left transition-[color,background-color,border-color] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
                     >
                         <Identity agency={agency} />
                         <ChevronDown
                             aria-hidden
                             strokeWidth={1.5}
-                            className="text-muted-foreground size-4 shrink-0 self-center"
+                            className="text-muted-foreground size-4 shrink-0 self-center group-data-[collapsible=icon]:hidden"
                         />
                     </button>
                 </DropdownMenuTrigger>

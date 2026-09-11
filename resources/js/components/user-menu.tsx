@@ -53,16 +53,20 @@ export function UserMenu() {
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    className="hover:bg-side-hover aria-expanded:bg-side-hover flex h-10 w-full items-center gap-2.5 rounded-lg px-2 text-left transition-[color,background-color,border-color]"
+                    className="hover:bg-side-hover aria-expanded:bg-side-hover flex h-10 w-full items-center gap-2.5 rounded-lg px-2 text-left transition-[color,background-color,border-color] group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
                 >
                     <Avatar size="md" aria-hidden>
                         <AvatarFallback tint={avatarTint(user.name)}>{initials(user.name)}</AvatarFallback>
                     </Avatar>
-                    <span className="min-w-0 flex-1">
+                    <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                         <span className="block truncate text-[13px] leading-[17px] font-medium">{user.name}</span>
                         <span className="text-muted-foreground block truncate text-xs leading-4">{user.email}</span>
                     </span>
-                    <ChevronDown aria-hidden strokeWidth={1.5} className="text-muted-foreground size-4 shrink-0" />
+                    <ChevronDown
+                        aria-hidden
+                        strokeWidth={1.5}
+                        className="text-muted-foreground size-4 shrink-0 group-data-[collapsible=icon]:hidden"
+                    />
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" sideOffset={6} className="w-[268px]">

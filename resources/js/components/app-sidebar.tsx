@@ -197,14 +197,32 @@ export function AppSidebar() {
     ];
 
     return (
-        <Sidebar>
+        // Collapses to §4.3's 64px rail rather than off-canvas. The trigger in
+        // `page-header.tsx` is the same one either way; what changes is that
+        // the nav stays reachable, which is the point of the rail — the roster
+        // grid needs the width and still needs somewhere to navigate from.
+        //
+        // Every child below is hand-rolled rather than built on
+        // `SidebarMenuButton`, so none of the primitive's own
+        // `group-data-[collapsible=icon]` rules reach them; each carries its
+        // own collapsed variant.
+        <Sidebar collapsible="icon">
             <AgencySwitcher />
-            <DayStrip />
+            {/*
+              Dropped in the rail. It is a 24-hour ruler with a marker on it —
+              at 64px wide the ticks are closer together than the marker is
+              wide, so it would read as a smear rather than a time. The clock
+              it shows is not lost: the same reading is in the page's own
+              subtitle.
+            */}
+            <div className="group-data-[collapsible=icon]:hidden">
+                <DayStrip />
+            </div>
             <NavMain groups={groups} />
-            <div className="border-border border-t px-2.5 py-2">
+            <div className="border-border border-t px-2.5 py-2 group-data-[collapsible=icon]:px-4">
                 <UserMenu />
             </div>
-            <p className="text-muted-foreground px-[18px] pb-3.5 text-xs leading-4 font-bold tracking-[-0.004em]">
+            <p className="text-muted-foreground px-[18px] pb-3.5 text-xs leading-4 font-bold tracking-[-0.004em] group-data-[collapsible=icon]:hidden">
                 khronoz
             </p>
         </Sidebar>
