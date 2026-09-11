@@ -224,6 +224,28 @@ class SyncTest extends TestCase
     }
 
     /**
+     * syncs_counts_nonnegative.
+     *
+     * Adding up is not enough: received = 0, accepted = -4, duplicates
+     * = 4, rejected = 0 still balances and records an impossible completed
+     * run. The numbers here are chosen so syncs_counts_balance passes and
+     * only this CHECK can fire.
+     */
+    public function test_a_counter_cannot_be_negative(): void
+    {
+        $sync = Sync::factory()->create();
+
+        $this->assertDatabaseRefuses('23514', fn () => DB::table('syncs')->insert(
+            $this->syncRow($sync, [
+                'received' => 0,
+                'accepted' => -4,
+                'duplicates' => 4,
+                'rejected' => 0,
+            ])
+        ));
+    }
+
+    /**
      * syncs_span_paired, from the side that reads as the honest mistake: a
      * writer that tracked the first timestamp and forgot the last.
      */
@@ -296,5 +318,16 @@ class SyncTest extends TestCase
     public function test_id_and_agency_id_pair_is_declared_unique(): void
     {
         $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'syncs_id_agency_id_unique'"));
+    }
+
+    /**
+     * syncs_id_terminal_id_unique (Ruling P4): the target of the paired
+     * (sync_id, terminal_id) FK on timelogs. The primary key masks any
+     * violation of the pair, so assert the catalog — dropping it would
+     * silently take the "same terminal" guarantee with it.
+     */
+    public function test_id_and_terminal_id_pair_is_declared_unique(): void
+    {
+        $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'syncs_id_terminal_id_unique'"));
     }
 }

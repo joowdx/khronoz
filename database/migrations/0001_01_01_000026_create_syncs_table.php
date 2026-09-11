@@ -56,6 +56,16 @@ return new class extends Migration
             $table->timestamp('started_at');
             $table->timestamp('finished_at')->nullable();
             $table->smallInteger('drift')->nullable();
+            // `received` is **rows accounted for**, not lines read, and the
+            // difference only shows on the failure path: a run that dies with
+            // a chunk still buffered never accounts for those rows, so they
+            // appear in no counter. That is deliberate rather than a gap —
+            // deriving `received` from the other three is what makes
+            // syncs_counts_balance unbreakable by the writer, and a run that
+            // stopped early says so in `status` and `error`. Raised by the
+            // adversarial review of 2026-09-11 as a possible mismatch between
+            // the column's name and its content; recorded here so the name is
+            // read the way the writer means it.
             $table->integer('received')->default(0);
             $table->integer('accepted')->default(0);
             $table->integer('duplicates')->default(0);
@@ -79,6 +89,12 @@ return new class extends Migration
                 ->restrictOnUpdate();
         });
 
+        // Target for the paired (sync_id, terminal_id) FK on timelogs.
+        // Trivially satisfied — `id` is already unique — and it makes "this
+        // punch came from this terminal's run" structural. A single-column FK
+        // on sync_id alone would let a punch claim another terminal's run.
+        DB::statement('ALTER TABLE syncs ADD CONSTRAINT syncs_id_terminal_id_unique UNIQUE (id, terminal_id)');
+
         DB::statement("ALTER TABLE syncs ADD CONSTRAINT syncs_trigger_valid CHECK (trigger IN ('scheduled', 'manual', 'push', 'import'))");
         DB::statement("ALTER TABLE syncs ADD CONSTRAINT syncs_status_valid CHECK (status IN ('running', 'completed', 'failed'))");
 
@@ -88,6 +104,13 @@ return new class extends Migration
         // standing between a reader and a run that claims to have received
         // more rows than it can account for.
         DB::statement('ALTER TABLE syncs ADD CONSTRAINT syncs_counts_balance CHECK (received = accepted + duplicates + rejected)');
+
+        // And they must be non-negative. A second constraint rather than one
+        // compound CHECK, deliberately: they fail for different reasons and a
+        // test should be able to tell which. Balance alone accepts
+        // received = 0, accepted = -4, duplicates = 4, rejected = 0 — an
+        // impossible completed run that still adds up.
+        DB::statement('ALTER TABLE syncs ADD CONSTRAINT syncs_counts_nonnegative CHECK (received >= 0 AND accepted >= 0 AND duplicates >= 0 AND rejected >= 0)');
 
         // A span is both bounds or neither — the same "resolved means both"
         // discipline `timelogs_resolved_pair` applies. A run that inserted

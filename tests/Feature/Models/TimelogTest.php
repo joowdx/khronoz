@@ -3,6 +3,7 @@
 namespace Tests\Feature\Models;
 
 use App\Models\Enrollment;
+use App\Models\Sync;
 use App\Models\Terminal;
 use App\Models\Timelog;
 use App\Models\User;
@@ -167,7 +168,7 @@ class TimelogTest extends TestCase
     /**
      * The same CHECK from the other side, which is the half a one-directional
      * rule would miss: a manual entry must not borrow a run's provenance.
-     * `user_id` is set so timelogs_manual_needs_user passes and only this
+     * `user_id` is set so timelogs_user_pairs_source passes and only this
      * CHECK can fire.
      */
     public function test_a_manual_timelog_cannot_name_a_sync(): void
@@ -180,13 +181,29 @@ class TimelogTest extends TestCase
         ));
     }
 
-    /** timelogs_manual_needs_user — MC 21 s. 1991: who recorded it. */
+    /** timelogs_user_pairs_source — MC 21 s. 1991: who recorded it. */
     public function test_a_manual_timelog_must_name_the_user_who_entered_it(): void
     {
         $timelog = Timelog::factory()->create();
 
         $this->assertDatabaseRefuses('23514', fn () => DB::table('timelogs')->insert(
             $this->timelogRow($timelog, ['source' => 'manual', 'sync_id' => null, 'user_id' => null])
+        ));
+    }
+
+    /**
+     * The same CHECK from the other side, which is the half a one-directional
+     * rule would miss: a device row must not name a recording user. sync_id
+     * is kept so timelogs_source_pairs_sync passes and only this CHECK can
+     * fire.
+     */
+    public function test_a_device_timelog_cannot_name_a_recording_user(): void
+    {
+        $timelog = Timelog::factory()->create();
+        $user = User::factory()->create(['agency_id' => $timelog->agency_id]);
+
+        $this->assertDatabaseRefuses('23514', fn () => DB::table('timelogs')->insert(
+            $this->timelogRow($timelog, ['user_id' => $user->id])
         ));
     }
 
@@ -268,9 +285,25 @@ class TimelogTest extends TestCase
     }
 
     /**
-     * timelogs_sync_id_foreign gets a catalog assertion rather than a refusal
-     * test, and the reason is a consequence of the privileges rather than a
-     * gap in coverage.
+     * timelogs_sync_id_terminal_id_foreign, insert side. A punch that names
+     * another terminal's run would make that run contain punches it never
+     * ingested. The row keeps this timelog's terminal_id and only swaps
+     * sync_id, so the terminals FK still passes and only this pair can fire.
+     */
+    public function test_sync_must_share_the_timelogs_terminal(): void
+    {
+        $timelog = Timelog::factory()->create();
+        $other = Sync::factory()->create();
+
+        $this->assertDatabaseRefuses('23503', fn () => DB::table('timelogs')->insert(
+            $this->timelogRow($timelog, ['sync_id' => $other->id])
+        ));
+    }
+
+    /**
+     * timelogs_sync_id_terminal_id_foreign gets a catalog assertion rather
+     * than a refusal test, and the reason is a consequence of the privileges
+     * rather than a gap in coverage.
      *
      * The app role has **no DELETE on `syncs` at all**, so through the
      * application connection this answers 42501 — the privilege fires before
@@ -283,14 +316,43 @@ class TimelogTest extends TestCase
      * stops the application and is tested there; the foreign key stops
      * everybody else — a migration, a console command run as the owner, a DBA
      * at a psql prompt — and is asserted here, on the catalog, the same move
-     * Ruling P4 makes for a constraint the primary key masks.
+     * Ruling P4 makes for a constraint the primary key masks. The definition
+     * is the paired one: (sync_id, terminal_id) against syncs (id,
+     * terminal_id), RESTRICT on both sides.
      */
     public function test_the_sync_foreign_key_restricts_deletion(): void
     {
         $this->assertSame(
-            'FOREIGN KEY (sync_id) REFERENCES syncs(id) ON UPDATE RESTRICT ON DELETE RESTRICT',
-            DB::selectOne("select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'timelogs_sync_id_foreign'")->def,
+            'FOREIGN KEY (sync_id, terminal_id) REFERENCES syncs(id, terminal_id) ON UPDATE RESTRICT ON DELETE RESTRICT',
+            DB::selectOne("select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'timelogs_sync_id_terminal_id_foreign'")->def,
         );
+    }
+
+    /**
+     * MATCH SIMPLE on that paired FK. sync_id is nullable and terminal_id
+     * is NOT NULL, so a null sync_id skips the check entirely — which is
+     * what lets a manual row exist at all, rather than the nullable column
+     * being an accident that happens to work. user_id is set so
+     * timelogs_user_pairs_source passes.
+     */
+    public function test_a_manual_timelog_with_no_sync_is_accepted(): void
+    {
+        $timelog = Timelog::factory()->create();
+        $user = User::factory()->create(['agency_id' => $timelog->agency_id]);
+        $id = (string) Str::ulid();
+
+        DB::table('timelogs')->insert($this->timelogRow($timelog, [
+            'id' => $id,
+            'source' => 'manual',
+            'sync_id' => null,
+            'user_id' => $user->id,
+        ]));
+
+        $this->assertDatabaseHas('timelogs', [
+            'id' => $id,
+            'source' => 'manual',
+            'sync_id' => null,
+        ]);
     }
 
     /** timelogs_user_id_foreign, delete side: the person who entered it stays nameable. */

@@ -81,7 +81,17 @@ return new class extends Migration
                 ->restrictOnDelete()
                 ->restrictOnUpdate();
 
-            $table->foreign('sync_id')->references('id')->on('syncs')->restrictOnDelete()->restrictOnUpdate();
+            // Paired, not a single-column FK on sync_id: that would prove the
+            // run exists, and this proves it belongs to the same terminal.
+            // sync_id is nullable (a manual entry has no run) and
+            // terminal_id is NOT NULL — MATCH SIMPLE skips it entirely while
+            // sync_id is null, which is what lets a manual row exist at all.
+            $table->foreign(['sync_id', 'terminal_id'])
+                ->references(['id', 'terminal_id'])
+                ->on('syncs')
+                ->restrictOnDelete()
+                ->restrictOnUpdate();
+
             $table->foreign('user_id')->references('id')->on('users')->restrictOnDelete()->restrictOnUpdate();
         });
 
@@ -153,9 +163,13 @@ return new class extends Migration
         // must not. Both directions, in one CHECK.
         DB::statement("ALTER TABLE timelogs ADD CONSTRAINT timelogs_source_pairs_sync CHECK ((source = 'device') = (sync_id IS NOT NULL))");
 
-        // MC 21 s. 1991: a manually entered time record must say who recorded
-        // it.
-        DB::statement("ALTER TABLE timelogs ADD CONSTRAINT timelogs_manual_needs_user CHECK (source <> 'manual' OR user_id IS NOT NULL)");
+        // Who recorded it, both directions — the same shape
+        // timelogs_source_pairs_sync already uses. MC 21 s. 1991: a
+        // manually entered time record must say who recorded it. The other
+        // direction is what a one-way rule would miss: a device row naming
+        // a recording user contradicts the documented meaning of user_id
+        // ("Who entered it, manual only").
+        DB::statement("ALTER TABLE timelogs ADD CONSTRAINT timelogs_user_pairs_source CHECK ((source = 'manual') = (user_id IS NOT NULL))");
 
         // Voiding is the only correction this table allows, and an unexplained
         // void is worse than none: it removes a punch from the record with
