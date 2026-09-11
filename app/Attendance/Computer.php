@@ -240,7 +240,7 @@ final class Computer
     }
 
     /**
-     * @return list<array{employee_id: string, slot: int, kind: string, expected_at: string, timelog_id: ?string, actual_at: ?string, deviation: ?int}>
+     * @return list<array{employee_id: string, slot: int, kind: string, expected_at: ?string, timelog_id: ?string, actual_at: ?string, deviation: ?int}>
      */
     private function punchRows(Matching $matching): array
     {
@@ -251,7 +251,7 @@ final class Computer
                 'employee_id' => $this->employee->id,
                 'slot' => $punch['slot'],
                 'kind' => $punch['kind'],
-                'expected_at' => $punch['expected_at']->format('Y-m-d H:i:s'),
+                'expected_at' => $punch['expected_at']?->format('Y-m-d H:i:s'),
                 'timelog_id' => $punch['timelog_id'],
                 'actual_at' => $punch['actual_at']?->format('Y-m-d H:i:s'),
                 'deviation' => $punch['deviation'],

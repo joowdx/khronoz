@@ -8,8 +8,14 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * One expected slot side of a workday, and the timelog that filled it, or
-     * null for a missed one (docs/design/06-attendance.md Punch).
+     * One transit of a workday: an expected slot side and the timelog that
+     * filled it, a side no timelog filled, or a tap that answered no
+     * expectation at all (docs/design/06-attendance.md Punch, decision 78).
+     *
+     * `expected_at` is therefore nullable, and the three CHECKs below say
+     * which combinations mean something: every `actual_at` reaches a device
+     * record, a `deviation` needs both an expectation and an arrival to be
+     * the difference of, and a row with neither instant records nothing.
      *
      * `ON DELETE CASCADE` on the workday FK is the one place in this schema
      * that cascades, and it is deliberate: punches are derived rows with no
@@ -27,7 +33,7 @@ return new class extends Migration
             $table->ulid('employee_id');
             $table->smallInteger('slot');
             $table->string('kind');
-            $table->timestamp('expected_at');
+            $table->timestamp('expected_at')->nullable();
             $table->ulid('timelog_id')->nullable();
             $table->timestamp('actual_at')->nullable();
             $table->smallInteger('deviation')->nullable();
@@ -56,7 +62,13 @@ return new class extends Migration
         DB::statement("ALTER TABLE punches ADD CONSTRAINT punches_kind_valid CHECK (kind IN ('in', 'out'))");
         DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_slot_positive CHECK (slot > 0)');
         DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_actual_pairs_timelog CHECK ((timelog_id IS NULL) = (actual_at IS NULL))');
-        DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_deviation_pairs_actual CHECK ((actual_at IS NULL) = (deviation IS NULL))');
+        // Deviation is actual minus expected, so it exists exactly when both
+        // do. On a day with no expectation there is nothing to deviate from
+        // (decision 78) and a zero would read as punctuality nobody measured.
+        DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_deviation_pairs_both CHECK ((deviation IS NULL) = (actual_at IS NULL OR expected_at IS NULL))');
+
+        // A row with neither instant is a punch that records nothing.
+        DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_records_a_time CHECK (expected_at IS NOT NULL OR actual_at IS NOT NULL)');
 
         // Function created in 0001_01_01_000028_prepare_attendance. INSERT
         // only: a punch that already claimed a record survives a later void

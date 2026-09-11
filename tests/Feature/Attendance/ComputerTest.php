@@ -5,6 +5,7 @@ namespace Tests\Feature\Attendance;
 use App\Attendance\Computer;
 use App\Enums\HolidayType;
 use App\Enums\MissingSide;
+use App\Enums\Premium;
 use App\Enums\PunchKind;
 use App\Enums\WorkdayStatus;
 use App\Models\Agency;
@@ -558,6 +559,81 @@ class ComputerTest extends TestCase
         $holiday = $this->workday($employee, '2026-09-14');
         $this->assertSame(WorkdayStatus::Holiday, $holiday->status);
         $this->assertSame(0, $holiday->worked);
+    }
+
+    /**
+     * Decision 78, end to end. Nine hours of duty on a rest day, and before
+     * this the whole day recorded `worked 0 credited 0 excess 0` with no
+     * punch rows: `Matcher::match()` returned nothing when the expectation
+     * was empty, so daily rule 10's "first 480 minutes of actual attendance"
+     * had no attendance to read. Status stays `off` — rule 1, the status
+     * describes the expectation — and the work shows in `credited`,
+     * `excess` and `premium`.
+     */
+    public function test_a_rest_day_worked_records_its_minutes_and_its_punches(): void
+    {
+        $this->agency->update(['settings' => ['premium_hours' => true]]);
+        ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
+
+        // 12 September 2026 is a Saturday and an Off turn.
+        $this->tap($enrollment, '2026-09-12 08:00:00');
+        $this->tap($enrollment, '2026-09-12 12:00:00', 1);
+        $this->tap($enrollment, '2026-09-12 13:00:00');
+        $this->tap($enrollment, '2026-09-12 18:00:00', 1);
+
+        $this->compute($employee, '2026-09-12', '2026-09-12');
+
+        $workday = $this->workday($employee, '2026-09-12');
+        $this->assertSame(WorkdayStatus::Off, $workday->status);
+        $this->assertSame(Premium::Rest, $workday->premium);
+        $this->assertSame(0, $workday->worked);
+        $this->assertSame(480, $workday->credited);
+        $this->assertSame(60, $workday->excess);
+        $this->assertSame(0, $workday->tardy);
+        $this->assertSame(0, $workday->undertime);
+
+        $punches = $workday->punches()->orderBy('slot')->orderBy('kind')->get();
+        $this->assertCount(4, $punches);
+
+        foreach ($punches as $punch) {
+            $this->assertNull($punch->expected_at, 'a transit answers no expectation');
+            $this->assertNull($punch->deviation);
+            $this->assertNotNull($punch->timelog_id);
+        }
+
+        $this->assertSame(
+            ['08:00', '12:00', '13:00', '18:00'],
+            $punches->map(fn (Punch $punch): string => $punch->actual_at->format('H:i'))->sort()->values()->all(),
+        );
+    }
+
+    /**
+     * The same for a non-working holiday, which the calendar empties by a
+     * different road (05-calendar.md rule 1) and which arrives at the same
+     * matcher. `credited` stays 0 under CSC, where `premium_hours` is false
+     * and holiday work is `excess` against an authority — the minutes are
+     * recorded either way, which is the point.
+     */
+    public function test_a_non_working_holiday_worked_records_its_minutes(): void
+    {
+        ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
+        Holiday::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-09',
+            'type' => HolidayType::Special,
+        ]);
+
+        $this->tap($enrollment, '2026-09-09 08:00:00');
+        $this->tap($enrollment, '2026-09-09 17:00:00', 1);
+
+        $this->compute($employee, '2026-09-09', '2026-09-09');
+
+        $workday = $this->workday($employee, '2026-09-09');
+        $this->assertSame(WorkdayStatus::Holiday, $workday->status);
+        $this->assertSame(Premium::Special, $workday->premium);
+        $this->assertSame(0, $workday->credited);
+        $this->assertSame(540, $workday->excess);
+        $this->assertSame(2, $workday->punches()->count());
     }
 
     /**

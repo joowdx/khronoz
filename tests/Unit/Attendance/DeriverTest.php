@@ -85,8 +85,28 @@ class DeriverTest extends TestCase
     }
 
     /**
+     * A tap on a day that expected nothing (decision 78) — no expectation
+     * to be near, so no deviation. This is the only shape the matcher
+     * produces when the sides are empty, and the rule 10 fixtures below
+     * used the expected/actual shape it cannot.
+     *
+     * @return array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}
+     */
+    private function transit(int $slot, string $kind, string $actual): array
+    {
+        return [
+            'slot' => $slot,
+            'kind' => $kind,
+            'expected_at' => null,
+            'timelog_id' => 'tl'.$slot.$kind,
+            'actual_at' => $this->at($actual),
+            'deviation' => null,
+        ];
+    }
+
+    /**
      * @param  list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}>  $sides
-     * @param  list<array{slot: int, kind: string, expected_at: CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}>  $punches
+     * @param  list<array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}>  $punches
      */
     private function matching(array $sides, array $punches): Matching
     {
@@ -361,10 +381,10 @@ class DeriverTest extends TestCase
     public function test_credited_is_the_first_480_of_presence_on_a_premium_day(): void
     {
         $matching = $this->matching([], [
-            $this->punch(1, PunchKind::In->value, '2026-09-08 08:00:00', '2026-09-08 08:00:00'),
-            $this->punch(1, PunchKind::Out->value, '2026-09-08 12:00:00', '2026-09-08 12:00:00'),
-            $this->punch(2, PunchKind::In->value, '2026-09-08 12:00:00', '2026-09-08 12:00:00'),
-            $this->punch(2, PunchKind::Out->value, '2026-09-08 20:00:00', '2026-09-08 20:00:00'),
+            $this->transit(1, PunchKind::In->value, '2026-09-08 08:00:00'),
+            $this->transit(1, PunchKind::Out->value, '2026-09-08 12:00:00'),
+            $this->transit(2, PunchKind::In->value, '2026-09-08 12:00:00'),
+            $this->transit(2, PunchKind::Out->value, '2026-09-08 20:00:00'),
         ]);
 
         $derived = $this->derive(
@@ -379,8 +399,8 @@ class DeriverTest extends TestCase
     public function test_credited_stays_zero_when_premium_hours_is_false(): void
     {
         $matching = $this->matching([], [
-            $this->punch(1, PunchKind::In->value, '2026-09-08 08:00:00', '2026-09-08 08:00:00'),
-            $this->punch(1, PunchKind::Out->value, '2026-09-08 16:00:00', '2026-09-08 16:00:00'),
+            $this->transit(1, PunchKind::In->value, '2026-09-08 08:00:00'),
+            $this->transit(1, PunchKind::Out->value, '2026-09-08 16:00:00'),
         ]);
 
         $derived = $this->derive(
@@ -399,10 +419,10 @@ class DeriverTest extends TestCase
     public function test_travel_zeroes_excess_and_leaves_night_excess(): void
     {
         $matching = $this->matching([], [
-            $this->punch(1, PunchKind::In->value, '2026-09-08 08:00:00', '2026-09-08 08:00:00'),
-            $this->punch(1, PunchKind::Out->value, '2026-09-08 12:00:00', '2026-09-08 12:00:00'),
-            $this->punch(2, PunchKind::In->value, '2026-09-08 12:00:00', '2026-09-08 12:00:00'),
-            $this->punch(2, PunchKind::Out->value, '2026-09-08 20:00:00', '2026-09-08 20:00:00'),
+            $this->transit(1, PunchKind::In->value, '2026-09-08 08:00:00'),
+            $this->transit(1, PunchKind::Out->value, '2026-09-08 12:00:00'),
+            $this->transit(2, PunchKind::In->value, '2026-09-08 12:00:00'),
+            $this->transit(2, PunchKind::Out->value, '2026-09-08 20:00:00'),
         ]);
 
         $derived = $this->derive(

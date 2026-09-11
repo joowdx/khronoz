@@ -93,13 +93,40 @@ class PunchTest extends TestCase
         ));
     }
 
-    public function test_expected_at_is_required(): void
+    /**
+     * punches_records_a_time. `expected_at` is nullable since decision 78 —
+     * a tap on a day that expected nothing is a real punch — so what the
+     * schema still refuses is a row holding neither instant, which records
+     * nothing whatever.
+     */
+    public function test_a_punch_must_hold_an_expectation_or_an_arrival(): void
     {
         $punch = Punch::factory()->create();
 
-        $this->assertDatabaseRefuses('23502', fn () => DB::table('punches')->insert(
-            $this->punchRow($punch, ['expected_at' => null])
-        ));
+        $this->assertDatabaseRefuses('23514', fn () => DB::table('punches')->insert(
+            $this->punchRow($punch, [
+                'expected_at' => null,
+                'timelog_id' => null,
+                'actual_at' => null,
+                'deviation' => null,
+            ])
+        ), 'punches_records_a_time');
+    }
+
+    /** Decision 78: the transit itself is accepted, expectation and deviation null. */
+    public function test_a_tap_with_no_expectation_is_accepted(): void
+    {
+        $punch = Punch::factory()->create();
+        $spare = $this->resolvedTimelog($punch->agency_id, $punch->employee_id);
+
+        DB::table('punches')->insert($this->punchRow($punch, [
+            'expected_at' => null,
+            'timelog_id' => $spare->id,
+            'actual_at' => '2026-09-15 17:01:00',
+            'deviation' => null,
+        ]));
+
+        $this->assertDatabaseHas('punches', ['timelog_id' => $spare->id, 'expected_at' => null]);
     }
 
     /** Ruling P4: the primary key masks the pair, so assert the catalog. */
@@ -240,8 +267,13 @@ class PunchTest extends TestCase
         ), 'punches_actual_pairs_timelog');
     }
 
-    /** punches_deviation_pairs_actual. Isolated from actual_pairs_timelog by setting both timelog and actual. */
-    public function test_deviation_and_actual_at_are_both_set_or_both_null(): void
+    /**
+     * punches_deviation_pairs_both. A deviation is actual minus expected, so
+     * it exists exactly when both do (decision 78) — three refusals, one per
+     * way of holding one instant and a number derived from two. Isolated
+     * from actual_pairs_timelog by setting timelog and actual together.
+     */
+    public function test_deviation_needs_both_an_expectation_and_an_arrival(): void
     {
         $punch = Punch::factory()->create();
         $spare = $this->resolvedTimelog($punch->agency_id, $punch->employee_id);
@@ -252,10 +284,18 @@ class PunchTest extends TestCase
                 'actual_at' => '2026-09-15 17:01:00',
                 'deviation' => null,
             ])
-        ), 'punches_deviation_pairs_actual');
+        ), 'punches_deviation_pairs_both');
         $this->assertDatabaseRefuses('23514', fn () => DB::table('punches')->insert(
             $this->punchRow($punch, ['timelog_id' => null, 'actual_at' => null, 'deviation' => 5])
-        ), 'punches_deviation_pairs_actual');
+        ), 'punches_deviation_pairs_both');
+        $this->assertDatabaseRefuses('23514', fn () => DB::table('punches')->insert(
+            $this->punchRow($punch, [
+                'expected_at' => null,
+                'timelog_id' => $spare->id,
+                'actual_at' => '2026-09-15 17:01:00',
+                'deviation' => 1,
+            ])
+        ), 'punches_deviation_pairs_both');
     }
 
     /** punches_workday_id_employee_id_foreign, insert side. */

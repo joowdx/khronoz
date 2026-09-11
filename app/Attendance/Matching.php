@@ -10,13 +10,15 @@ use Carbon\CarbonImmutable;
  *
  * No logic: Matcher produces this and the deriver reads it. A missed
  * side keeps timelog_id, actual_at and deviation all null — never a
- * synthesised time (decision 64).
+ * synthesised time (decision 64). A day with no expectation has no
+ * sides and punches whose expected_at and deviation are null instead,
+ * which is the same refusal pointing the other way (decision 78).
  */
 final readonly class Matching
 {
     /**
      * @param  list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}>  $sides
-     * @param  list<array{slot: int, kind: string, expected_at: CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}>  $punches
+     * @param  list<array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}>  $punches
      */
     public function __construct(
         public array $sides,

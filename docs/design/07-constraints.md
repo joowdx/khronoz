@@ -644,13 +644,17 @@ FOREIGN KEY (workday_id, employee_id) REFERENCES workdays (id, employee_id) ON D
 FOREIGN KEY (timelog_id, employee_id) REFERENCES timelogs (id, employee_id)                     -- same person, and resolved
 UNIQUE (workday_id, slot, kind)
 CREATE UNIQUE INDEX punches_timelog ON punches (timelog_id) WHERE timelog_id IS NOT NULL         -- one timelog fills one slot side, ever
-CHECK ((timelog_id IS NULL) = (actual_at IS NULL))
+CHECK ((timelog_id IS NULL) = (actual_at IS NULL))                                              -- every arrival reaches a device record
+CHECK ((deviation IS NULL) = (actual_at IS NULL OR expected_at IS NULL))                        -- actual minus expected needs both
+CHECK (expected_at IS NOT NULL OR actual_at IS NOT NULL)                                        -- a punch holding neither records nothing
 CHECK (kind IN ('in', 'out'))
 CHECK (slot > 0)
 -- trigger punches_timelog_live, BEFORE INSERT: raise if the timelog has voided_at set
 ```
 
 The composite FK to timelogs does more than it looks: an unresolved timelog has `employee_id` null, so it can never match a punch's non-null `employee_id`. A punch can only ever use a resolved timelog.
+
+`expected_at` is **nullable** (decision 78) and the three CHECKs above are what a punch's shape then means. A row with an expectation and no arrival is a missed side; one with both is a filled side and carries the deviation between them; one with an arrival and no expectation is a tap on a day that expected nothing — a rest day, a non-working holiday or a suspension worked through — where there is no deviation to record and a zero would claim a punctuality nobody measured. A row with neither is refused, because it is a punch that records no time at all.
 
 ## The complicated relationships, answered
 

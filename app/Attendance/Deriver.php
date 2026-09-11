@@ -23,7 +23,7 @@ use Carbon\CarbonImmutable;
  *
  * @phpstan-type Range array{0: CarbonImmutable, 1: CarbonImmutable}
  * @phpstan-type Side array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}
- * @phpstan-type Punch array{slot: int, kind: string, expected_at: CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}
+ * @phpstan-type Punch array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}
  */
 final class Deriver
 {
@@ -73,13 +73,16 @@ final class Deriver
                 $start = $inAt;
                 $end = $outAt;
             } elseif ($missingSide === MissingSide::Assume && $in !== null && $out !== null && ($inAt !== null xor $outAt !== null)) {
+                // Null on both sides is decision 78's transit, not a
+                // half-filled slot: there is no expectation to assume
+                // toward, so `assume` has nothing to substitute.
                 $start = $inAt ?? $in['expected_at'];
                 $end = $outAt ?? $out['expected_at'];
             } else {
                 continue;
             }
 
-            if ($start->lt($end)) {
+            if ($start !== null && $end !== null && $start->lt($end)) {
                 $presence[] = [$start, $end];
             }
         }

@@ -359,18 +359,19 @@ export interface Overtime {
 }
 
 /**
- * Matches `PunchResource`. One expected slot side of a workday, and the
- * timelog that filled it — or null.
+ * Matches `PunchResource`. One transit of a workday: an expected slot side
+ * and the tap that filled it, a side nothing filled, or a tap that answered
+ * no expectation.
  */
 export interface Punch {
     id: string;
     slot: number;
     kind: Choice;
-    /** `YYYY-MM-DD HH:MM:SS`. */
-    expected_at: string;
+    /** `YYYY-MM-DD HH:MM:SS`. Null on a day that expected nothing (decision 78). */
+    expected_at: string | null;
     /** Null means no tap filled this side. Never engine-invented (decision 64). */
     actual_at: string | null;
-    /** Minutes from `expected_at`; negative is early. Null with `actual_at`. */
+    /** Minutes from `expected_at`; negative is early. Null unless both instants exist. */
     deviation: number | null;
     timelog_id: string | null;
 }

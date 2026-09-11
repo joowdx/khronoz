@@ -63,6 +63,20 @@ class MatcherTest extends TestCase
     /**
      * @param  array{slot: int, kind: string, expected_at: mixed, timelog_id: ?string, actual_at: mixed, deviation: ?int}  $punch
      */
+    /**
+     * @param  array<string, mixed>  $punch
+     */
+    private function assertTransit(array $punch, int $slot, string $kind, string $timelogId, string $actual): void
+    {
+        $this->assertSame($slot, $punch['slot']);
+        $this->assertSame($kind, $punch['kind']);
+        $this->assertNull($punch['expected_at']);
+        $this->assertNull($punch['deviation']);
+        $this->assertSame($timelogId, $punch['timelog_id']);
+        $this->assertInstanceOf(CarbonImmutable::class, $punch['actual_at']);
+        $this->assertSame($actual, $punch['actual_at']->format('Y-m-d H:i:s'));
+    }
+
     private function assertPunch(
         array $punch,
         int $slot,
@@ -114,16 +128,78 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 17:00:00', 'd', '2026-09-08 17:05:00', 5);
     }
 
-    /** Nothing was expected, so there are no punches, however many taps there are. */
-    public function test_empty_sides_return_no_punches(): void
+    /**
+     * Decision 78: nothing was expected, but the device still saw the day.
+     * The taps pair off in time order — first and second are slot 1, third
+     * and fourth slot 2 — with no `expected_at` to be near and therefore no
+     * deviation. Before this a rest day worked recorded nothing at all and
+     * daily rule 10's first 480 minutes had no input.
+     */
+    public function test_empty_sides_pair_the_taps_in_time_order(): void
     {
         $matching = Matcher::match([], [
-            $this->tap('a', '2026-09-08 08:00:00'),
+            $this->tap('a', '2026-09-12 08:00:00'),
+            $this->tap('b', '2026-09-12 12:00:00', 1),
+            $this->tap('c', '2026-09-12 13:00:00'),
+            $this->tap('d', '2026-09-12 17:00:00', 1),
         ], 180, false);
 
         $this->assertInstanceOf(Matching::class, $matching);
         $this->assertSame([], $matching->sides);
+        $this->assertCount(4, $matching->punches);
+        $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
+        $this->assertTransit($matching->punches[1], 1, 'out', 'b', '2026-09-12 12:00:00');
+        $this->assertTransit($matching->punches[2], 2, 'in', 'c', '2026-09-12 13:00:00');
+        $this->assertTransit($matching->punches[3], 2, 'out', 'd', '2026-09-12 17:00:00');
+    }
+
+    /** No taps, no punches — the day is unattended, not unrecorded. */
+    public function test_empty_sides_and_no_taps_return_no_punches(): void
+    {
+        $matching = Matcher::match([], [], 180, false);
+
+        $this->assertSame([], $matching->sides);
         $this->assertSame([], $matching->punches);
+    }
+
+    /** An odd tap is an arrival with no departure, and measures nothing. */
+    public function test_an_odd_tap_on_an_expectation_free_day_is_a_lone_in(): void
+    {
+        $matching = Matcher::match([], [
+            $this->tap('a', '2026-09-12 08:00:00'),
+            $this->tap('b', '2026-09-12 12:00:00', 1),
+            $this->tap('c', '2026-09-12 13:00:00'),
+        ], 180, false);
+
+        $this->assertCount(3, $matching->punches);
+        $this->assertTransit($matching->punches[2], 2, 'in', 'c', '2026-09-12 13:00:00');
+    }
+
+    /**
+     * The `state` hint is not consulted here, however the shift is
+     * configured (decision 78): the order already says which side a tap is,
+     * and a hint contradicting it has no conflict rule. Both taps below
+     * claim to be check-ins and the second is still slot 1's out.
+     */
+    public function test_the_state_hint_does_not_override_the_order(): void
+    {
+        $matching = Matcher::match([], [
+            $this->tap('a', '2026-09-12 08:00:00'),
+            $this->tap('b', '2026-09-12 17:00:00'),
+        ], 180, true);
+
+        $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
+        $this->assertTransit($matching->punches[1], 1, 'out', 'b', '2026-09-12 17:00:00');
+    }
+
+    /** Decision 60 holds here too: seconds are truncated, never rounded. */
+    public function test_a_transit_truncates_its_seconds(): void
+    {
+        $matching = Matcher::match([], [
+            $this->tap('a', '2026-09-12 08:00:59'),
+        ], 180, false);
+
+        $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
     }
 
     /**
