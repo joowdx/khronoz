@@ -115,7 +115,7 @@ Schedule `Standard week`, length 7: Standard ×5, Off ×2. One roster per employ
   { "in": "12:00", "out": "16:00", "window": [-60, 360] } ]
 ```
 
-Arrive 08:23: offset 83, expected becomes 08:23–12:23 and 13:23–17:23. Arrive 10:30: offset capped at 180, expected 10:00–14:00 and 15:00–19:00, tardy 30. Same `Standard week` schedule with Flexi in place of Standard.
+Arrive 08:23: offset 83, expected becomes 08:23–12:23 and 13:23–17:23. Arrive 10:30: offset capped at 180, expected 10:00–14:00 and 15:00–19:00, tardy 30. Arrive 06:30, before the band opens: offset **0**, expected stays 07:00–11:00 and 12:00–16:00 (decision 59). The offset floors at zero — flexitime grants an arrival band, not a free choice of workday, so an early arrival cannot manufacture an early departure. Those minutes are not lost: they are early presence and accrue as `excess` like any other. Same `Standard week` schedule with Flexi in place of Standard.
 
 **Compressed work week, Res. 2600838.** Shift `Long`, required 600.
 
