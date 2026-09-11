@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -55,18 +56,79 @@ class AppRoleGrants
         $db->statement("ALTER DEFAULT PRIVILEGES FOR ROLE {$owner} IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {$role}");
         $db->statement("ALTER DEFAULT PRIVILEGES FOR ROLE {$owner} IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {$role}");
 
-        // migrations is the one table the migrator itself must be able to
-        // write; the app role never runs a migration, so it keeps SELECT (in
-        // case anything needs to read migration history) but not the write
-        // privileges the blanket grant above just gave it. REVOKE is
-        // naturally idempotent, so re-running it here on an already-restricted
-        // database is harmless — that is what lets `db:grant` restore this
-        // narrower state after an owner-role rotation, since the blanket
-        // GRANT ON ALL TABLES above re-grants the app role write access to
-        // every existing table, `migrations` included, on every re-run.
-        $db->statement("REVOKE INSERT, UPDATE, DELETE ON migrations FROM {$role}");
+        // Everything the blanket grant above hands out and must not have kept.
+        // It runs here as well as from the migrations that own each table,
+        // because `db:grant` re-runs apply() and would otherwise silently
+        // restore write access every time.
+        static::restrict($connection);
 
         return $role;
+    }
+
+    /**
+     * Narrow the app role back down on the tables that must not be freely
+     * writable.
+     *
+     * **This is the whole of the immutability guarantee.** `03-terminals.md`
+     * rule 1 says a timelog is immutable and nothing is ever pruned, and it is
+     * "enforced by privilege" — this method is that privilege. A REVOKE
+     * written only into a table's own migration is silently undone by the next
+     * deploy, because `apply()` grants CRUD on *all* tables and `db:grant`
+     * re-runs it after an owner-role rotation. There would be no error and no
+     * failing test; immutability would simply stop existing.
+     *
+     * So the statements live here, in the class both callers share, and the
+     * migrations call this rather than writing their own — the same reasoning
+     * that already kept the `migrations` REVOKE out of
+     * 0000_00_00_000001_prepare_application_database.
+     *
+     * Every statement is guarded by `to_regclass`, so a fresh install — where
+     * apply() runs long before `timelogs` exists — is a no-op here and the
+     * timelogs migration applies it at the right point in dependency order.
+     *
+     * REVOKE is idempotent, so re-running on an already-restricted database
+     * costs nothing, which is exactly what makes `db:grant` a safe recovery.
+     */
+    public static function restrict(string $connection = 'owner'): void
+    {
+        $db = DB::connection($connection);
+
+        $role = static::quoteIdentifier(config('database.connections.pgsql.username'));
+
+        // The migrator's own bookkeeping. The app role never runs a migration,
+        // so it keeps SELECT and loses the writes the blanket grant gave it.
+        static::narrow($db, 'migrations', ["REVOKE INSERT, UPDATE, DELETE ON migrations FROM {$role}"]);
+
+        // A timelog is what the device said. The app may add one and may mark
+        // one bad; it may not change what was recorded, say who punched, or
+        // remove the row. The predecessor had four independent ways to delete
+        // one of these — a flush verb, a two-year prune scheduled every
+        // minute, and cascades from both the scanner and its own self-FK — and
+        // this is what makes all four unbuildable rather than merely unwritten.
+        static::narrow($db, 'timelogs', [
+            "REVOKE DELETE, UPDATE ON timelogs FROM {$role}",
+            "GRANT UPDATE (voided_at, reason) ON timelogs TO {$role}",
+        ]);
+
+        // A run record that can be deleted is a run that can be denied.
+        static::narrow($db, 'syncs', ["REVOKE DELETE ON syncs FROM {$role}"]);
+    }
+
+    /**
+     * Run $statements only if $table exists, so a fresh install can call
+     * restrict() before the later tables are created.
+     *
+     * @param  list<string>  $statements
+     */
+    protected static function narrow(Connection $db, string $table, array $statements): void
+    {
+        if ($db->selectOne('select to_regclass(?) as present', ['public.'.$table])->present === null) {
+            return;
+        }
+
+        foreach ($statements as $statement) {
+            $db->statement($statement);
+        }
     }
 
     /**

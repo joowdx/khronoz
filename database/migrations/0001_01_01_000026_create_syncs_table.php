@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\AppRoleGrants;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -95,6 +96,11 @@ return new class extends Migration
 
         // And ordered, which the predecessor's first-and-last-row span was not.
         DB::statement('ALTER TABLE syncs ADD CONSTRAINT syncs_span_ordered CHECK (latest IS NULL OR latest >= earliest)');
+
+        // A run record that can be deleted is a run that can be denied. The
+        // statement lives in AppRoleGrants::restrict() so `db:grant` restores
+        // it; see that method and the timelogs migration.
+        AppRoleGrants::restrict();
     }
 
     public function down(): void

@@ -267,12 +267,30 @@ class TimelogTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('terminals')->where('id', $timelog->terminal_id)->delete());
     }
 
-    /** timelogs_sync_id_foreign, delete side: a run cannot be erased out from under its rows. */
-    public function test_sync_with_a_timelog_cannot_be_deleted(): void
+    /**
+     * timelogs_sync_id_foreign gets a catalog assertion rather than a refusal
+     * test, and the reason is a consequence of the privileges rather than a
+     * gap in coverage.
+     *
+     * The app role has **no DELETE on `syncs` at all**, so through the
+     * application connection this answers 42501 — the privilege fires before
+     * the foreign key is ever consulted, and a test written against it would
+     * re-prove what TimelogImmutabilityTest already covers while leaving the
+     * FK itself uncovered. Nor can the owner connection stand in: it is a
+     * separate session and cannot see rows this test has not committed.
+     *
+     * So the two layers are asserted where each is reachable. The privilege
+     * stops the application and is tested there; the foreign key stops
+     * everybody else — a migration, a console command run as the owner, a DBA
+     * at a psql prompt — and is asserted here, on the catalog, the same move
+     * Ruling P4 makes for a constraint the primary key masks.
+     */
+    public function test_the_sync_foreign_key_restricts_deletion(): void
     {
-        $timelog = Timelog::factory()->create();
-
-        $this->assertDatabaseRefuses('23001', fn () => DB::table('syncs')->where('id', $timelog->sync_id)->delete());
+        $this->assertSame(
+            'FOREIGN KEY (sync_id) REFERENCES syncs(id) ON UPDATE RESTRICT ON DELETE RESTRICT',
+            DB::selectOne("select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'timelogs_sync_id_foreign'")->def,
+        );
     }
 
     /** timelogs_user_id_foreign, delete side: the person who entered it stays nameable. */

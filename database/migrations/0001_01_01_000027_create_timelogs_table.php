@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\AppRoleGrants;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -175,6 +176,17 @@ return new class extends Migration
                 BEFORE INSERT ON timelogs
                 FOR EACH ROW EXECUTE FUNCTION timelogs_resolve();
         SQL);
+
+        // Immutability. `03-terminals.md` rule 1 is enforced by privilege, not
+        // by trigger — the app role loses DELETE and all of UPDATE except the
+        // two columns a void needs.
+        //
+        // The statements live in AppRoleGrants::restrict() rather than here,
+        // and that placement is the point: `db:grant` re-runs apply(), which
+        // grants CRUD on every table, so a REVOKE written only into this
+        // migration would be silently undone by the next deploy after an
+        // owner-role rotation — no error, no failing test, no immutability.
+        AppRoleGrants::restrict();
 
         // And the re-resolution trigger on `enrollments`, created **here**
         // rather than in that table's own migration: it writes to `timelogs`,
