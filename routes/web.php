@@ -7,6 +7,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
 use App\Http\Controllers\TerminalController;
+use App\Http\Controllers\TerminalEnrollmentController;
 use App\Http\Controllers\TerminalSyncController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
@@ -57,6 +58,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
         Route::resource('terminals', TerminalController::class)->except(['show']);
+        // Who a terminal can identify, over time — and in effect the
+        // terminal's own page: TerminalController has no `show` because a
+        // terminal's facts fit in the list, but its people do not. Scoped
+        // bindings so an enrollment of another terminal 404s.
+        Route::get('terminals/{terminal}/enrollments', [TerminalEnrollmentController::class, 'index'])
+            ->name('terminals.enrollments.index');
+        Route::post('terminals/{terminal}/enrollments', [TerminalEnrollmentController::class, 'store'])
+            ->name('terminals.enrollments.store');
+        Route::patch('terminals/{terminal}/enrollments/{enrollment}', [TerminalEnrollmentController::class, 'update'])
+            ->scopeBindings()
+            ->name('terminals.enrollments.update');
         // Ingestion. A sync is a *record of a run*, so creating one is the act
         // of importing — hence POST to the collection rather than a verb URL.
         // Milestone 5 ships file import only (decision 40); push and pull will

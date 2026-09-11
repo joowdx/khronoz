@@ -62,9 +62,13 @@ class TerminalResource extends JsonResource
             // captured anything", which are two different questions.
             'enrolled_count' => $this->whenCounted('enrolled'),
             'timelogs_count' => $this->whenCounted('timelogs'),
-            // Set only when the index asked for it, so a missing value can
-            // never read as "never".
-            'last_import_at' => $this->whenNotNull($this->last_import_at),
+            // `whenHas`, not `whenNotNull`: the latter evaluates its argument
+            // eagerly, so on a terminal loaded without the index's `withMax`
+            // — `edit`, or the enrollments page — Model::shouldBeStrict()
+            // throws on an attribute the query never selected. `whenHas` asks
+            // the model whether the key is there at all, which is the actual
+            // question. Absent still never reads as "never".
+            'last_import_at' => $this->whenHas('last_import_at'),
         ];
     }
 }

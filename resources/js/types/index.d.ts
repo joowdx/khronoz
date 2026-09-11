@@ -145,6 +145,29 @@ export interface Terminal {
 }
 
 /**
+ * Matches `EnrollmentResource`. Which employee is which device user id on which
+ * terminal, and when.
+ *
+ * A **date range**, not a flag: `covering(date)` has at most one answer,
+ * which is what lets the database resolve a punch deterministically. `uid` is
+ * an opaque string (decision 42) — `007` is not `7`. `starts`/`ends` are
+ * `YYYY-MM-DD` and are never reparsed (`lib/dates.ts`).
+ */
+export interface Enrollment {
+    id: string;
+    employee_id: string;
+    employee?: Employee | null;
+    terminal_id: string;
+    /** The device user id, exactly as the device reports it. */
+    uid: string;
+    privilege: string;
+    starts: string;
+    ends: string | null;
+    /** Whether punches resolve through this row today. */
+    current: boolean;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.

@@ -14,3 +14,12 @@ A count added by `withCount` is exposed with `whenCounted()`, so the key is abse
 Alias the count for what it answers, not for the relation it walks: `withCount(['deployments as people_count' => fn ($q) => $q->whereNull('ends')])` is a headcount, and `workgroups/index` also asks for the unaliased `deployments_count` because "who is here now" and "has anyone ever been here" are two different questions and one number cannot serve both.
 
 Date-cast columns are sent as `->toDateString()`, never as the Carbon instance: app.timezone is Asia/Manila, and a bare date attribute JSON-serializes as a UTC instant, which for a positive offset always names the day before. The TS side types them `string` and never reparses them (`lib/dates.ts`).
+
+## whenHas for an aggregate, never whenNotNull
+To expose a column or aggregate that only some queries select, use `$this->whenHas('key')`. Do not use `$this->whenNotNull($this->key)`.
+
+`whenNotNull` takes a *value*, so `$this->key` is evaluated before the method runs. On a model loaded by a query that did not select that key, `Model::shouldBeStrict()` (AppServiceProvider) throws `MissingAttributeException` — and inside a controller that surfaces as a 500 and, in a test, as the unhelpful "Not a valid Inertia response".
+
+`whenHas` asks the model whether the attribute exists at all, which is the actual question, and still keeps the key absent so a missing value can never read as zero or "never".
+
+Found on `TerminalResource::last_import_at`, added by a `withMax` that only the index issues: `edit` and the enrollments page load the same terminal without it and both 500'd. Counts are already safe — `whenCounted` checks for the key rather than reading it.

@@ -1,5 +1,5 @@
 import { Form, Link, router } from '@inertiajs/react';
-import { MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon, UploadIcon } from 'lucide-react';
+import { MoreHorizontalIcon, PencilIcon, PlusIcon, Trash2Icon, UploadIcon, UsersRoundIcon } from 'lucide-react';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -38,6 +38,7 @@ import { formatDay } from '@/lib/dates';
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
 import { create, destroy, edit } from '@/routes/terminals';
+import { index as enrollments } from '@/routes/terminals/enrollments';
 import { store as importTimelogs } from '@/routes/terminals/syncs';
 import type { Terminal } from '@/types';
 
@@ -204,12 +205,28 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                                             <span className="text-muted-foreground">Never</span>
                                         )}
                                     </TableCell>
+                                    {/*
+                                      The count is a link, because the answer to
+                                      "nobody is enrolled" is always "go and
+                                      enrol somebody" — and because without a
+                                      row there, every punch this device
+                                      captures arrives unattributed. "Nobody" is
+                                      a word rather than a 0 for the same
+                                      reason: it is the most consequential fact
+                                      on the row, and a zero reads as
+                                      unremarkable.
+                                    */}
                                     <TableCell className="text-right tabular-nums">
-                                        {terminal.enrolled_count === 0 ? (
-                                            <span className="text-muted-foreground">Nobody</span>
-                                        ) : (
-                                            terminal.enrolled_count
-                                        )}
+                                        <Link
+                                            href={enrollments(terminal)}
+                                            className="hover:text-foreground underline-offset-4 hover:underline"
+                                        >
+                                            {terminal.enrolled_count === 0 ? (
+                                                <span className="text-muted-foreground">Nobody</span>
+                                            ) : (
+                                                terminal.enrolled_count
+                                            )}
+                                        </Link>
                                     </TableCell>
                                     <TableCell className="text-right tabular-nums">
                                         {terminal.timelogs_count.toLocaleString()}
@@ -259,6 +276,12 @@ function RowMenu({ terminal, manage }: { terminal: TerminalRow; manage: boolean 
                     <DropdownMenuItem onSelect={() => setImporting(true)}>
                         <UploadIcon aria-hidden strokeWidth={1.5} />
                         Import timelogs…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={enrollments(terminal)} className="w-full">
+                            <UsersRoundIcon aria-hidden strokeWidth={1.5} />
+                            Enrolled people
+                        </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                         <Link href={edit(terminal)} className="w-full">
