@@ -6,6 +6,8 @@ use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
 use App\Enums\OvertimeMode;
 use App\Enums\Sex;
+use App\Enums\TerminalKind;
+use App\Enums\TerminalProtocol;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -33,6 +35,8 @@ class EnumCheckContractTest extends TestCase
             'holidays.type' => [HolidayType::class, '0001_01_01_000019_create_holidays_table.php', 'holidays_type_valid'],
             'exemptions.type' => [ExemptionType::class, '0001_01_01_000021_create_exemptions_table.php', 'exemptions_type_valid'],
             'overtimes.mode' => [OvertimeMode::class, '0001_01_01_000022_create_overtimes_table.php', 'overtimes_mode_valid'],
+            'terminals.kind' => [TerminalKind::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_kind_valid'],
+            'terminals.protocol' => [TerminalProtocol::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_protocol_valid'],
         ];
     }
 

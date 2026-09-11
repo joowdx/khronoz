@@ -73,7 +73,7 @@ CREATE UNIQUE INDEX agencies_platform ON agencies (platform) WHERE platform     
 -- trigger agencies_platform_row: the platform row cannot be deleted; `platform` cannot change after insert
 -- trigger agency_not_platform on employees, workgroups, terminals, teams, BEFORE INSERT OR UPDATE OF agency_id:
 --   raise if the agency is the platform row
---   Milestone 2 applies it to employees and workgroups only; terminals arrive in M5, teams in M3
+--   applied to employees and workgroups in M2, teams in M3, terminals in M5
 ```
 
 ### workgroups

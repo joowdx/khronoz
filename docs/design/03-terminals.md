@@ -36,6 +36,7 @@ erDiagram
     }
     ENROLLMENTS {
         ulid id PK
+        ulid agency_id FK
         ulid employee_id FK
         ulid terminal_id FK
         string uid "device user id, the value the attlog carries"
@@ -56,6 +57,7 @@ erDiagram
     }
     SYNCS {
         ulid id PK
+        ulid agency_id FK
         ulid terminal_id FK
         enum trigger "scheduled, manual, push, import"
         timestamp started_at
@@ -67,9 +69,13 @@ erDiagram
         int rejected
         enum status
         text error
+        string reference "source filename, import only"
+        timestamp earliest "min(time) ingested this run"
+        timestamp latest "max(time) ingested this run"
     }
     TIMELOGS {
         ulid id PK
+        ulid agency_id FK
         ulid terminal_id FK
         ulid sync_id FK "nullable for manual"
         ulid employee_id FK "nullable = unresolved"
@@ -119,3 +125,17 @@ erDiagram
 | 5 | overtime out | | | |
 
 Labels for `mode` to be validated against the device manual; the integers stay as the device sends them.
+
+## Open items
+
+1. **How a manual timelog resolves.** Rule 3 makes `employee_id` the database's job, and
+   `timelogs_resolve()` finds the enrollment covering `(terminal_id, uid, time::date)` — so a manual
+   entry needs the employee already enrolled on the terminal it names, and there is no path to record
+   a punch for someone who never was. That is self-consistent but was never stated, and nothing
+   decides it: M5 ships the schema for `source = 'manual'` (the CHECKs requiring `user_id` and
+   forbidding a `sync_id`) but no manual writer. Settle it when the writer is built — the question is
+   whether `terminal_id` should be nullable for a manual row, which would change the natural key.
+2. **The read offset on a shared device.** `stamp` is per terminal, so two agencies sharing one
+   physical device (the predecessor allowed it) would share a read position. khronoz's terminals are
+   per-agency by `agency_not_platform`, so the case cannot arise today; it returns if device sharing
+   is ever asked for.
