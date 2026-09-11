@@ -6,8 +6,9 @@ use App\Enums\MissingSide;
 use App\Models\Agency;
 
 /**
- * Typed reader over `Agency::$settings` for the six keys Milestone 6 reads
- * (decision 56, following decision 15's "one jsonb column, one PHP class").
+ * Typed reader over `Agency::$settings` for the seven keys Milestone 6
+ * reads (decisions 56 and 83, following decision 15's "one jsonb column,
+ * one PHP class").
  *
  * Written without this, each key becomes an inline
  * `$agency->settings['night_from'] ?? '18:00'` at whichever call site needed
@@ -65,6 +66,30 @@ final class Settings
     public function premiumHours(): bool
     {
         return $this->get('premium_hours') ?? false;
+    }
+
+    /**
+     * Whether JC 2 s. 2015 §10's conditions on compensable overtime apply
+     * (decision 83). Default true, the civil-service case.
+     *
+     * They are one instrument's conditions and stand or fall together: a
+     * pre-filed authority, arrival on time, at least two hours rendered,
+     * and at most twelve paid on a rest day or holiday. The Labor Code has
+     * none of them — Art. 87 makes work beyond the prescribed hours
+     * overtime by operation of law, Art. 88 forbids offsetting it against
+     * undertime, and `../../docs/reference/dole-rules.md` section G records
+     * that a private employer authorises overtime by their own act, so the
+     * authority row "is optional here".
+     *
+     * One key and not four, because `dole-rules.md` section H keys each
+     * *divergence* rather than each clause, and these four diverge as one.
+     * The regime itself is deliberately never stored: khronoz enforces the
+     * rule an agency configures and does not adjudicate which law binds
+     * them.
+     */
+    public function overtimeGates(): bool
+    {
+        return $this->get('overtime_gates') ?? true;
     }
 
     /** A slot missing one side (daily rule 4). Default `Void`. */

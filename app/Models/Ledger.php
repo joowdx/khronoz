@@ -127,7 +127,7 @@ class Ledger extends Model
         $overtime = 0;
 
         if ($includeOvertime) {
-            $overtime = $this->compensableDaily($workdays, $authorities)
+            $overtime = $this->compensableDaily($workdays, $authorities, $settings->overtimeGates())
                 + $this->weeklyOnly($loaded, $from, $to, $ceiling);
         }
 
@@ -196,18 +196,28 @@ class Ledger extends Model
      * whose excess it covers, because that workday is dated the day the
      * shift began (decision 54).
      *
-     * **What keeps a `travel` day out is the two-hour floor, not the
-     * intersection.** Daily rule 7 zeroes that day's `excess` without
-     * leaving a mark on the punches, so the reconstruction still finds
-     * minutes there and only `excess < 120` stops them being paid. A
-     * regime without §10's floor — the Labor Code has none — needs its own
-     * guard, and this is the note for whoever adds it.
+     * **All four conditions are JC 2 s. 2015 §10's and are switched off
+     * together** by `settings.overtime_gates` (decision 83). Where they do
+     * not apply, Art. 87 makes the excess overtime by operation of law and
+     * the day contributes the whole of it: no authority, because
+     * `dole-rules.md` section G records that a private employer authorises
+     * overtime by their own act and the row "is optional here"; no
+     * punctuality, because Art. 88 forbids offsetting overtime against
+     * undertime; no floor and no cap, because neither has a counterpart.
+     *
+     * A `travel` day needs no separate guard in either regime: daily rule 7
+     * zeroes its `excess`, which the floor catches on one side and which
+     * contributes nothing on the other.
      *
      * @param  Collection<int, Workday>  $workdays
      * @param  Collection<int, Overtime>  $authorities
      */
-    private function compensableDaily(Collection $workdays, Collection $authorities): int
+    private function compensableDaily(Collection $workdays, Collection $authorities, bool $gated): int
     {
+        if (! $gated) {
+            return (int) $workdays->sum('excess');
+        }
+
         $windows = $authorities
             ->map(fn (Overtime $overtime): array => [
                 CarbonImmutable::parse($overtime->starts->format('Y-m-d H:i:s')),

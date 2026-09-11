@@ -178,6 +178,7 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 | `rest_day_after` | `null` | `6` | **M3**, schedule validation |
 | `overtime_after` | the prescribed shift length, 8 by default | 8, or **12** under a compliant CWW | M6 |
 | `overtime_after_weekly` | none | **48** | M6 |
+| `overtime_gates` | `true` | **`false`** | M6, decision 83 — JC 2 s. 2015 §10's four conditions on compensable overtime (a pre-filed authority, arrival on time, two hours rendered, twelve paid at most). One key for four clauses because they are one instrument's and diverge together; the Labor Code has no counterpart to any of them |
 | `night_from` | `18:00` | `22:00` | M6, frozen into the workday snapshot — decision 33 |
 | `premium_hours` | `false` | **`true`** | M6, decision 51 — Arts. 93–94 premium regular hours; CSC has no such concept |
 | `missing_side` | `void` | `void` | M6, decision 56 — daily rule 4's policy for a slot punched on one side only. Listed here for the register, **not** a regime divergence: both columns are the same value and the choice is the agency's |

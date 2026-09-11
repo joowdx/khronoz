@@ -479,6 +479,65 @@ class LedgerViewTest extends TestCase
     }
 
     /**
+     * Decision 83. JC 2 s. 2015 §10's four conditions — a pre-filed
+     * authority, arrival on time, two hours rendered, twelve hours paid at
+     * most — were applied to every agency. The Labor Code has none of them:
+     * Art. 87 makes work beyond the prescribed hours overtime by operation
+     * of law and Art. 88 forbids offsetting it against undertime. With the
+     * gates off, an employer who files nothing and an employee who arrived
+     * late still report the day's whole excess.
+     */
+    public function test_ungated_overtime_is_the_whole_excess_with_no_authority(): void
+    {
+        $ledger = $this->ledger(['overtime_gates' => false]);
+        $workday = $this->workday($ledger, '2026-09-01', ['tardy' => 30, 'excess' => 90]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:30:00', '2026-09-01 18:30:00');
+
+        $view = $ledger->view(Period::Full);
+
+        $this->assertSame(90, $view->overtime);
+        $this->assertSame(30, $view->tardy);
+    }
+
+    /** And no twelve-hour cap: §10.5 has no Labor Code counterpart either. */
+    public function test_ungated_overtime_is_not_capped_on_a_premium_day(): void
+    {
+        $ledger = $this->ledger(['overtime_gates' => false]);
+        $workday = $this->workday($ledger, '2026-09-01', [
+            'status' => WorkdayStatus::Off,
+            'premium' => Premium::Rest,
+            'excess' => 800,
+        ]);
+        $this->punched($workday, null, null, '2026-09-01 06:00:00', '2026-09-01 19:20:00');
+
+        $this->assertSame(800, $ledger->view(Period::Full)->overtime);
+    }
+
+    /**
+     * A `travel` day still contributes nothing with the gates off, and it
+     * needs no guard of its own to do so: daily rule 7 has already zeroed
+     * the column this sums.
+     */
+    public function test_ungated_overtime_still_excludes_a_zeroed_day(): void
+    {
+        $ledger = $this->ledger(['overtime_gates' => false]);
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 0]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+
+        $this->assertSame(0, $ledger->view(Period::Full)->overtime);
+    }
+
+    /** Work::Regular still reports zero: the switch is the gates, not the view. */
+    public function test_ungated_overtime_is_still_suppressed_by_regular_work(): void
+    {
+        $ledger = $this->ledger(['overtime_gates' => false]);
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+
+        $this->assertSame(0, $ledger->view(Period::Full, Work::Regular)->overtime);
+    }
+
+    /**
      * Daily rule 7: a `travel` exemption zeroes the day's excess and leaves
      * the punches alone, so the reconstruction still finds minutes on it.
      * §10's two-hour floor is what keeps them unpaid — a regime without the

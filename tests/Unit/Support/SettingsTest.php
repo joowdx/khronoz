@@ -24,6 +24,7 @@ class SettingsTest extends TestCase
         $this->assertTrue($settings->occurrences());
         $this->assertTrue($settings->suspensionCharge());
         $this->assertFalse($settings->premiumHours());
+        $this->assertTrue($settings->overtimeGates());
         $this->assertSame(MissingSide::Void, $settings->missingSide());
     }
 
@@ -35,6 +36,7 @@ class SettingsTest extends TestCase
             'occurrences' => null,
             'suspension_charge' => null,
             'premium_hours' => null,
+            'overtime_gates' => null,
             'missing_side' => null,
         ]);
 
@@ -43,6 +45,7 @@ class SettingsTest extends TestCase
         $this->assertTrue($settings->occurrences());
         $this->assertTrue($settings->suspensionCharge());
         $this->assertFalse($settings->premiumHours());
+        $this->assertTrue($settings->overtimeGates());
         $this->assertSame(MissingSide::Void, $settings->missingSide());
     }
 
@@ -54,6 +57,7 @@ class SettingsTest extends TestCase
             'occurrences' => false,
             'suspension_charge' => false,
             'premium_hours' => true,
+            'overtime_gates' => false,
             'missing_side' => 'assume',
         ]);
 
@@ -62,6 +66,7 @@ class SettingsTest extends TestCase
         $this->assertFalse($settings->occurrences());
         $this->assertFalse($settings->suspensionCharge());
         $this->assertTrue($settings->premiumHours());
+        $this->assertFalse($settings->overtimeGates());
         $this->assertSame(MissingSide::Assume, $settings->missingSide());
     }
 
