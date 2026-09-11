@@ -3,7 +3,9 @@
 namespace Tests\Feature\Models;
 
 use App\Models\Agency;
+use App\Models\Enrollment;
 use App\Models\Terminal;
+use App\Models\Timelog;
 use App\Models\Workgroup;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -261,6 +263,44 @@ class TerminalTest extends TestCase
         $terminal = Terminal::factory()->create();
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('terminals')->where('id', $terminal->id)->update(['agency_id' => $platform->id]));
+    }
+
+    /**
+     * **Renumbering a device rewrites nothing.**
+     *
+     * `terminals.code` is the device number as it appears in the attlog, and
+     * it changes: devices get reset, swapped between offices, or renumbered
+     * when a second one arrives. Every timelog references `terminals.id`, an
+     * immutable ULID, so a renumber touches exactly one column on one row.
+     *
+     * The predecessor pointed `timelogs.device` at `scanners.uid` — the
+     * number itself — under `ON UPDATE CASCADE`, so renumbering a device
+     * silently rewrote the attlog natural key of every punch it had ever
+     * captured, in two tables at once, while a `saved()` hook pushed the same
+     * change into the enrollment rows. This asserts the history stays put and
+     * stays attributed.
+     *
+     * Note also what is *not* being renamed here: `timelogs.uid` is the device
+     * **user** id — which person — and is a different column entirely. The
+     * audit records that the predecessor called three unrelated things `uid`.
+     */
+    public function test_renumbering_a_terminal_does_not_rewrite_its_history(): void
+    {
+        $enrollment = Enrollment::factory()->create(['uid' => '0042']);
+        $this->withTenant(Agency::findOrFail($enrollment->agency_id));
+
+        $terminal = Terminal::findOrFail($enrollment->terminal_id);
+        $punch = Timelog::factory()->resolving($enrollment)->create();
+
+        $terminal->update(['code' => '999']);
+
+        $after = $punch->fresh();
+
+        $this->assertSame('999', $terminal->fresh()->code);
+        $this->assertSame('0042', $after->uid, 'the device user id is not the device number');
+        $this->assertSame($terminal->id, $after->terminal_id);
+        $this->assertSame($enrollment->employee_id, $after->employee_id, 'the punch stays attributed');
+        $this->assertSame($punch->time->toDateTimeString(), $after->time->toDateTimeString());
     }
 
     /** Ruling P4: the primary key masks the pair, so assert the catalog. */
