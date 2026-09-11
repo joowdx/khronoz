@@ -592,11 +592,11 @@ FOREIGN KEY (shift_id, agency_id)           REFERENCES shifts (id, agency_id)
 FOREIGN KEY (exemption_id, employee_id)     REFERENCES exemptions (id, employee_id)       -- the exemption is this person's
 UNIQUE (employee_id, date)
 UNIQUE (id, employee_id)                                          -- target for the punch FK
-CHECK (status IN ('present', 'absent', 'off', 'holiday', 'exempt', 'suspended', 'remote'))
-CHECK (premium IS NULL OR premium IN ('rest', 'special', 'regular'))   -- decision 51; null is an ordinary day
+CHECK (status IN ('present', 'absent', 'off', 'holiday', 'exempt', 'suspended', 'remote'))   -- workdays_status_valid
+CHECK (premium IS NULL OR premium IN ('rest', 'special', 'regular'))   -- workdays_premium_valid; null is an ordinary day (decision 51)
 CHECK (worked >= 0 AND credited >= 0 AND tardy >= 0 AND undertime >= 0
-       AND excess >= 0 AND night >= 0 AND night_excess >= 0)
-CHECK (credited = 0 OR premium IS NOT NULL)                            -- credited minutes need a class to be credited at
+       AND excess >= 0 AND night >= 0 AND night_excess >= 0)           -- workdays_minutes_not_negative
+CHECK (credited = 0 OR premium IS NOT NULL)                            -- workdays_credited_needs_premium
 CHECK (shift IS NULL OR jsonb_typeof(shift) = 'object')
 ```
 

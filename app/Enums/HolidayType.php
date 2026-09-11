@@ -39,4 +39,22 @@ enum HolidayType: string
             self::Local => 'Local holiday',
         };
     }
+
+    /**
+     * Whether a holiday of this type keeps the shift. **True only for
+     * `Working`** (decision 49, 05-calendar.md rule 1) — Philippine practice
+     * treats a holiday declared by ordinance as a special non-working day
+     * unless the ordinance says otherwise, so `Local` expects no work and
+     * its worked time is premium-rated at the special rate.
+     *
+     * This is the one place that decides, exactly as `ExemptionType::excuses()`
+     * is for exemptions. A `match` in the deriver was rejected for the reason
+     * a map in TypeScript was rejected by the enum-label rule: a second
+     * statement of the truth table drifts from the first, and here the drift
+     * is a silent ordinary day on an LGU holiday.
+     */
+    public function expectsWork(): bool
+    {
+        return $this === self::Working;
+    }
 }

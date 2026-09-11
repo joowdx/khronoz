@@ -151,19 +151,11 @@ final class RestPeriod
 
             $intervals[] = [
                 'position' => $position,
-                'from' => $offset + self::minutes($slots[0]['in']),
-                'to' => $offset + self::minutes($slots[count($slots) - 1]['out']),
+                'from' => $offset + Minutes::of($slots[0]['in']),
+                'to' => $offset + Minutes::of($slots[count($slots) - 1]['out']),
             ];
         }
 
         return array_values($intervals);
-    }
-
-    /** 'HH:MM' to minutes, where the hour may exceed 24 and roll into later days. */
-    private static function minutes(string $time): int
-    {
-        [$hours, $minutes] = array_map('intval', explode(':', $time));
-
-        return $hours * 60 + $minutes;
     }
 }
