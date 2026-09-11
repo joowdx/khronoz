@@ -11,6 +11,7 @@ use App\Http\Resources\LedgerResource;
 use App\Http\Resources\WorkdayResource;
 use App\Models\Ledger;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +28,14 @@ use Inertia\Response;
  * belongs on show, where the view is computed once. Locking and unlocking
  * are the only writes; the database's triggers are the rule (decision 70),
  * and the P0001s they raise are translated here rather than surfacing as 500s.
+ *
+ * `employee` is loaded `withTrashed()`. That is deliberately unlike every
+ * other screen in the application — nothing else uses `withTrashed()` —
+ * because a DTR is a historical pay record, not a live roster.
+ * `RemoveEmployee` closes the open placement and soft-deletes the person,
+ * and their final month is exactly the ledger that still has to be locked
+ * and signed. The index join does not apply the soft-delete scope, so the
+ * row is listed either way; without `withTrashed()` it would render nameless.
  */
 class LedgerController extends Controller
 {
@@ -41,7 +50,11 @@ class LedgerController extends Controller
         $ledgers = Ledger::query()
             ->select('ledgers.*')
             ->join('employees', 'employees.id', '=', 'ledgers.employee_id')
-            ->with('employee')
+            ->with([
+                'employee' => fn (BelongsTo $employee) => $employee
+                    ->withTrashed()
+                    ->with('currentDeployment.workgroup'),
+            ])
             ->withCount('workdays')
             ->withSum('workdays as worked', 'worked')
             ->withSum('workdays as tardy', 'tardy')
@@ -75,11 +88,16 @@ class LedgerController extends Controller
         $period = Period::tryFrom($request->string('period')->trim()->toString()) ?? Period::Full;
         $work = Work::tryFrom($request->string('work')->trim()->toString());
 
-        $ledger->load('employee');
+        $ledger->load([
+            'employee' => fn (BelongsTo $employee) => $employee
+                ->withTrashed()
+                ->with('currentDeployment.workgroup'),
+        ]);
 
         $view = $ledger->view($period, $work);
         $view->workdays->load([
             'punches' => fn (HasMany $punches) => $punches->orderBy('slot')->orderBy('expected_at'),
+            'exemption',
         ]);
 
         return Inertia::render('ledgers/show', [

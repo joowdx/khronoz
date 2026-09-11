@@ -2,11 +2,15 @@
 
 namespace Tests\Feature\Models;
 
+use App\Attendance\Day;
+use App\Attendance\Snapshot;
 use App\Models\Employee;
 use App\Models\Exemption;
 use App\Models\Ledger;
 use App\Models\Shift;
 use App\Models\Workday;
+use App\Support\Settings;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -388,8 +392,44 @@ class WorkdayTest extends TestCase
         $workday = Workday::factory()->create();
 
         $this->assertIsArray($workday->shift);
-        $this->assertSame('Standard', $workday->shift['name']);
-        $this->assertArrayHasKey('slots', $workday->shift);
+        $this->assertSame('Standard', $workday->shift['shift']['name']);
+        $this->assertArrayHasKey('slots', $workday->shift['shift']);
+    }
+
+    /**
+     * A factory that invents a json shape is a test that proves nothing
+     * (.ai/rules/factories.md). Keys are read off Snapshot::of() itself —
+     * a hand-written list is a third shape that drifts with the other two.
+     */
+    public function test_the_factory_snapshot_matches_what_the_orchestrator_writes(): void
+    {
+        $workday = Workday::factory()->create();
+        $this->withTenant($workday->agency);
+
+        $canonical = Snapshot::of(
+            new Day(
+                date: CarbonImmutable::parse($workday->date->toDateString()),
+                shift: $workday->resolvedShift,
+                sides: [],
+                status: null,
+                premium: null,
+                excused: [],
+                travel: false,
+                exemptionId: null,
+                nightFrom: '18:00',
+            ),
+            new Settings($workday->agency),
+            [],
+            [],
+        );
+        $fabricated = $workday->shift;
+
+        // jsonb does not preserve key order; the contract is the set of keys.
+        $keys = fn (array $value): array => collect(array_keys($value))->sort()->values()->all();
+
+        $this->assertSame($keys($canonical), $keys($fabricated));
+        $this->assertSame($keys($canonical['shift']), $keys($fabricated['shift']));
+        $this->assertSame($keys($canonical['settings']), $keys($fabricated['settings']));
     }
 
     /**

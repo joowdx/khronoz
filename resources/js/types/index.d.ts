@@ -399,6 +399,11 @@ export interface Workday {
     night: number;
     night_excess: number;
     punches?: Punch[];
+    /**
+     * Stamped exemption, when one applies. A personal slip is still recorded
+     * and printed (06-attendance.md daily rule 7). Absent when not loaded.
+     */
+    exemption?: { id: string; type: Choice; reference: string | null } | null;
     /** Null when no shift was rostered. The frozen name, not the live one. */
     shift_name: string | null;
     computed_at: string;

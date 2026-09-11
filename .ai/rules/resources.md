@@ -70,3 +70,6 @@ The closure form needs no manual `=== null` check; the framework has already ret
 Ask "can this parent soft-delete?" as well as "is the FK nullable?". Either answer yes means the closure form.
 
 Found by the 2026-09-11 four-way audit (Cursor).
+
+## shift_name is nested under the snapshot
+WorkdayResource.shift_name is $this->shift['shift']['name'], never $this->shift['name'] and never resolvedShift()->name. Snapshot::of() nests the shift (decision 69). The flat path is the pre-orchestrator factory fiction that left the Shift column empty on every real row. Workday rule 2: rename the live shifts row after the workday exists and the page must still show the frozen name.

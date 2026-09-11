@@ -2,13 +2,18 @@
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
 use App\Enums\WorkdayStatus;
 use App\Models\Agency;
+use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Ledger;
 use App\Models\Punch;
+use App\Models\Shift;
 use App\Models\Workday;
+use App\Models\Workgroup;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -31,12 +36,58 @@ class WorkdayControllerTest extends TestCase
 
         $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
             fn (Assert $page) => $page
-                ->component('workdays/index', false)
+                ->component('workdays/index')
                 ->has('workdays', 1)
                 ->where('workdays.0.id', $mine->id)
                 ->where('workdays.0.date', '2026-09-15')
                 ->where('workdays.0.shift_name', 'Standard')
                 ->where('workdays.0.worked', 480)
+        );
+    }
+
+    /**
+     * Workday rule 2: the name on the page is the frozen snapshot, not the
+     * live `shifts` row. Renaming the row after the workday exists would
+     * otherwise still look like a pass — factory and live both said
+     * Standard until they were forced apart.
+     */
+    public function test_the_shift_name_is_the_frozen_snapshot_not_the_live_row(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+
+        $shift = Shift::factory()->create([
+            'agency_id' => $agency->id,
+            'name' => 'Standard',
+        ]);
+        Workday::factory()->create([
+            'agency_id' => $agency->id,
+            'shift_id' => $shift->id,
+            'date' => '2026-09-15',
+        ]);
+
+        $this->withTenant($agency);
+        $shift->update(['name' => 'Graveyard']);
+
+        $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
+            fn (Assert $page) => $page->where('workdays.0.shift_name', 'Standard')
+        );
+    }
+
+    /**
+     * August is the earlier date, so a missing month filter would hand that
+     * row back as `workdays.0`. The assertion is the September id.
+     */
+    public function test_the_index_is_scoped_to_the_requested_month(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+
+        $september = Workday::factory()->create(['agency_id' => $agency->id, 'date' => '2026-09-15']);
+        Workday::factory()->create(['agency_id' => $agency->id, 'date' => '2026-08-15']);
+
+        $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
+            fn (Assert $page) => $page->where('workdays.0.id', $september->id)
         );
     }
 
@@ -173,5 +224,119 @@ class WorkdayControllerTest extends TestCase
         $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
             fn (Assert $page) => $page->has('employees', 1)->where('employees.0.id', $mine->id)
         );
+    }
+
+    /**
+     * A DTR is a historical pay record. RemoveEmployee soft-deletes; without
+     * `withTrashed()` the row is listed nameless through the living-rows scope.
+     */
+    public function test_a_removed_employees_september_still_carries_their_name(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+
+        $employee = Employee::factory()->create([
+            'agency_id' => $agency->id,
+            'first_name' => 'Amihan',
+            'middle_name' => null,
+            'last_name' => 'Reyes',
+            'suffix' => null,
+        ]);
+        $ledger = Ledger::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'month' => '2026-09-01',
+        ]);
+        $workday = Workday::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'ledger_id' => $ledger->id,
+            'date' => '2026-09-15',
+        ]);
+
+        $this->withTenant($agency);
+        app(RemoveEmployee::class)->handle($employee->fresh());
+
+        $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('workdays.0.id', $workday->id)
+                ->where('workdays.0.employee.name', 'Amihan Reyes')
+        );
+    }
+
+    /**
+     * `currentDeployment.workgroup` is eager-loaded on a page of rows.
+     * Model::shouldBeStrict() only arms the lazy-loading guard once a
+     * collection holds more than one model, so one row cannot catch a
+     * missing nested load — only one row versus many, same query count.
+     */
+    public function test_listing_many_workdays_issues_the_same_queries_as_one(): void
+    {
+        $this->travelTo('2026-09-11 12:00:00');
+
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Treasury']);
+        $this->dayOn($agency, $workgroup, '2026-09-01', ['last_name' => 'Aaa']);
+
+        // The first request hydrates the acting user; counting starts after that.
+        $this->get(route('workdays.index', ['month' => '2026-09']));
+
+        $queries = 0;
+        $counting = false;
+        DB::listen(function () use (&$queries, &$counting): void {
+            if ($counting) {
+                $queries++;
+            }
+        });
+
+        $counting = true;
+        $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
+            fn (Assert $page) => $page->where('workdays.0.employee.current_deployment.workgroup.name', 'Treasury')
+        );
+        $counting = false;
+        $few = $queries;
+
+        foreach (range(2, 15) as $n) {
+            $this->dayOn($agency, $workgroup, '2026-09-15', ['last_name' => sprintf('Zzz %02d', $n)]);
+        }
+
+        $queries = 0;
+        $counting = true;
+        $this->get(route('workdays.index', ['month' => '2026-09']));
+        $counting = false;
+
+        $this->assertSame($few, $queries);
+        $this->assertGreaterThan(0, $few);
+    }
+
+    /**
+     * @param  array<string, mixed>  $employee
+     */
+    private function dayOn(Agency $agency, Workgroup $workgroup, string $date, array $employee = []): Workday
+    {
+        $person = Employee::factory()->create([
+            'agency_id' => $agency->id,
+            ...$employee,
+        ]);
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $person->id,
+            'workgroup_id' => $workgroup->id,
+            'starts' => '2020-01-01',
+            'ends' => null,
+        ]);
+        $ledger = Ledger::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $person->id,
+            'month' => '2026-09-01',
+        ]);
+
+        return Workday::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $person->id,
+            'ledger_id' => $ledger->id,
+            'date' => $date,
+        ]);
     }
 }

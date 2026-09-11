@@ -22,3 +22,6 @@ The same mechanic is why `TestCase::assertDatabaseRefuses` runs its closure insi
 
 ## Ledger index sends aggregates, never a view
 GET /ledgers lists withCount('workdays') and withSum of worked, tardy and undertime. Do not call Ledger::view() per row and do not send overtime on the index — overtime is a figure of the DTR page, computed once on show.
+
+## Attendance records load removed employees
+Ledgers index, the DTR page and the workdays index load employee withTrashed() plus currentDeployment.workgroup. A DTR is a historical pay record — RemoveEmployee soft-deletes the person and their final month still has to be locked and signed. Nothing else in the application uses withTrashed(); do not drop it to “make it consistent” with other screens. The DTR also eager-loads exemption on the view's workdays (nullable FK: WorkdayResource uses the closure form of whenLoaded).

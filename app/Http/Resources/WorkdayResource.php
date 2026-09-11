@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Employee;
+use App\Models\Exemption;
 use App\Models\Workday;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -11,10 +12,14 @@ use Illuminate\Support\Collection;
 /**
  * Matches the `Workday` interface in resources/js/types/index.d.ts.
  *
- * `shift_name` is the frozen snapshot (`$workday->shift['name']`), never the
- * live `shifts` row — Workday rule 2. `resolvedShift()` is provenance and
- * this resource must not load it. `date` is a date-cast column, sent as
- * `YYYY-MM-DD` (.ai/rules/resources.md).
+ * `shift_name` is the frozen snapshot (`$workday->shift['shift']['name']`),
+ * never the live `shifts` row — Workday rule 2. `resolvedShift()` is
+ * provenance and this resource must not load it. `date` is a date-cast
+ * column, sent as `YYYY-MM-DD` (.ai/rules/resources.md).
+ *
+ * `exemption` is the stamp on the day, not ExemptionResource: id, type as a
+ * Choice, and reference. A personal slip still prints (daily rule 7).
+ * `exemption_id` is nullable, so this uses the closure form of `whenLoaded`.
  *
  * @mixin Workday
  */
@@ -46,7 +51,15 @@ class WorkdayResource extends JsonResource
                 'punches',
                 fn (Collection $punches) => PunchResource::collection($punches)->resolve(),
             ),
-            'shift_name' => ($this->shift ?? [])['name'] ?? null,
+            'exemption' => $this->whenLoaded(
+                'exemption',
+                fn (Exemption $exemption) => [
+                    'id' => $exemption->id,
+                    'type' => ['value' => $exemption->type->value, 'label' => $exemption->type->label()],
+                    'reference' => $exemption->reference,
+                ],
+            ),
+            'shift_name' => $this->shift['shift']['name'] ?? null,
             'computed_at' => $this->computed_at->toDateTimeString(),
         ];
     }

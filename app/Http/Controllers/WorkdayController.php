@@ -10,6 +10,7 @@ use App\Models\Ledger;
 use App\Models\Workday;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -22,6 +23,15 @@ use Inertia\Response;
  * The filter the screen exists for is **attention**: a day whose status is
  * absent, or that still has a punch with no `actual_at`. Pickers sit behind
  * closures so a partial reload of the list does not re-query them.
+ *
+ * `employee` is loaded `withTrashed()`. That is deliberately unlike every
+ * other screen in the application — nothing else uses `withTrashed()` —
+ * because a workday is a line of a DTR, and a DTR is a historical pay
+ * record, not a live roster. `RemoveEmployee` closes the open placement
+ * and soft-deletes the person, and their final month is exactly the ledger
+ * that still has to be locked and signed. The index join does not apply
+ * the soft-delete scope, so the row is listed either way; without
+ * `withTrashed()` it would render nameless.
  */
 class WorkdayController extends Controller
 {
@@ -44,7 +54,9 @@ class WorkdayController extends Controller
             ->select('workdays.*')
             ->join('employees', 'employees.id', '=', 'workdays.employee_id')
             ->with([
-                'employee',
+                'employee' => fn (BelongsTo $employee) => $employee
+                    ->withTrashed()
+                    ->with('currentDeployment.workgroup'),
                 'punches' => fn (HasMany $punches) => $punches->orderBy('slot')->orderBy('expected_at'),
             ])
             ->where('workdays.month', $month->toDateString())
