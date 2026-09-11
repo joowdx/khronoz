@@ -45,11 +45,12 @@ return new class extends Migration
         // index probe and no extra index.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION timelogs_resolve() RETURNS trigger
-            LANGUAGE plpgsql SECURITY DEFINER AS $$
+            LANGUAGE plpgsql SECURITY DEFINER
+            SET search_path = pg_catalog, pg_temp AS $$
             BEGIN
                 SELECT enrollments.id, enrollments.employee_id
                   INTO NEW.enrollment_id, NEW.employee_id
-                  FROM enrollments
+                  FROM public.enrollments
                  WHERE enrollments.terminal_id = NEW.terminal_id
                    AND enrollments.uid = NEW.uid
                    AND daterange(enrollments.starts, enrollments.ends, '[]') @> NEW.time::date;
@@ -77,7 +78,8 @@ return new class extends Migration
         // reaches and the one that keeps a narrowed range honest.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION enrollments_reresolve() RETURNS trigger
-            LANGUAGE plpgsql SECURITY DEFINER AS $$
+            LANGUAGE plpgsql SECURITY DEFINER
+            SET search_path = pg_catalog, pg_temp AS $$
             DECLARE
                 pair record;
             BEGIN
@@ -91,9 +93,9 @@ return new class extends Migration
                      WHERE candidate.terminal_id IS NOT NULL
                        AND candidate.uid IS NOT NULL
                 LOOP
-                    UPDATE timelogs
+                    UPDATE public.timelogs
                        SET enrollment_id = enrollments.id, employee_id = enrollments.employee_id
-                      FROM enrollments
+                      FROM public.enrollments
                      WHERE timelogs.terminal_id = pair.terminal_id
                        AND timelogs.uid = pair.uid
                        AND enrollments.terminal_id = timelogs.terminal_id
@@ -102,13 +104,13 @@ return new class extends Migration
                        AND (timelogs.enrollment_id IS DISTINCT FROM enrollments.id
                             OR timelogs.employee_id IS DISTINCT FROM enrollments.employee_id);
 
-                    UPDATE timelogs
+                    UPDATE public.timelogs
                        SET enrollment_id = NULL, employee_id = NULL
                      WHERE timelogs.terminal_id = pair.terminal_id
                        AND timelogs.uid = pair.uid
                        AND timelogs.enrollment_id IS NOT NULL
                        AND NOT EXISTS (
-                           SELECT 1 FROM enrollments
+                           SELECT 1 FROM public.enrollments
                             WHERE enrollments.terminal_id = timelogs.terminal_id
                               AND enrollments.uid = timelogs.uid
                               AND daterange(enrollments.starts, enrollments.ends, '[]') @> timelogs.time::date

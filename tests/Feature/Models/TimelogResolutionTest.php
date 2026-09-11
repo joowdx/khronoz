@@ -298,6 +298,125 @@ class TimelogResolutionTest extends TestCase
     }
 
     /**
+     * **A SECURITY DEFINER function must not resolve table names through the
+     * caller's search path.**
+     *
+     * Both resolvers run as the owner so they can write columns the app role
+     * cannot. That privilege is worthless if the caller chooses which tables
+     * they read. The app role holds `TEMP` on the database — the default — so
+     * it can create a temporary table named `enrollments`, and Postgres
+     * searches the temporary schema **first** for relation names unless
+     * `pg_temp` is explicitly listed in the path.
+     *
+     * Measured before the fix, on both paths: a punch dated outside every real
+     * enrollment was attributed to a real employee. The forged temp row copied
+     * a genuine enrollment's `(id, employee_id, terminal_id, uid)` exactly and
+     * widened only its dates, so `timelogs_enrollment_foreign` — which does
+     * not include the date — waved it through. That is an app-role user
+     * assigning arbitrary punches to arbitrary people.
+     *
+     * The fix is two measures, and mutation testing settled which one carries
+     * the weight — the answer is not the one the docblock first claimed.
+     *
+     * **Schema-qualifying every table the bodies touch is what defeats this.**
+     * Removing `public.` from either function reinstates the attack, and that
+     * mutation is killed by this test. `SET search_path = pg_catalog, pg_temp`
+     * is the documented convention and is kept, but it is not sufficient on
+     * its own: `pg_temp` listed last stops it being searched *first*, yet an
+     * unqualified `enrollments` still resolves there, because `public` is no
+     * longer on the path at all and `pg_catalog` has no such table. Setting
+     * the path to `pg_catalog, public` instead also holds — but only because
+     * the references are qualified, which was measured rather than assumed.
+     *
+     * Found by an adversarial review on 2026-09-11.
+     */
+    public function test_a_temporary_table_cannot_hijack_resolution(): void
+    {
+        $enrollment = Enrollment::factory()->create([
+            'uid' => '0042',
+            'starts' => '2026-02-01',
+            'ends' => '2026-02-28',
+        ]);
+
+        // A January punch: outside the enrollment, so it must stay unresolved.
+        $id = (string) Str::ulid();
+        DB::table('timelogs')->insert($this->rawTimelog($enrollment, [
+            'id' => $id,
+            'time' => '2026-01-15 08:00:00',
+        ]));
+
+        $this->assertNull($this->storedEmployee($id), 'precondition: the punch is outside the range');
+
+        // Shadow `enrollments` with the same four key columns the paired FK
+        // checks, widening only the dates — which the FK does not constrain.
+        DB::statement('CREATE TEMP TABLE enrollments (id text, employee_id text, terminal_id text, uid text, starts date, ends date)');
+        DB::table('enrollments')->insert([
+            'id' => $enrollment->id,
+            'employee_id' => $enrollment->employee_id,
+            'terminal_id' => $enrollment->terminal_id,
+            'uid' => '0042',
+            'starts' => '2020-01-01',
+            'ends' => null,
+        ]);
+
+        // The AFTER path: qualified so the UPDATE hits the real table and
+        // fires the trigger, while the function's own reads are the target.
+        DB::statement('UPDATE public.enrollments SET ends = ends WHERE id = ?', [$enrollment->id]);
+
+        $this->assertNull($this->storedEmployee($id), 'enrollments_reresolve read the shadowed table');
+
+        // And the BEFORE INSERT path, with the shadow still in place.
+        $probe = (string) Str::ulid();
+        DB::table('timelogs')->insert($this->rawTimelog($enrollment, [
+            'id' => $probe,
+            'time' => '2026-01-16 08:00:00',
+        ]));
+
+        $this->assertNull($this->storedEmployee($probe), 'timelogs_resolve read the shadowed table');
+    }
+
+    /**
+     * Both resolvers must carry an explicit `search_path`.
+     *
+     * A catalog assertion, for the reason the partial index on
+     * `terminals.serial` gets one: removing this setting changes no behaviour
+     * a test can observe *while every reference stays schema-qualified*, and
+     * mutation testing confirmed the removal survives. It is kept anyway — it
+     * is the documented convention for `SECURITY DEFINER`, and it is what
+     * stops the next unqualified reference somebody adds from silently
+     * resolving into the caller's temporary schema.
+     *
+     * Pinning it on the catalog is the only way to notice it going missing.
+     */
+    public function test_both_resolvers_pin_their_search_path(): void
+    {
+        $configured = DB::table('pg_proc')
+            ->whereIn('proname', ['timelogs_resolve', 'enrollments_reresolve'])
+            ->orderBy('proname')
+            ->pluck('proconfig', 'proname')
+            ->all();
+
+        $this->assertCount(2, $configured);
+
+        foreach ($configured as $name => $config) {
+            $this->assertNotNull($config, "{$name} has no search_path pinned");
+            $this->assertStringContainsString('search_path=', $config, "{$name} has no search_path pinned");
+        }
+    }
+
+    /**
+     * Read `employee_id` back through the **owner** connection.
+     *
+     * The test above leaves a temp table named `enrollments` in this session,
+     * and Eloquent queries that name unqualified, so reading through the app
+     * connection could hit the shadow rather than the table under test.
+     */
+    private function storedEmployee(string $id): ?string
+    {
+        return DB::connection('owner')->table('timelogs')->where('id', $id)->value('employee_id');
+    }
+
+    /**
      * Resolution survives the upsert. `ON CONFLICT DO NOTHING` still fires the
      * BEFORE INSERT trigger for the row it then discards — one index lookup
      * per duplicate and nothing else — and `RETURNING` yields only the rows
