@@ -85,6 +85,21 @@ final class ImportTimelogs
                     continue;
                 }
 
+                if (! $this->belongsToTerminal($row, $terminal)) {
+                    // The file names a different scanner than the one it is
+                    // being imported into. An attlog carries no ULID, so this
+                    // column is the file's *only* statement of where its
+                    // punches came from — ignoring it means an operator who
+                    // picks the wrong terminal misattributes every punch in
+                    // the file and is told nothing. Counted as rejected rather
+                    // than thrown, so a multi-device export still imports the
+                    // rows that do belong here; when the terminal is simply
+                    // wrong, every row rejects and the counters say so loudly.
+                    $tally['rejected']++;
+
+                    continue;
+                }
+
                 $chunk[] = $this->pending($sync, $terminal, $row);
 
                 if (count($chunk) === $size) {
@@ -108,6 +123,27 @@ final class ImportTimelogs
     }
 
     /**
+     * Does the file's own device number agree with the terminal being imported
+     * into?
+     *
+     * Null means the file does not say — `LAYOUT_STANDARD` has no device
+     * column — and there is nothing to check, so the operator's choice stands.
+     * That is not laxity: the file genuinely carries no other indicator, which
+     * is exactly why `LAYOUT_DEVICE` files must be checked when they do.
+     *
+     * Compared as strings, per decision 42. `007` and `7` are different device
+     * numbers for the same reason they are different device *users*; a code
+     * that disagrees only in padding is a terminal record to correct, not a
+     * comparison to loosen.
+     *
+     * @param  array{uid: string, time: string, device: string|null, state: int, mode: int}  $row
+     */
+    private function belongsToTerminal(array $row, Terminal $terminal): bool
+    {
+        return $row['device'] === null || $row['device'] === $terminal->code;
+    }
+
+    /**
      * One row as the database wants it.
      *
      * `employee_id` and `enrollment_id` are absent, not null-by-oversight: the
@@ -115,7 +151,7 @@ final class ImportTimelogs
      * insert (03-terminals.md rule 3). `id` and `created_at` are set by hand
      * because the query builder fires no model events.
      *
-     * @param  array{uid: string, time: string, state: int, mode: int}  $row
+     * @param  array{uid: string, time: string, device: string|null, state: int, mode: int}  $row
      * @return array<string, mixed>
      */
     private function pending(Sync $sync, Terminal $terminal, array $row): array

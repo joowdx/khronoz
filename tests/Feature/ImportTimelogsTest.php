@@ -280,7 +280,7 @@ class ImportTimelogsTest extends TestCase
 
         $sync = app(ImportTimelogs::class)->handle(
             $terminal,
-            $this->attlog("0001\t2026-09-01 08:01:23\t7\t1\t4\t0\n"),
+            $this->attlog("0001\t2026-09-01 08:01:23\t{$terminal->code}\t1\t4\t0\n"),
             'attlog.dat',
             AttlogParser::LAYOUT_DEVICE,
         );
@@ -288,6 +288,89 @@ class ImportTimelogsTest extends TestCase
         $this->assertSame(1, $sync->accepted);
         $this->assertSame(1, Timelog::sole()->state);
         $this->assertSame(4, Timelog::sole()->mode);
+    }
+
+    /**
+     * **A file imported into the wrong terminal must not silently succeed.**
+     *
+     * An attlog carries no ULID. Its `device` column is the only statement it
+     * makes about which scanner produced these punches — there is no other
+     * indicator anywhere in the file — so the operator's choice of terminal is
+     * an unverifiable claim unless that column is checked against it.
+     *
+     * Before this check, a file that said `device 7` imported cleanly into a
+     * terminal whose code was `3`: two punches accepted, nothing rejected, and
+     * every one of them attributed to a device that never recorded them. The
+     * predecessor did make this check and refused the file; dropping it was a
+     * regression against the one part of its importer that protected data.
+     *
+     * Rejecting per row rather than failing the run is deliberate — see the
+     * multi-device case below — and when the terminal is simply the wrong one,
+     * every row rejects and the counters say so.
+     */
+    public function test_a_file_naming_another_device_is_refused_row_by_row(): void
+    {
+        $terminal = Terminal::factory()->create(['code' => '3']);
+        $this->withTenant(Agency::findOrFail($terminal->agency_id));
+
+        $sync = app(ImportTimelogs::class)->handle(
+            $terminal,
+            $this->attlog(
+                "0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n".
+                "0002\t2026-09-01 08:15:00\t7\t0\t1\t0\n"
+            ),
+            'attlog.dat',
+            AttlogParser::LAYOUT_DEVICE,
+        );
+
+        $this->assertSame(2, $sync->received);
+        $this->assertSame(0, $sync->accepted);
+        $this->assertSame(2, $sync->rejected);
+        $this->assertSame(0, Timelog::where('terminal_id', $terminal->id)->count());
+    }
+
+    /**
+     * Which is why the check rejects rows rather than the file: an export
+     * covering several devices imports the rows that belong to the terminal
+     * being loaded, and the operator runs it once per terminal.
+     */
+    public function test_a_multi_device_file_imports_only_the_rows_for_this_terminal(): void
+    {
+        $terminal = Terminal::factory()->create(['code' => '3']);
+        $this->withTenant(Agency::findOrFail($terminal->agency_id));
+
+        $sync = app(ImportTimelogs::class)->handle(
+            $terminal,
+            $this->attlog(
+                "0001\t2026-09-01 08:01:23\t3\t0\t1\t0\n".
+                "0002\t2026-09-01 08:15:00\t7\t0\t1\t0\n".
+                "0003\t2026-09-01 08:20:00\t3\t0\t1\t0\n"
+            ),
+            'attlog.dat',
+            AttlogParser::LAYOUT_DEVICE,
+        );
+
+        $this->assertSame(3, $sync->received);
+        $this->assertSame(2, $sync->accepted);
+        $this->assertSame(1, $sync->rejected);
+        $this->assertSame(['0001', '0003'], Timelog::orderBy('uid')->pluck('uid')->all());
+    }
+
+    /**
+     * The standard layout has no device column, so there is nothing to check
+     * and the operator's choice stands. Stated as a test because it is the
+     * limit of the guarantee above, not an oversight in it: the file genuinely
+     * does not say which scanner it came from.
+     */
+    public function test_a_standard_layout_file_cannot_be_checked_against_the_terminal(): void
+    {
+        $terminal = Terminal::factory()->create(['code' => '3']);
+        $this->withTenant(Agency::findOrFail($terminal->agency_id));
+
+        $sync = $this->import($terminal, $this->attlog("0001\t2026-09-01 08:01:23\t0\t1\n"));
+
+        $this->assertSame(1, $sync->accepted);
+        $this->assertSame(0, $sync->rejected);
     }
 
     /** Chunking is an implementation detail; the counts must not depend on it. */

@@ -27,6 +27,14 @@ use SplFileObject;
  * `state` and `mode` are matched against `/^\d+$/` before casting because
  * `is_numeric` accepts `1.5` and `1e3`, which then blow up at the database after
  * earlier rows have already committed.
+ *
+ * `device` is **returned, never discarded**. An attlog carries no ULID, so that
+ * column is the file's one and only statement of which scanner produced these
+ * punches — there is no other indicator anywhere in it. A parser that reads
+ * past it leaves the caller trusting whichever terminal a human happened to
+ * pick, and a file imported into the wrong one attributes every punch to the
+ * wrong device without a single complaint. It is null under LAYOUT_STANDARD,
+ * where the file genuinely does not say.
  */
 final class AttlogParser
 {
@@ -50,7 +58,7 @@ final class AttlogParser
     ];
 
     /**
-     * @return Generator<int, array{0: array{uid: string, time: string, state: int, mode: int}|null, 1: string}>
+     * @return Generator<int, array{0: array{uid: string, time: string, device: string|null, state: int, mode: int}|null, 1: string}>
      */
     public function parse(string $path, string $layout = self::LAYOUT_STANDARD): Generator
     {
@@ -81,7 +89,7 @@ final class AttlogParser
     }
 
     /**
-     * @return array{uid: string, time: string, state: int, mode: int}|null
+     * @return array{uid: string, time: string, device: string|null, state: int, mode: int}|null
      */
     private function row(string $line, string $delimiter, string $layout): ?array
     {
@@ -95,6 +103,7 @@ final class AttlogParser
 
         $uid = $fields[0];
         $time = $this->time($fields[1]);
+        $device = $deviceLayout ? $fields[2] : null;
         $state = $this->byte($deviceLayout ? $fields[3] : $fields[2]);
         $mode = $this->byte($deviceLayout ? $fields[4] : $fields[3]);
 
@@ -102,9 +111,14 @@ final class AttlogParser
             return null;
         }
 
+        if ($device === '') {
+            return null;
+        }
+
         return [
             'uid' => $uid,
             'time' => $time,
+            'device' => $device,
             'state' => $state,
             'mode' => $mode,
         ];

@@ -36,8 +36,8 @@ class AttlogParserTest extends TestCase
         $yields = $this->yields($contents, AttlogParser::LAYOUT_DEVICE);
 
         $this->assertCount(2, $yields);
-        $this->assertSame($this->punch('007', '2024-01-15 08:01:23', 10, 20), $yields[0][0]);
-        $this->assertSame($this->punch('A17', '2024-01-15 17:30:00', 11, 21), $yields[1][0]);
+        $this->assertSame($this->punch('007', '2024-01-15 08:01:23', 10, 20, '99'), $yields[0][0]);
+        $this->assertSame($this->punch('A17', '2024-01-15 17:30:00', 11, 21, '99'), $yields[1][0]);
     }
 
     public function test_a_tab_delimited_four_column_standard_layout_file_parses(): void
@@ -237,8 +237,17 @@ class AttlogParserTest extends TestCase
     /**
      * @return array{uid: string, time: string, state: int, mode: int}
      */
-    private function punch(string $uid, string $time, int $state, int $mode): array
+    /**
+     * `device` defaults to null — the standard layout carries no device column
+     * — and the device-layout tests pass the value the file itself states.
+     *
+     * It is returned rather than discarded because an attlog contains no ULID:
+     * that column is the file's only statement of which scanner produced these
+     * punches, so throwing it away leaves the importer trusting whichever
+     * terminal a human picked.
+     */
+    private function punch(string $uid, string $time, int $state, int $mode, ?string $device = null): array
     {
-        return ['uid' => $uid, 'time' => $time, 'state' => $state, 'mode' => $mode];
+        return ['uid' => $uid, 'time' => $time, 'device' => $device, 'state' => $state, 'mode' => $mode];
     }
 }
