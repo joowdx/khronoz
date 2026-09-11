@@ -73,6 +73,12 @@ final class ImportTimelogs
         $latest = null;
         $chunk = [];
 
+        if ($refusal = $this->refuse($path, $layout, $terminal)) {
+            $this->close($sync, SyncStatus::Failed, $tally, null, null, $refusal);
+
+            return $sync->refresh();
+        }
+
         try {
             foreach ($this->parser->parse($path, $layout) as [$row, $line]) {
                 if ($row === null) {
@@ -80,21 +86,6 @@ final class ImportTimelogs
                     // The predecessor threw from inside its mapping closure,
                     // so one bad line at row 12,345 discarded 40,000 good
                     // punches — and left the earlier chunks committed anyway.
-                    $tally['rejected']++;
-
-                    continue;
-                }
-
-                if (! $this->belongsToTerminal($row, $terminal)) {
-                    // The file names a different scanner than the one it is
-                    // being imported into. An attlog carries no ULID, so this
-                    // column is the file's *only* statement of where its
-                    // punches came from — ignoring it means an operator who
-                    // picks the wrong terminal misattributes every punch in
-                    // the file and is told nothing. Counted as rejected rather
-                    // than thrown, so a multi-device export still imports the
-                    // rows that do belong here; when the terminal is simply
-                    // wrong, every row rejects and the counters say so loudly.
                     $tally['rejected']++;
 
                     continue;
@@ -123,24 +114,65 @@ final class ImportTimelogs
     }
 
     /**
-     * Does the file's own device number agree with the terminal being imported
-     * into?
+     * Why the run must not start, or null if it may.
      *
-     * Null means the file does not say — `LAYOUT_STANDARD` has no device
-     * column — and there is nothing to check, so the operator's choice stands.
-     * That is not laxity: the file genuinely carries no other indicator, which
-     * is exactly why `LAYOUT_DEVICE` files must be checked when they do.
+     * **A file names one device or it does not import.** A scanner exports its
+     * own log, so more than one device number in one file means it was merged
+     * or altered, and there is no flag to override that — the predecessor
+     * refused such files too, with an error that said "likelihood of being
+     * tampered with".
      *
-     * Compared as strings, per decision 42. `007` and `7` are different device
-     * numbers for the same reason they are different device *users*; a code
-     * that disagrees only in padding is a terminal record to correct, not a
-     * comparison to loosen.
+     * Refusing the *file* rather than the offending rows is the whole point,
+     * and rejecting row by row is strictly worse than doing nothing. Measured:
+     * a genuine device-7 export with two forged device-3 rows appended, run
+     * once against each terminal, imported every row including both forgeries
+     * — each run reporting an unremarkable two accepted, two rejected. Per-row
+     * rejection does not refuse a mixed file, it *splits* it, and two runs
+     * reassemble it.
      *
-     * @param  array{uid: string, time: string, device: string|null, state: int, mode: int}  $row
+     * The scan is a separate pass over the file, deliberately: "refuse" has to
+     * mean nothing was written, and that is only true if the decision is made
+     * before the first insert. It costs one sequential read of a local file and
+     * holds a set of at most a handful of strings, so memory stays flat.
+     *
+     * Comparison is by string, per decision 42 — a code differing only in
+     * padding is a terminal record to correct, not a comparison to loosen.
      */
-    private function belongsToTerminal(array $row, Terminal $terminal): bool
+    private function refuse(string $path, string $layout, Terminal $terminal): ?string
     {
-        return $row['device'] === null || $row['device'] === $terminal->code;
+        // A list compared with strict in_array, **not** a set keyed by the
+        // device number. PHP silently casts a numeric-string array key to an
+        // integer, so `$devices['7']` becomes `$devices[7]` and the code comes
+        // back out as `int 7`, which `!== '7'`. Measured: that turned this very
+        // check — the one decision 42 exists to enforce — into a refusal of
+        // every correctly matched numeric device code.
+        $devices = [];
+
+        foreach ($this->parser->parse($path, $layout) as [$row, $line]) {
+            if ($row !== null && $row['device'] !== null && ! in_array($row['device'], $devices, true)) {
+                $devices[] = $row['device'];
+            }
+        }
+
+        // No device column at all: LAYOUT_STANDARD files genuinely do not say
+        // which scanner they came from, so the operator's choice stands.
+        if ($devices === []) {
+            return null;
+        }
+
+        if (count($devices) > 1) {
+            $named = implode(', ', $devices);
+
+            return "The file names more than one device ({$named}). A scanner exports its own log, so this file was merged or altered; nothing was imported.";
+        }
+
+        $device = $devices[0];
+
+        if ($device !== $terminal->code) {
+            return "The file was recorded by device {$device}, but this terminal is device {$terminal->code}. Nothing was imported.";
+        }
+
+        return null;
     }
 
     /**

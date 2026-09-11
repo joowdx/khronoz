@@ -294,66 +294,125 @@ class ImportTimelogsTest extends TestCase
      * **A file imported into the wrong terminal must not silently succeed.**
      *
      * An attlog carries no ULID. Its `device` column is the only statement it
-     * makes about which scanner produced these punches — there is no other
-     * indicator anywhere in the file — so the operator's choice of terminal is
-     * an unverifiable claim unless that column is checked against it.
+     * makes about which scanner produced these punches, so the operator's
+     * choice of terminal is an unverifiable claim unless that column is
+     * checked against it. Before the check, a file saying `device 7` imported
+     * cleanly into a terminal coded `3`: two punches accepted, none rejected,
+     * every one attributed to a device that never recorded them.
      *
-     * Before this check, a file that said `device 7` imported cleanly into a
-     * terminal whose code was `3`: two punches accepted, nothing rejected, and
-     * every one of them attributed to a device that never recorded them. The
-     * predecessor did make this check and refused the file; dropping it was a
-     * regression against the one part of its importer that protected data.
-     *
-     * Rejecting per row rather than failing the run is deliberate — see the
-     * multi-device case below — and when the terminal is simply the wrong one,
-     * every row rejects and the counters say so.
+     * The whole run is refused, and refused **before anything is written**.
      */
-    public function test_a_file_naming_another_device_is_refused_row_by_row(): void
+    public function test_a_file_recorded_by_another_device_is_refused_whole(): void
     {
         $terminal = Terminal::factory()->create(['code' => '3']);
         $this->withTenant(Agency::findOrFail($terminal->agency_id));
 
         $sync = app(ImportTimelogs::class)->handle(
             $terminal,
-            $this->attlog(
-                "0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n".
-                "0002\t2026-09-01 08:15:00\t7\t0\t1\t0\n"
-            ),
+            $this->attlog("0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n"),
             'attlog.dat',
             AttlogParser::LAYOUT_DEVICE,
         );
 
-        $this->assertSame(2, $sync->received);
+        $this->assertSame(SyncStatus::Failed, $sync->status);
         $this->assertSame(0, $sync->accepted);
-        $this->assertSame(2, $sync->rejected);
-        $this->assertSame(0, Timelog::where('terminal_id', $terminal->id)->count());
+        $this->assertStringContainsString('recorded by device 7', $sync->error);
+        $this->assertSame(0, Timelog::count());
     }
 
     /**
-     * Which is why the check rejects rows rather than the file: an export
-     * covering several devices imports the rows that belong to the terminal
-     * being loaded, and the operator runs it once per terminal.
+     * **A file naming more than one device is refused outright, and rejecting
+     * it row by row would be strictly worse than doing nothing.**
+     *
+     * A scanner exports its own log, so several device numbers in one file
+     * means it was merged or altered. The predecessor refused such files with
+     * an error that said "likelihood of being tampered with", and that was
+     * right.
+     *
+     * The first implementation here rejected the offending *rows* instead, and
+     * this test is the measurement that killed it: a genuine device-7 export
+     * with two forged device-3 rows appended, run once against each terminal,
+     * stored every row including both forgeries — each run reporting an
+     * unremarkable two accepted, two rejected. Per-row rejection does not
+     * refuse a mixed file, it splits it, and two runs reassemble it.
      */
-    public function test_a_multi_device_file_imports_only_the_rows_for_this_terminal(): void
+    public function test_a_file_naming_two_devices_is_refused_under_every_terminal(): void
+    {
+        $lobby = Terminal::factory()->create(['code' => '7']);
+        $this->withTenant(Agency::findOrFail($lobby->agency_id));
+        $annex = Terminal::factory()->create(['agency_id' => $lobby->agency_id, 'code' => '3']);
+
+        $tampered = $this->attlog(
+            "0001\t2026-09-01 08:00:00\t7\t0\t1\t0\n".
+            "0001\t2026-09-01 17:00:00\t7\t1\t1\t0\n".
+            "0009\t2026-09-01 07:55:00\t3\t0\t1\t0\n".
+            "0009\t2026-09-01 18:30:00\t3\t1\t1\t0\n"
+        );
+
+        foreach ([$lobby, $annex] as $terminal) {
+            $sync = app(ImportTimelogs::class)->handle(
+                $terminal,
+                $tampered,
+                'attlog.dat',
+                AttlogParser::LAYOUT_DEVICE,
+            );
+
+            $this->assertSame(SyncStatus::Failed, $sync->status);
+            $this->assertStringContainsString('more than one device', $sync->error);
+        }
+
+        $this->assertSame(0, Timelog::count(), 'a tampered file must not import under any terminal');
+    }
+
+    /**
+     * The refusal is **recorded**, not merely returned. A tampering attempt is
+     * evidence: without a row, the second attempt looks exactly like the first
+     * and nothing accumulates for anyone to notice.
+     */
+    public function test_a_refused_file_still_leaves_a_failed_run_on_the_record(): void
     {
         $terminal = Terminal::factory()->create(['code' => '3']);
         $this->withTenant(Agency::findOrFail($terminal->agency_id));
 
+        app(ImportTimelogs::class)->handle(
+            $terminal,
+            $this->attlog("0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n"),
+            'evidence.dat',
+            AttlogParser::LAYOUT_DEVICE,
+        );
+
+        $sync = Sync::sole();
+
+        $this->assertSame(SyncStatus::Failed, $sync->status);
+        $this->assertSame('evidence.dat', $sync->reference);
+        $this->assertNotNull($sync->error);
+        $this->assertNotNull($sync->finished_at);
+        $this->assertSame(0, $sync->received);
+    }
+
+    /**
+     * A numeric device code must compare as a **string**, per decision 42.
+     *
+     * This is a regression test for a bug written into the tamper check
+     * itself: collecting the distinct codes into an array *keyed* by the
+     * device number let PHP coerce the numeric-string key to an integer, so
+     * the code came back as `int 7` and `7 !== '7'` refused every correctly
+     * matched file. The check meant to enforce decision 42 broke it.
+     */
+    public function test_a_numeric_device_code_matches_as_a_string(): void
+    {
+        $terminal = Terminal::factory()->create(['code' => '7']);
+        $this->withTenant(Agency::findOrFail($terminal->agency_id));
+
         $sync = app(ImportTimelogs::class)->handle(
             $terminal,
-            $this->attlog(
-                "0001\t2026-09-01 08:01:23\t3\t0\t1\t0\n".
-                "0002\t2026-09-01 08:15:00\t7\t0\t1\t0\n".
-                "0003\t2026-09-01 08:20:00\t3\t0\t1\t0\n"
-            ),
+            $this->attlog("0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n"),
             'attlog.dat',
             AttlogParser::LAYOUT_DEVICE,
         );
 
-        $this->assertSame(3, $sync->received);
-        $this->assertSame(2, $sync->accepted);
-        $this->assertSame(1, $sync->rejected);
-        $this->assertSame(['0001', '0003'], Timelog::orderBy('uid')->pluck('uid')->all());
+        $this->assertSame(SyncStatus::Completed, $sync->status);
+        $this->assertSame(1, $sync->accepted);
     }
 
     /**
