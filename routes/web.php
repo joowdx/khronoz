@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDeploymentController;
+use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
@@ -60,6 +61,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
         Route::resource('terminals', TerminalController::class)->except(['show']);
+        // The calendar: what changes what was expected of a day
+        // (05-calendar.md). `holidays` is the one table read under
+        // AgencyOrPlatformScope, so its list mixes this agency's rows with the
+        // national ones — HolidayPolicy refuses editing the latter.
+        Route::resource('holidays', HolidayController::class)->except(['show']);
+
         // Every ingestion run, successful or refused. Read-only entirely:
         // the app role has no DELETE here, because a run record that can be
         // deleted is a run that can be denied.

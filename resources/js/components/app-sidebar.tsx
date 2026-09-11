@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Building2, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
+import { Building2, CalendarDays, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -10,6 +10,7 @@ import { dashboard } from '@/routes';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as agenciesIndex } from '@/routes/platform/agencies';
 import { index as terminalsIndex } from '@/routes/terminals';
+import { index as holidaysIndex } from '@/routes/holidays';
 import { index as syncsIndex } from '@/routes/syncs';
 import { index as timelogsIndex } from '@/routes/timelogs';
 import { index as workgroupsIndex } from '@/routes/workgroups';
@@ -82,6 +83,15 @@ export function AppSidebar() {
                           { title: 'Workgroups', href: workgroupsIndex().url, icon: Network },
                           { title: 'Employees', href: employeesIndex().url, icon: UsersRound },
                       ],
+                  },
+              ]
+            : []),
+        // Milestone 4's layer: what changes what was expected of a day.
+        ...(insideAgency && can('calendar.view')
+            ? [
+                  {
+                      label: 'Calendar',
+                      items: [{ title: 'Holidays', href: holidaysIndex().url, icon: CalendarDays }],
                   },
               ]
             : []),

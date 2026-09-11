@@ -230,6 +230,29 @@ export interface Sync {
 }
 
 /**
+ * Matches `HolidayResource`. A date on which no work is expected, or on which
+ * work is paid at a premium.
+ *
+ * **A date may carry more than one**, and both are owed — Eid al-Fitr on
+ * Bonifacio Day is two holidays at the higher rate (dole-rules.md I.6). Every
+ * read of this list is plural; never reach for the first row on a date.
+ *
+ * `national` means the platform agency declared it for everyone, so this
+ * agency may read it and not change it.
+ */
+export interface Holiday {
+    id: string;
+    /** `YYYY-MM-DD`; never reparsed (`lib/dates.ts`). */
+    date: string;
+    name: string;
+    /** "regular", "special", "working" or "local" — a rate, not a scope. */
+    type: string;
+    reference: string | null;
+    declared_at: string;
+    national: boolean;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.
