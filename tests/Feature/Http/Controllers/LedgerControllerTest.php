@@ -4,6 +4,7 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
+use App\Enums\PunchKind;
 use App\Models\Agency;
 use App\Models\Attestation;
 use App\Models\Deployment;
@@ -179,7 +180,7 @@ class LedgerControllerTest extends TestCase
         $this->actingAsAgency($agency, Permission::ViewLedgers);
 
         $ledger = Ledger::factory()->create(['agency_id' => $agency->id, 'month' => '2026-09-01']);
-        Workday::factory()->create([
+        $workday = Workday::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $ledger->employee_id,
             'ledger_id' => $ledger->id,
@@ -187,6 +188,23 @@ class LedgerControllerTest extends TestCase
             'worked' => 480,
             'excess' => 180,
         ]);
+
+        // Daily rule 6 intersects the authority with the excess *minutes*,
+        // which live on the punches (decision 79): 17:00 to 20:00 of excess
+        // inside a 17:00 to 21:00 authority.
+        foreach ([[PunchKind::In, '08:00:00', '08:00:00'], [PunchKind::Out, '17:00:00', '20:00:00']] as [$kind, $expected, $actual]) {
+            Punch::factory()->create([
+                'agency_id' => $agency->id,
+                'employee_id' => $ledger->employee_id,
+                'workday_id' => $workday->id,
+                'slot' => 1,
+                'kind' => $kind,
+                'expected_at' => '2026-09-01 '.$expected,
+                'actual_at' => '2026-09-01 '.$actual,
+                'deviation' => $expected === $actual ? 0 : 180,
+            ]);
+        }
+
         Overtime::factory()->create([
             'agency_id' => $ledger->agency_id,
             'employee_id' => $ledger->employee_id,

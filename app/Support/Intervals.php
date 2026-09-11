@@ -150,6 +150,48 @@ final class Intervals
     }
 
     /**
+     * The set past its own first `$minutes` minutes, in time order — the
+     * complement of "the first `$minutes` of this set".
+     *
+     * Not `subtract($ranges, [[$start, $start->addMinutes($minutes)]])`:
+     * the count is of minutes *in the set*, so a gap between two ranges
+     * does not consume any of it. Reading a set's leading portion is how
+     * an entitlement measured in hours-from-the-start is placed on the
+     * clock — decision 51's first 480 minutes of a premium day are the
+     * caller this exists for, and rule 6's `excess ∩ authority` needs to
+     * know which minutes those were before it can intersect the rest.
+     *
+     * @param  list<Range>  $ranges
+     * @return list<Range>
+     */
+    public static function after(array $ranges, int $minutes): array
+    {
+        $remaining = max(0, $minutes);
+        $kept = [];
+
+        foreach (self::union($ranges) as [$start, $end]) {
+            if ($remaining === 0) {
+                $kept[] = [$start, $end];
+
+                continue;
+            }
+
+            $length = self::minutes([[$start, $end]]);
+
+            if ($length <= $remaining) {
+                $remaining -= $length;
+
+                continue;
+            }
+
+            $kept[] = [$start->addMinutes($remaining), $end];
+            $remaining = 0;
+        }
+
+        return $kept;
+    }
+
+    /**
      * @param  list<Range>  $ranges
      * @return list<Range>
      */

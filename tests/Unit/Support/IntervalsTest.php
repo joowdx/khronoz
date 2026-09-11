@@ -165,6 +165,59 @@ class IntervalsTest extends TestCase
     }
 
     /**
+     * `after()` counts minutes *in the set*, so a gap consumes none of
+     * them. 480 minutes past 08:00–12:00 and 13:00–20:00 lands at 17:00,
+     * not at 16:00 — subtracting a plain four-hour span from the start
+     * would have lost the lunch hour and placed the boundary an hour early.
+     */
+    public function test_after_skips_the_gaps_when_counting(): void
+    {
+        $this->assertRanges([
+            ['2026-09-30 17:00:00', '2026-09-30 20:00:00'],
+        ], Intervals::after([
+            $this->span('2026-09-30 08:00:00', '2026-09-30 12:00:00'),
+            $this->span('2026-09-30 13:00:00', '2026-09-30 20:00:00'),
+        ], 480));
+    }
+
+    public function test_after_zero_is_the_whole_set(): void
+    {
+        $this->assertRanges([
+            ['2026-09-30 08:00:00', '2026-09-30 12:00:00'],
+        ], Intervals::after([$this->span('2026-09-30 08:00:00', '2026-09-30 12:00:00')], 0));
+    }
+
+    public function test_after_more_than_the_set_holds_is_empty(): void
+    {
+        $this->assertSame([], Intervals::after(
+            [$this->span('2026-09-30 08:00:00', '2026-09-30 12:00:00')],
+            300,
+        ));
+    }
+
+    /** A whole range consumed exactly leaves the next one untouched. */
+    public function test_after_a_range_boundary_drops_that_range_whole(): void
+    {
+        $this->assertRanges([
+            ['2026-09-30 13:00:00', '2026-09-30 17:00:00'],
+        ], Intervals::after([
+            $this->span('2026-09-30 08:00:00', '2026-09-30 12:00:00'),
+            $this->span('2026-09-30 13:00:00', '2026-09-30 17:00:00'),
+        ], 240));
+    }
+
+    /** Overlapping input is unioned first, so the count is of the set. */
+    public function test_after_counts_overlapping_ranges_once(): void
+    {
+        $this->assertRanges([
+            ['2026-09-30 09:00:00', '2026-09-30 11:00:00'],
+        ], Intervals::after([
+            $this->span('2026-09-30 08:00:00', '2026-09-30 10:00:00'),
+            $this->span('2026-09-30 09:00:00', '2026-09-30 11:00:00'),
+        ], 60));
+    }
+
+    /**
      * `minutes()` measures a set. Passing the same hour twice must not
      * report 120 — that is the double count union exists to make unwriteable.
      */

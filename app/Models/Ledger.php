@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Attendance\Authorised;
 use App\Attendance\LedgerView;
 use App\Attendance\Week;
+use App\Enums\MissingSide;
 use App\Enums\Period;
 use App\Enums\Work;
 use App\Enums\WorkdayStatus;
@@ -12,6 +14,7 @@ use App\Support\Settings;
 use Carbon\CarbonImmutable;
 use Database\Factories\LedgerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -94,6 +97,11 @@ class Ledger extends Model
         // straddling the month end draws from the neighbouring ledger
         // (decision 52). The period slice is then a filter in PHP.
         $loaded = Workday::query()
+            // Daily rule 6 intersects the authority with the excess
+            // *minutes*, which live on the punches and not on the row
+            // (decision 78). One query for the period; skipped entirely
+            // where no overtime figure is being asked for.
+            ->when($includeOvertime, fn (Builder $query) => $query->with('punches'))
             ->where('employee_id', $this->employee_id)
             ->whereBetween('date', [$loadFrom->toDateString(), $loadTo->toDateString()])
             ->orderBy('date')
@@ -175,18 +183,42 @@ class Ledger extends Model
     }
 
     /**
+     * Daily rule 6, `excess ∩ Overtime authority`, with the JC 2 s. 2015
+     * §10 gates of 05-calendar.md rule 6.
+     *
+     * The intersection is taken on the minutes and not on the date
+     * (decision 78). An authority is a `[starts, ends]` pair of
+     * timestamps and the excess it authorises is the part of the day's
+     * excess inside it — `Authorised` replays the set algebra from the
+     * punches. Asking only whether some authority overlapped the calendar
+     * day credited a 17:00–19:00 slip with four hours of evening work, and
+     * credited a 22:00–02:00 one with nothing at all on the night shift
+     * whose excess it covers, because that workday is dated the day the
+     * shift began (decision 54).
+     *
+     * **What keeps a `travel` day out is the two-hour floor, not the
+     * intersection.** Daily rule 7 zeroes that day's `excess` without
+     * leaving a mark on the punches, so the reconstruction still finds
+     * minutes there and only `excess < 120` stops them being paid. A
+     * regime without §10's floor — the Labor Code has none — needs its own
+     * guard, and this is the note for whoever adds it.
+     *
      * @param  Collection<int, Workday>  $workdays
      * @param  Collection<int, Overtime>  $authorities
      */
     private function compensableDaily(Collection $workdays, Collection $authorities): int
     {
+        $windows = $authorities
+            ->map(fn (Overtime $overtime): array => [
+                CarbonImmutable::parse($overtime->starts->format('Y-m-d H:i:s')),
+                CarbonImmutable::parse($overtime->ends->format('Y-m-d H:i:s')),
+            ])
+            ->values()
+            ->all();
+
         $overtime = 0;
 
         foreach ($workdays as $workday) {
-            if (! $this->authorityCovers($workday, $authorities)) {
-                continue;
-            }
-
             // tardy === 0 is the gate, and it is not quite what §10.1 says.
             // The text is "arrive on or before the start of the workday",
             // and with a non-zero grace an employee can arrive after the
@@ -201,29 +233,26 @@ class Ledger extends Model
                 continue;
             }
 
+            // Rendered, not authorised: §10.1's two hours are a fact about
+            // the work performed, and an authority covering only part of
+            // it does not unrender the rest.
             if ($workday->excess < 120) {
                 continue;
             }
 
+            $authorised = Authorised::minutes(
+                $workday->punches,
+                MissingSide::tryFrom($workday->shift['settings']['missing_side'] ?? '') ?? MissingSide::Void,
+                (int) $workday->credited,
+                $windows,
+            );
+
             $overtime += $workday->premium !== null
-                ? min($workday->excess, 720)
-                : $workday->excess;
+                ? min($authorised, 720)
+                : $authorised;
         }
 
         return $overtime;
-    }
-
-    /**
-     * @param  Collection<int, Overtime>  $authorities
-     */
-    private function authorityCovers(Workday $workday, Collection $authorities): bool
-    {
-        $from = CarbonImmutable::parse($workday->date->toDateString());
-        $to = $from->addDay();
-
-        return $authorities->contains(function (Overtime $overtime) use ($from, $to): bool {
-            return $overtime->starts->lt($to) && $overtime->ends->gt($from);
-        });
     }
 
     /**

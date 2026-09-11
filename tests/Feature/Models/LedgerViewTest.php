@@ -3,15 +3,19 @@
 namespace Tests\Feature\Models;
 
 use App\Attendance\LedgerView;
+use App\Enums\MissingSide;
 use App\Enums\Period;
 use App\Enums\Premium;
+use App\Enums\PunchKind;
 use App\Enums\Work;
 use App\Enums\WorkdayStatus;
 use App\Models\Agency;
 use App\Models\Exemption;
 use App\Models\Ledger;
 use App\Models\Overtime;
+use App\Models\Punch;
 use App\Models\Workday;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -72,6 +76,45 @@ class LedgerViewTest extends TestCase
             'starts' => $date.' 17:00:00',
             'ends' => $date.' 21:00:00',
         ]);
+    }
+
+    private function window(Ledger $ledger, string $starts, string $ends): Overtime
+    {
+        return Overtime::factory()->create([
+            'agency_id' => $ledger->agency_id,
+            'employee_id' => $ledger->employee_id,
+            'starts' => $starts,
+            'ends' => $ends,
+        ]);
+    }
+
+    /**
+     * Slot 1's two punches, so the day's excess is a set of minutes on the
+     * clock and not only a count. Daily rule 6 intersects the authority
+     * with those minutes (decision 79) and a bare `excess` column cannot
+     * answer where they were.
+     *
+     * The `excess` figure stays the caller's: these tests ask which part of
+     * a day's excess an authority reaches, and recomputing it here would be
+     * testing the deriver a second time in the wrong place. A null
+     * expectation is decision 78's transit — a premium day's tap.
+     */
+    private function punched(Workday $workday, ?string $expectedIn, ?string $expectedOut, string $in, string $out): void
+    {
+        foreach ([[PunchKind::In, $expectedIn, $in], [PunchKind::Out, $expectedOut, $out]] as [$kind, $expected, $actual]) {
+            Punch::factory()->create([
+                'agency_id' => $workday->agency_id,
+                'employee_id' => $workday->employee_id,
+                'workday_id' => $workday->id,
+                'slot' => 1,
+                'kind' => $kind,
+                'expected_at' => $expected,
+                'actual_at' => $actual,
+                'deviation' => $expected === null
+                    ? null
+                    : (int) CarbonImmutable::parse($expected)->diffInMinutes(CarbonImmutable::parse($actual), false),
+            ]);
+        }
     }
 
     /** @return list<string> */
@@ -318,7 +361,8 @@ class LedgerViewTest extends TestCase
     public function test_null_work_includes_compensable_overtime(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $workday = $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $view = $ledger->view(Period::Full);
@@ -330,7 +374,8 @@ class LedgerViewTest extends TestCase
     public function test_regular_work_reports_overtime_as_zero(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $workday = $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $view = $ledger->view(Period::Full, Work::Regular);
@@ -343,19 +388,121 @@ class LedgerViewTest extends TestCase
     public function test_overtime_work_includes_compensable_overtime(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $workday = $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $this->assertSame(180, $ledger->view(Period::Full, Work::Overtime)->overtime);
     }
 
-    public function test_excess_is_compensable_when_an_authority_covers_the_date(): void
+    /** 17:00 to 20:00 of excess, all of it inside a 17:00 to 21:00 authority. */
+    public function test_excess_inside_the_authority_is_compensable(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $this->assertSame(180, $ledger->view(Period::Full)->overtime);
+    }
+
+    /**
+     * Decision 79, the defect this rewrite exists for. Daily rule 6 is
+     * `excess ∩ authority` and the intersection is of minutes, not of
+     * dates: a slip good for two hours authorises two, not the four the
+     * employee happened to stay. Asking only whether some authority
+     * overlapped the calendar day credited the whole evening.
+     */
+    public function test_an_authority_covering_part_of_the_excess_compensates_only_that_part(): void
+    {
+        $ledger = $this->ledger();
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+        $this->window($ledger, '2026-09-01 17:00:00', '2026-09-01 19:00:00');
+
+        $this->assertSame(120, $ledger->view(Period::Full)->overtime);
+    }
+
+    /**
+     * An authority filed over the working day itself authorises nothing:
+     * `excess` is presence *outside* the expectation, and the hours inside
+     * it were never overtime to begin with. Dropping that subtraction and
+     * intersecting the whole presence pays two hours of the morning.
+     */
+    public function test_an_authority_inside_the_expected_hours_compensates_nothing(): void
+    {
+        $ledger = $this->ledger();
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+        $this->window($ledger, '2026-09-01 09:00:00', '2026-09-01 11:00:00');
+
+        $this->assertSame(0, $ledger->view(Period::Full)->overtime);
+    }
+
+    /**
+     * The `missing_side` policy is read from the day's own frozen snapshot
+     * (decision 69), not from today's settings. Under `assume` the deriver
+     * credits a half-recorded slot to its expected span, so the presence
+     * this reconstruction measures has to be substituted the same way or an
+     * `assume` agency would authorise nothing on a slot with one tap.
+     */
+    public function test_the_assume_policy_is_read_from_the_frozen_snapshot(): void
+    {
+        $ledger = $this->ledger();
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $snapshot = $workday->shift;
+        $snapshot['settings']['missing_side'] = MissingSide::Assume->value;
+        $workday->update(['shift' => $snapshot]);
+
+        // The morning tap never happened; only the 20:00 departure did.
+        Punch::factory()->missed()->create([
+            'agency_id' => $workday->agency_id,
+            'employee_id' => $workday->employee_id,
+            'workday_id' => $workday->id,
+            'slot' => 1,
+            'kind' => PunchKind::In,
+            'expected_at' => '2026-09-01 08:00:00',
+        ]);
+        Punch::factory()->create([
+            'agency_id' => $workday->agency_id,
+            'employee_id' => $workday->employee_id,
+            'workday_id' => $workday->id,
+            'slot' => 1,
+            'kind' => PunchKind::Out,
+            'expected_at' => '2026-09-01 17:00:00',
+            'actual_at' => '2026-09-01 20:00:00',
+            'deviation' => 180,
+        ]);
+        $this->authority($ledger, '2026-09-01');
+
+        $this->assertSame(180, $ledger->view(Period::Full)->overtime);
+    }
+
+    /**
+     * Daily rule 7: a `travel` exemption zeroes the day's excess and leaves
+     * the punches alone, so the reconstruction still finds minutes on it.
+     * §10's two-hour floor is what keeps them unpaid — a regime without the
+     * floor needs its own guard (see Ledger::compensableDaily).
+     */
+    public function test_a_day_whose_excess_was_zeroed_compensates_nothing(): void
+    {
+        $ledger = $this->ledger();
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 0]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+        $this->authority($ledger, '2026-09-01');
+
+        $this->assertSame(0, $ledger->view(Period::Full)->overtime);
+    }
+
+    /** And an authority that shares the date but none of the minutes reaches nothing. */
+    public function test_an_authority_that_misses_the_excess_compensates_nothing(): void
+    {
+        $ledger = $this->ledger();
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+        $this->window($ledger, '2026-09-01 05:00:00', '2026-09-01 07:00:00');
+
+        $this->assertSame(0, $ledger->view(Period::Full)->overtime);
     }
 
     public function test_excess_is_not_compensable_without_an_authority(): void
@@ -394,7 +541,8 @@ class LedgerViewTest extends TestCase
     public function test_exactly_two_hours_of_excess_is_compensable(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['excess' => 120]);
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 120]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 19:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $this->assertSame(120, $ledger->view(Period::Full)->overtime);
@@ -407,22 +555,47 @@ class LedgerViewTest extends TestCase
     public function test_premium_day_overtime_is_capped_at_twelve_hours(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', [
+        $workday = $this->workday($ledger, '2026-09-01', [
             'status' => WorkdayStatus::Off,
             'premium' => Premium::Rest,
             'excess' => 800,
         ]);
-        $this->authority($ledger, '2026-09-01');
+        // Decision 78: a rest day's taps answer no expectation, so the whole
+        // of the presence is excess.
+        $this->punched($workday, null, null, '2026-09-01 06:00:00', '2026-09-01 19:20:00');
+        $this->window($ledger, '2026-09-01 06:00:00', '2026-09-01 19:20:00');
 
         $this->assertSame(720, $ledger->view(Period::Full)->overtime);
         $this->assertSame(800, $ledger->view(Period::Full)->excess);
     }
 
+    /**
+     * Decision 51's first 480 minutes are regular hours at a premium, not
+     * excess, so an authority cannot reach them. The offset is placed on
+     * the clock and not merely subtracted: an 09:00 authority against an
+     * 08:00 arrival intersects nothing at all.
+     */
+    public function test_the_credited_minutes_of_a_premium_day_are_not_authorisable(): void
+    {
+        $ledger = $this->ledger(['premium_hours' => true]);
+        $workday = $this->workday($ledger, '2026-09-01', [
+            'status' => WorkdayStatus::Off,
+            'premium' => Premium::Rest,
+            'credited' => 480,
+            'excess' => 240,
+        ]);
+        $this->punched($workday, null, null, '2026-09-01 08:00:00', '2026-09-01 20:00:00');
+        $this->window($ledger, '2026-09-01 09:00:00', '2026-09-01 11:00:00');
+
+        $this->assertSame(0, $ledger->view(Period::Full)->overtime);
+    }
+
     public function test_ordinary_day_overtime_is_not_capped_at_twelve_hours(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['excess' => 800]);
-        $this->authority($ledger, '2026-09-01');
+        $workday = $this->workday($ledger, '2026-09-01', ['excess' => 800]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 09:00:00', '2026-09-01 08:00:00', '2026-09-01 22:20:00');
+        $this->window($ledger, '2026-09-01 09:00:00', '2026-09-01 22:20:00');
 
         $this->assertSame(800, $ledger->view(Period::Full)->overtime);
     }
@@ -435,7 +608,8 @@ class LedgerViewTest extends TestCase
     public function test_overtime_does_not_offset_undertime(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['undertime' => 60, 'excess' => 180]);
+        $workday = $this->workday($ledger, '2026-09-01', ['undertime' => 60, 'excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $view = $ledger->view(Period::Full);
@@ -446,13 +620,17 @@ class LedgerViewTest extends TestCase
 
     /**
      * An overnight authority filed on the 1st is what authorises minutes
-     * whose clock time sits on the 2nd. overlapping(), not startingOn().
+     * whose clock time sits on the 2nd. overlapping(), not startingOn() —
+     * and the minutes it reaches are those inside 22:00 to 02:00, wherever
+     * the workday holding them is dated (decisions 54 and 79).
      */
-    public function test_an_overnight_authority_covers_both_calendar_dates(): void
+    public function test_an_overnight_authority_reaches_minutes_on_both_calendar_dates(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['excess' => 180]);
-        $this->workday($ledger, '2026-09-02', ['excess' => 180]);
+        $first = $this->workday($ledger, '2026-09-01', ['excess' => 180]);
+        $second = $this->workday($ledger, '2026-09-02', ['excess' => 180]);
+        $this->punched($first, '2026-09-01 14:00:00', '2026-09-01 22:00:00', '2026-09-01 14:00:00', '2026-09-02 01:00:00');
+        $this->punched($second, '2026-09-02 02:00:00', '2026-09-02 10:00:00', '2026-09-01 23:00:00', '2026-09-02 10:00:00');
         Overtime::factory()->overnight()->create([
             'agency_id' => $ledger->agency_id,
             'employee_id' => $ledger->employee_id,
@@ -604,7 +782,8 @@ class LedgerViewTest extends TestCase
         $this->workday($ledger, '2026-09-01', ['worked' => 720]);
         $this->workday($ledger, '2026-09-02', ['worked' => 720]);
         $this->workday($ledger, '2026-09-03', ['worked' => 720]);
-        $this->workday($ledger, '2026-09-04', ['worked' => 480, 'excess' => 180]);
+        $fourth = $this->workday($ledger, '2026-09-04', ['worked' => 480, 'excess' => 180]);
+        $this->punched($fourth, '2026-09-04 08:00:00', '2026-09-04 17:00:00', '2026-09-04 08:00:00', '2026-09-04 20:00:00');
         $this->authority($ledger, '2026-09-04');
 
         $this->assertSame(480, $ledger->view(Period::Full)->overtime);
@@ -630,7 +809,8 @@ class LedgerViewTest extends TestCase
     public function test_view_issues_no_writes(): void
     {
         $ledger = $this->ledger();
-        $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $workday = $this->workday($ledger, '2026-09-01', ['worked' => 480, 'excess' => 180]);
+        $this->punched($workday, '2026-09-01 08:00:00', '2026-09-01 17:00:00', '2026-09-01 08:00:00', '2026-09-01 20:00:00');
         $this->authority($ledger, '2026-09-01');
 
         $writes = 0;
