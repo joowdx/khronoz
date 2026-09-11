@@ -200,17 +200,28 @@ a corrupted range grants a workgroup records it must not see. Every write must b
 update — no constraint here would refuse a stale rewrite.
 
 ```sql
--- trigger deployments_frozen_month, BEFORE INSERT OR UPDATE OR DELETE FOR EACH ROW (decision 55):
---   raise P0001 if daterange(starts, ends, '[]') overlaps the month of any ledger of this
---   employee with locked_at IS NOT NULL. On UPDATE and DELETE the OLD range is checked too.
+-- trigger deployments_frozen_month, BEFORE INSERT OR UPDATE OR DELETE FOR EACH ROW
+--   (decisions 55 and 58): raise P0001 if any ledger of this employee with locked_at IS NOT
+--   NULL has a month covered by OLD's range and not NEW's, or by NEW's and not OLD's.
+--   INSERT reads OLD coverage as false; DELETE reads NEW coverage as false.
 ```
 
 `deployments_frozen_month` is decision 55, owed by decision 35 and unbuildable until `ledgers`
-existed. It refuses **any write** — insert, re-date or delete — to a deployment overlapping a
-locked ledger month, because decision 30's visibility predicate reads these ranges by *overlap*,
-so moving one retroactively changes who could see, attest or correct a month that may already be
-signed. Delete-as-correction (decision 35) is the write that needs it most, and until this
-milestone deletion was unconditionally safe because nothing read a range.
+existed. It refuses a write that **changes which locked months the range covers**,
+because decision 30's visibility predicate reads these ranges by overlap with a month, so
+altering that coverage retroactively changes who could see, attest or correct a month that may
+already be signed. Delete-as-correction (decision 35) is the write that needs it most, and until
+this milestone deletion was unconditionally safe because nothing read a range.
+
+**Coverage, and deliberately not overlap** (decision 58). An open substantive placement has an
+unbounded upper bound and therefore overlaps every month the employee will ever have. A rule
+phrased on overlap would refuse `TransferEmployee` and `RemoveEmployee` — both of which merely
+set `ends` — from the moment any one month was locked, permanently, since a lock never lifts.
+Closing an open placement today changes no past month's coverage: `[2020-01-01, ∞)` and
+`[2020-01-01, 2026-10-15]` both cover September 2026. So the predicate is the symmetric
+difference over that employee's locked months, which refuses exactly the three writes that were
+the hazard — deleting a range off a signed month, re-dating one off it, and back-dating a new
+movement onto it — and permits every write that leaves a signed month's visibility unchanged.
 
 Three things about its shape are not incidental. It **cannot be a foreign key**, for two
 independent reasons this file has already fixed permanently: the relationship is an overlap rather
