@@ -26,11 +26,16 @@ final class Matcher
     /**
      * @param  list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}>  $sides
      * @param  list<array{id: string, time: CarbonImmutable, state: int}>  $timelogs
+     * @param  CarbonImmutable  $date  The workday. Only `transits()` reads it —
+     *                                 sides carry their own day — and it is
+     *                                 required rather than optional because
+     *                                 the case that needs it is the one a
+     *                                 caller forgets (decision 87).
      */
-    public static function match(array $sides, array $timelogs, int $flex, bool $trust): Matching
+    public static function match(array $sides, array $timelogs, int $flex, bool $trust, CarbonImmutable $date): Matching
     {
         if ($sides === []) {
-            return new Matching([], self::transits($timelogs));
+            return new Matching([], self::transits($date, $timelogs));
         }
 
         $sides = self::slide($sides, $timelogs, $flex);
@@ -64,14 +69,33 @@ final class Matcher
      * expectation, and a zero deviation would claim a punctuality nobody
      * measured.
      *
+     * **Bounded to `$date`'s own taps, and that bound is the whole of the
+     * correctness here** (decision 87). Every other day is bounded by its
+     * sides — `fill()` will not attach a tap outside a slot's window — and a
+     * day with no sides had no bound at all. `Computer` loads the candidate
+     * timelogs for the *whole range* once, so an expectation-free day inside
+     * a three-month recompute paired off every unclaimed tap left in the
+     * quarter: one arrival in June, one departure in August, and `excess`
+     * overflowed the column. A calendar day is the only defensible bound
+     * once there is no expectation to measure against, and it errs the way
+     * decision 67 and this method already err — a night worked across
+     * midnight on a rest day splits into two lone taps and measures nothing,
+     * rather than becoming an entitlement out of an ambiguous record.
+     *
      * @param  list<array{id: string, time: CarbonImmutable, state: int}>  $timelogs
      * @return list<array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}>
      */
-    private static function transits(array $timelogs): array
+    private static function transits(CarbonImmutable $date, array $timelogs): array
     {
+        $day = $date->toDateString();
+        $own = array_filter(
+            $timelogs,
+            fn (array $timelog): bool => CarbonImmutable::instance($timelog['time'])->toDateString() === $day,
+        );
+
         $punches = [];
 
-        foreach (array_values($timelogs) as $index => $timelog) {
+        foreach (array_values($own) as $index => $timelog) {
             $punches[] = [
                 'slot' => intdiv($index, 2) + 1,
                 'kind' => $index % 2 === 0 ? PunchKind::In->value : PunchKind::Out->value,

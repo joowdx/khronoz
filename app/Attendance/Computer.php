@@ -188,6 +188,7 @@ final class Computer
                 $this->unclaimed($timelogs, $date),
                 (int) ($day->shift?->flex ?? 0),
                 (bool) ($day->shift?->trust ?? false),
+                $date,
             );
 
             $derived = Deriver::derive(

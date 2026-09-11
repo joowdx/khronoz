@@ -1031,6 +1031,57 @@ class ComputerTest extends TestCase
         $this->assertSame($id, $this->workday($employee, '2026-09-10')->id);
     }
 
+    /**
+     * The defect decision 87 fixes, in the shape that produced it: an
+     * expectation-free day early in a range, and the taps of a working day
+     * later in it.
+     *
+     * `over()` walks ascending and loads the candidate timelogs for the whole
+     * range once, so Saturday was computed first and `transits()` — which had
+     * no date to bound it — paired Monday's arrival with Monday's departure
+     * as Saturday's own. Over a three-month seed that was one arrival in June
+     * against one departure in August, and `excess` overflowed a smallint.
+     */
+    public function test_a_rest_day_does_not_claim_a_later_days_taps(): void
+    {
+        ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
+        $this->tap($enrollment, '2026-09-14 08:00:00');
+        $this->tap($enrollment, '2026-09-14 17:00:00');
+
+        $this->compute($employee, '2026-09-12', '2026-09-18');
+
+        $saturday = $this->workday($employee, '2026-09-12');
+
+        $this->assertSame(WorkdayStatus::Off, $saturday->status);
+        $this->assertSame(0, $saturday->excess);
+        $this->assertSame(0, $saturday->punches()->count());
+
+        // And Monday still claims them, which is the half a bound could break.
+        // Its own punch rows are four — one per side of a two-slot shift —
+        // and two of them carry a timelog.
+        $monday = $this->workday($employee, '2026-09-14');
+        $this->assertSame(4, $monday->punches()->count());
+        $this->assertSame(2, $monday->punches()->whereNotNull('timelog_id')->count());
+    }
+
+    /** A rest day that *was* worked still records its own taps. */
+    public function test_a_rest_day_worked_records_the_taps_of_that_day(): void
+    {
+        ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
+        $this->tap($enrollment, '2026-09-12 08:00:00');
+        $this->tap($enrollment, '2026-09-12 17:00:00');
+        $this->tap($enrollment, '2026-09-14 08:00:00');
+        $this->tap($enrollment, '2026-09-14 17:00:00');
+
+        $this->compute($employee, '2026-09-12', '2026-09-18');
+
+        $saturday = $this->workday($employee, '2026-09-12');
+
+        $this->assertSame(WorkdayStatus::Off, $saturday->status);
+        $this->assertSame(2, $saturday->punches()->count());
+        $this->assertSame(540, $saturday->excess);
+    }
+
     private function exists(Employee $employee, string $date): bool
     {
         return Workday::query()

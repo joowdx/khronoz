@@ -117,7 +117,7 @@ class MatcherTest extends TestCase
             $this->tap('c', '2026-09-08 12:03:00'),
             $this->tap('d', '2026-09-08 17:05:00'),
             $this->tap('e', '2026-09-08 19:31:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertInstanceOf(Matching::class, $matching);
         $this->assertCount(4, $matching->sides);
@@ -142,7 +142,7 @@ class MatcherTest extends TestCase
             $this->tap('b', '2026-09-12 12:00:00', 1),
             $this->tap('c', '2026-09-12 13:00:00'),
             $this->tap('d', '2026-09-12 17:00:00', 1),
-        ], 180, false);
+        ], 180, false, CarbonImmutable::parse('2026-09-12'));
 
         $this->assertInstanceOf(Matching::class, $matching);
         $this->assertSame([], $matching->sides);
@@ -153,10 +153,41 @@ class MatcherTest extends TestCase
         $this->assertTransit($matching->punches[3], 2, 'out', 'd', '2026-09-12 17:00:00');
     }
 
+    /**
+     * Decision 87. Sides bound a day to its own taps — `fill()` refuses one
+     * outside a slot's window — and a day with no sides had no bound, so it
+     * paired off whatever the caller happened to be holding. `Computer` holds
+     * the whole recompute range.
+     */
+    public function test_a_tap_on_another_day_is_no_transit_of_this_one(): void
+    {
+        $matching = Matcher::match([], [
+            $this->tap('a', '2026-09-12 08:00:00'),
+            $this->tap('b', '2026-09-12 17:00:00', 1),
+            $this->tap('c', '2026-09-14 08:00:00'),
+            $this->tap('d', '2026-09-14 17:00:00', 1),
+        ], 180, false, CarbonImmutable::parse('2026-09-12'));
+
+        $this->assertCount(2, $matching->punches);
+        $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
+        $this->assertTransit($matching->punches[1], 1, 'out', 'b', '2026-09-12 17:00:00');
+    }
+
+    /** And the day with none of its own records none, not the next day's. */
+    public function test_an_expectation_free_day_nobody_attended_records_nothing(): void
+    {
+        $matching = Matcher::match([], [
+            $this->tap('c', '2026-09-14 08:00:00'),
+            $this->tap('d', '2026-09-14 17:00:00', 1),
+        ], 180, false, CarbonImmutable::parse('2026-09-12'));
+
+        $this->assertSame([], $matching->punches);
+    }
+
     /** No taps, no punches — the day is unattended, not unrecorded. */
     public function test_empty_sides_and_no_taps_return_no_punches(): void
     {
-        $matching = Matcher::match([], [], 180, false);
+        $matching = Matcher::match([], [], 180, false, $this->day());
 
         $this->assertSame([], $matching->sides);
         $this->assertSame([], $matching->punches);
@@ -169,7 +200,7 @@ class MatcherTest extends TestCase
             $this->tap('a', '2026-09-12 08:00:00'),
             $this->tap('b', '2026-09-12 12:00:00', 1),
             $this->tap('c', '2026-09-12 13:00:00'),
-        ], 180, false);
+        ], 180, false, CarbonImmutable::parse('2026-09-12'));
 
         $this->assertCount(3, $matching->punches);
         $this->assertTransit($matching->punches[2], 2, 'in', 'c', '2026-09-12 13:00:00');
@@ -186,7 +217,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match([], [
             $this->tap('a', '2026-09-12 08:00:00'),
             $this->tap('b', '2026-09-12 17:00:00'),
-        ], 180, true);
+        ], 180, true, CarbonImmutable::parse('2026-09-12'));
 
         $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
         $this->assertTransit($matching->punches[1], 1, 'out', 'b', '2026-09-12 17:00:00');
@@ -197,7 +228,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match([], [
             $this->tap('a', '2026-09-12 08:00:59'),
-        ], 180, false);
+        ], 180, false, CarbonImmutable::parse('2026-09-12'));
 
         $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
     }
@@ -210,7 +241,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match($this->standard(), [
             $this->tap('a', '2026-09-08 07:58:12'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'a', '2026-09-08 07:58:00', -2);
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', null, null, null);
@@ -228,7 +259,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($sides, [
             $this->tap('in', '2026-09-08 19:00:00'),
             $this->tap('out', '2026-09-08 21:00:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertCount(2, $matching->punches);
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'in', '2026-09-08 19:00:00', 11 * 60);
@@ -246,7 +277,7 @@ class MatcherTest extends TestCase
 
         $matching = Matcher::match($sides, [
             $this->tap('mid', '2026-09-08 20:00:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'mid', '2026-09-08 20:00:00', 12 * 60);
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-09 08:00:00', null, null, null);
@@ -262,7 +293,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($this->flexi(), [
             $this->tap('in', '2026-09-08 10:30:00'),
             $this->tap('out', '2026-09-08 19:00:00'),
-        ], 180, false);
+        ], 180, false, $this->day());
 
         $this->assertSame('2026-09-08 10:00:00', $matching->sides[0]['at']->format('Y-m-d H:i:s'));
         $this->assertSame('2026-09-08 14:00:00', $matching->sides[1]['at']->format('Y-m-d H:i:s'));
@@ -281,7 +312,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($this->flexi(), [
             $this->tap('early', '2026-09-08 06:20:00'),
             $this->tap('in', '2026-09-08 10:30:00'),
-        ], 180, false);
+        ], 180, false, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 10:00:00', 'in', '2026-09-08 10:30:00', 30);
     }
@@ -291,7 +322,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match($this->flexi(), [
             $this->tap('in', '2026-09-08 06:30:00'),
-        ], 180, false);
+        ], 180, false, $this->day());
 
         $this->assertSame('2026-09-08 07:00:00', $matching->sides[0]['at']->format('Y-m-d H:i:s'));
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 07:00:00', 'in', '2026-09-08 06:30:00', -30);
@@ -305,7 +336,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match($this->standard(), [
             $this->tap('c', '2026-09-08 12:03:00', 0),
-        ], 0, true);
+        ], 0, true, $this->day());
 
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', null, null, null);
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', 'c', '2026-09-08 12:03:00', -57);
@@ -319,7 +350,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match($this->standard(), [
             $this->tap('a', '2026-09-08 07:58:00', 1),
-        ], 0, true);
+        ], 0, true, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', null, null, null);
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', 'a', '2026-09-08 07:58:00', -242);
@@ -333,7 +364,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match($this->standard(), [
             $this->tap('c', '2026-09-08 12:03:00', 9),
-        ], 0, true);
+        ], 0, true, $this->day());
 
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', 'c', '2026-09-08 12:03:00', 3);
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', null, null, null);
@@ -344,7 +375,7 @@ class MatcherTest extends TestCase
     {
         $matching = Matcher::match($this->standard(), [
             $this->tap('c', '2026-09-08 12:03:00', 0),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', 'c', '2026-09-08 12:03:00', 3);
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', null, null, null);
@@ -360,7 +391,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($this->standard(), [
             $this->tap('early', '2026-09-08 07:50:00'),
             $this->tap('near', '2026-09-08 08:05:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'near', '2026-09-08 08:05:00', 5);
     }
@@ -375,7 +406,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($this->standard(), [
             $this->tap('near', '2026-09-08 17:05:00'),
             $this->tap('far', '2026-09-08 19:31:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', null, null, null);
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 17:00:00', 'near', '2026-09-08 17:05:00', 5);
@@ -387,7 +418,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($this->standard(), [
             $this->tap('first', '2026-09-08 07:50:00'),
             $this->tap('second', '2026-09-08 08:10:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'first', '2026-09-08 07:50:00', -10);
     }
@@ -398,7 +429,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($this->standard(), [
             $this->tap('first', '2026-09-08 16:50:00'),
             $this->tap('second', '2026-09-08 17:10:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 17:00:00', 'second', '2026-09-08 17:10:00', 10);
     }
@@ -414,7 +445,7 @@ class MatcherTest extends TestCase
         $matching = Matcher::match($sides, [
             $this->tap('in', '2026-09-08 22:04:00'),
             $this->tap('out', '2026-09-09 06:02:00'),
-        ], 0, false);
+        ], 0, false, $this->day());
 
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 22:00:00', 'in', '2026-09-08 22:04:00', 4);
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-09 06:00:00', 'out', '2026-09-09 06:02:00', 2);
@@ -439,7 +470,7 @@ class MatcherTest extends TestCase
                 'time' => CarbonImmutable::parse('2026-09-09 06:00:00', 'Asia/Manila'),
                 'state' => 1,
             ],
-        ], 0, false);
+        ], 0, false, CarbonImmutable::parse('2026-09-09'));
 
         $this->assertSame('Asia/Manila', $matching->punches[1]['expected_at']->timezoneName);
         $this->assertSame('Asia/Manila', $matching->punches[1]['actual_at']->timezoneName);
