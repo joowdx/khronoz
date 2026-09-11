@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DefaultController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDeploymentController;
 use App\Http\Controllers\ExemptionController;
@@ -10,8 +11,12 @@ use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
+use App\Http\Controllers\RosterController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\SuspensionController;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TerminalEnrollmentController;
 use App\Http\Controllers\TerminalSyncController;
@@ -66,6 +71,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
         Route::resource('terminals', TerminalController::class)->except(['show']);
+        // Scheduling (04-scheduling.md). A shift is a day template, a schedule
+        // a cycle of shifts, a team a named (schedule, anchor) cohort, and a
+        // roster the only assignment there is.
+        //
+        // Inside `agency` like the calendar, and for the same reason: `teams`
+        // carries agency_not_platform, and a roster needs an employee, which
+        // the platform tenant may not hold. Platform-owned shifts and schedules
+        // are product data seeded by DefaultsSeeder and reached only through
+        // the defaults screen below — an agency copies or refreshes them, and
+        // nobody edits them through a request.
+        Route::resource('shifts', ShiftController::class)->except(['show']);
+        Route::resource('schedules', ScheduleController::class)->except(['show']);
+        Route::resource('teams', TeamController::class)->except(['show']);
+
+        // The roster grid, and the two writes it offers. Assignment is a POST
+        // to the collection because AssignSchedule *issues* a roster — it
+        // closes the standing one at `starts - 1` in the same transaction,
+        // which is one act, not an edit of the row it supersedes. There is no
+        // update: a wrongly dated roster is deleted and reissued (decision 35).
+        Route::get('rosters', [RosterController::class, 'index'])->name('rosters.index');
+        Route::post('rosters', [RosterController::class, 'store'])->name('rosters.store');
+        Route::delete('rosters/{roster}', [RosterController::class, 'destroy'])->name('rosters.destroy');
+
+        // Platform defaults an agency may copy or refresh from (rule 7). Its
+        // own controller rather than a method on ShiftController: it lists
+        // shifts *and* schedules and belongs to neither.
+        Route::get('defaults', [DefaultController::class, 'index'])->name('defaults.index');
+        Route::post('defaults/copy', [DefaultController::class, 'copy'])->name('defaults.copy');
+        Route::post('defaults/refresh', [DefaultController::class, 'refresh'])->name('defaults.refresh');
+
         // The calendar: what changes what was expected of a day
         // (05-calendar.md). `holidays` is the one table read under
         // AgencyOrPlatformScope, so its list mixes this agency's rows with the

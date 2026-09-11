@@ -1,5 +1,24 @@
 import { usePage } from '@inertiajs/react';
-import { AlarmClock, BookOpen, Building2, CalendarDays, CalendarOff, ClipboardList, CloudRainWind, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
+import {
+    AlarmClock,
+    BookOpen,
+    Building2,
+    CalendarDays,
+    CalendarOff,
+    ClipboardList,
+    CloudRainWind,
+    CopyPlus,
+    FileDown,
+    Fingerprint,
+    LayoutGrid,
+    Network,
+    Repeat,
+    ScanLine,
+    SquareStack,
+    Table2,
+    UserRoundCheck,
+    UsersRound,
+} from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -7,13 +26,18 @@ import { Sidebar } from '@/components/ui/sidebar';
 import { UserMenu } from '@/components/user-menu';
 import { useCan } from '@/hooks/use-can';
 import { dashboard } from '@/routes';
+import { index as defaultsIndex } from '@/routes/defaults';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as agenciesIndex } from '@/routes/platform/agencies';
 import { index as terminalsIndex } from '@/routes/terminals';
 import { index as exemptionsIndex } from '@/routes/exemptions';
 import { index as holidaysIndex } from '@/routes/holidays';
 import { index as overtimesIndex } from '@/routes/overtimes';
+import { index as rostersIndex } from '@/routes/rosters';
+import { index as schedulesIndex } from '@/routes/schedules';
+import { index as shiftsIndex } from '@/routes/shifts';
 import { index as suspensionsIndex } from '@/routes/suspensions';
+import { index as teamsIndex } from '@/routes/teams';
 import { index as syncsIndex } from '@/routes/syncs';
 import { index as timelogsIndex } from '@/routes/timelogs';
 import { index as workdaysIndex } from '@/routes/workdays';
@@ -73,12 +97,14 @@ export function AppSidebar() {
      * screen yet, so it is not rendered; it joins the ungrouped run under
      * Users when the agency-profile screens land.
      */
+    const platformItems = [
+        ...(can('users.manage') ? [{ title: 'Users', href: usersIndex().url, icon: UserRoundCheck }] : []),
+        ...(platform ? [{ title: 'Agencies', href: agenciesIndex().url, icon: Building2 }] : []),
+    ];
+
     const groups: NavGroup[] = [
         {
-            items: [
-                { title: 'Dashboard', href: dashboard().url, icon: LayoutGrid },
-                ...(can('users.manage') ? [{ title: 'Users', href: usersIndex().url, icon: UserRoundCheck }] : []),
-            ],
+            items: [{ title: 'Dashboard', href: dashboard().url, icon: LayoutGrid }],
         },
         ...(insideAgency && can('organization.view')
             ? [
@@ -87,6 +113,29 @@ export function AppSidebar() {
                       items: [
                           { title: 'Workgroups', href: workgroupsIndex().url, icon: Network },
                           { title: 'Employees', href: employeesIndex().url, icon: UsersRound },
+                      ],
+                  },
+              ]
+            : []),
+        // Milestone 3's layer, and the one the product is named for. Rosters
+        // first: it is the screen people come here to look at, and shifts and
+        // schedules are what you edit to change what it draws.
+        //
+        // Gated on `insideAgency` for the same reason Organization is — `teams`
+        // carries agency_not_platform and a roster needs an employee, so from
+        // the platform tenant half of this group leads to a P0001 the routes
+        // now 404 first (middleware.md, and OrganizationNavContractTest locks
+        // the pattern).
+        ...(insideAgency && can('scheduling.view')
+            ? [
+                  {
+                      label: 'Scheduling',
+                      items: [
+                          { title: 'Rosters', href: rostersIndex().url, icon: Table2 },
+                          { title: 'Shifts', href: shiftsIndex().url, icon: SquareStack },
+                          { title: 'Schedules', href: schedulesIndex().url, icon: Repeat },
+                          { title: 'Teams', href: teamsIndex().url, icon: UsersRound },
+                          { title: 'Defaults', href: defaultsIndex().url, icon: CopyPlus },
                       ],
                   },
               ]
@@ -125,7 +174,7 @@ export function AppSidebar() {
         ...(insideAgency && can('ledgers.view')
             ? [
                   {
-                      label: 'Daily time records',
+                      label: 'Timesheets',
                       items: [
                           { title: 'Workdays', href: workdaysIndex().url, icon: ClipboardList },
                           { title: 'Ledgers', href: ledgersIndex().url, icon: BookOpen },
@@ -133,9 +182,18 @@ export function AppSidebar() {
                   },
               ]
             : []),
-        ...(platform
-            ? [{ label: 'Platform', items: [{ title: 'Agencies', href: agenciesIndex().url, icon: Building2 }] }]
-            : []),
+        // Users sits here rather than beside Dashboard (owner, 2026-09-12). It is
+        // administration of the installation, not of the timetable, and it reads
+        // better at the bottom next to Agencies than at the top next to the one
+        // screen everybody opens.
+        //
+        // The group is **not** gated on `platform`, only its Agencies row is: an
+        // agency administrator holding users.manage invites and manages their own
+        // colleagues and must keep reaching this. Gating the group on `platform`
+        // would have taken the screen away from exactly the people who use it
+        // most, which is the failure OrganizationNavContractTest exists to catch
+        // in the other direction — a group offering rows the tenant cannot hold.
+        ...(platformItems.length > 0 ? [{ label: 'Platform', items: platformItems }] : []),
     ];
 
     return (

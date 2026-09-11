@@ -462,6 +462,82 @@ export interface Deployment {
     starts: string;
     ends: string | null;
 }
+/**
+ * One expected stretch of a shift's day. Times are `"HH:MM"` and may run past
+ * 24:00 — `"30:00"` is 06:00 the next day, capped at 72:00 — so they are
+ * rendered as given and never reparsed into a Date (04-scheduling.md).
+ */
+export interface ShiftSlot {
+    in: string;
+    out: string;
+    /** Minutes after `in` still counted on time. */
+    grace?: number;
+    /** [before `in`, after `out`] in minutes; the first is <= 0, the second >= 0. */
+    window: [number, number];
+}
+
+export interface Shift {
+    id: string;
+    name: string;
+    slots: ShiftSlot[];
+    /** Minutes the day must credit. */
+    required: number;
+    /** Flexitime slide, in minutes. 0 for a fixed shift. */
+    flex: number;
+    remote: boolean;
+    trust: boolean;
+    /** 1 to 8 — the stored ramp index, never derived from name or id. */
+    color: number;
+    /** Derived server-side: no slots means `off`, unless `remote`. */
+    kind: 'working' | 'off' | 'remote';
+    origin_id: string | null;
+    origin?: Shift | null;
+}
+
+export interface Turn {
+    id: string;
+    /** 0-based; a schedule's turns occupy 0..length-1 exactly. */
+    position: number;
+    shift_id: string;
+    shift?: Shift;
+}
+
+export interface Schedule {
+    id: string;
+    name: string;
+    /** Cycle length in days, 1 to 366. */
+    length: number;
+    fallback_shift_id: string | null;
+    fallback_shift?: Shift | null;
+    turns?: Turn[];
+    origin_id: string | null;
+    origin?: Schedule | null;
+}
+
+export interface Team {
+    id: string;
+    name: string;
+    schedule_id: string;
+    schedule?: Schedule;
+    anchor: string;
+    people_count?: number;
+}
+
+export interface Roster {
+    id: string;
+    employee_id: string;
+    employee?: Employee | null;
+    schedule_id: string;
+    schedule?: Schedule;
+    team_id: string | null;
+    team?: Team | null;
+    /** Cycle day 1. Independent of `starts`. */
+    anchor: string;
+    starts: string;
+    /** null means still running. */
+    ends: string | null;
+}
+
 export interface Flash {
     success?: string;
     error?: string;
