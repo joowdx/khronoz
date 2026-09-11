@@ -526,7 +526,17 @@ approved_at timestamp(0) NOT NULL                                  -- v1 sets it
 -- no exclusion over (employee_id, the range), deliberately: a morning pass and an afternoon CTO are one
 -- ordinary day. Milestone 6 stamps one workdays.exemption_id per day and picks by precedence.
 -- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
+-- trigger exemptions_frozen_month, BEFORE INSERT/UPDATE/DELETE: raise if the range changes which locked months it covers
 ```
+
+`exemptions_frozen_month` and `overtimes_frozen_month` are decision 81, and they are
+`deployments_frozen_month` applied to the other two tables a locked month is read from.
+The three are the same function three times: symmetric difference of the OLD and NEW
+overlap so a row cannot be moved *out* of a locked month either, `locked_at IS NOT NULL`
+alone for "locked or attested", and silence on an inverted range so the ordering CHECK
+keeps its own refusal. An authority is frozen on **both** ends of its range and not on the
+`date` column alone: `date` is `starts::date`, so a 31 August 22:00 to 1 September 02:00
+order is dated August and still authorises minutes September's DTR reports.
 
 ### overtimes
 
@@ -540,6 +550,7 @@ CHECK (ends > starts)                                              -- strict: ts
 CHECK (mode IN ('pay', 'cto'))
 EXCLUDE USING gist (employee_id WITH =, tsrange(starts, ends) WITH &&)
 -- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
+-- trigger overtimes_frozen_month, BEFORE INSERT/UPDATE/DELETE: raise if the range changes which locked months it covers
 ```
 
 `ends` is `NOT NULL` here and nullable on every other range in the schema: an order names the hours

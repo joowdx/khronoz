@@ -58,22 +58,41 @@ return new class extends Migration
                 EXECUTE FUNCTION ledgers_unlock_clean();
         SQL);
 
-        // Attached here, not in 000011: the function queries `ledgers`.
+        // Attached here, not in 000011, 000021 and 000022: the functions
+        // query `ledgers`. Decision 81 adds the second and third — a locked
+        // month's figures are read from `overtimes` and `exemptions` as well
+        // as from the frozen workday, so all three tables are frozen against
+        // the months they would move.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER deployments_frozen_month
                 BEFORE INSERT OR UPDATE OR DELETE ON deployments
                 FOR EACH ROW EXECUTE FUNCTION deployments_frozen_month();
         SQL);
+
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER exemptions_frozen_month
+                BEFORE INSERT OR UPDATE OR DELETE ON exemptions
+                FOR EACH ROW EXECUTE FUNCTION exemptions_frozen_month();
+        SQL);
+
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER overtimes_frozen_month
+                BEFORE INSERT OR UPDATE OR DELETE ON overtimes
+                FOR EACH ROW EXECUTE FUNCTION overtimes_frozen_month();
+        SQL);
     }
 
     /**
-     * The ledgers triggers go with the table. `deployments_frozen_month` is
-     * on `deployments`, so it is dropped explicitly; the function belongs to
-     * 0001_01_01_000028_prepare_attendance and is dropped only there.
+     * The ledgers triggers go with the table. The three frozen-month
+     * triggers live on other tables, so they are dropped explicitly; their
+     * functions belong to 0001_01_01_000028_prepare_attendance and are
+     * dropped only there.
      */
     public function down(): void
     {
         DB::unprepared('DROP TRIGGER IF EXISTS deployments_frozen_month ON deployments');
+        DB::unprepared('DROP TRIGGER IF EXISTS exemptions_frozen_month ON exemptions');
+        DB::unprepared('DROP TRIGGER IF EXISTS overtimes_frozen_month ON overtimes');
 
         Schema::dropIfExists('ledgers');
     }

@@ -5,7 +5,9 @@ namespace Tests\Feature\Models;
 use App\Models\Attestation;
 use App\Models\Deployment;
 use App\Models\Employee;
+use App\Models\Exemption;
 use App\Models\Ledger;
+use App\Models\Overtime;
 use App\Models\Punch;
 use App\Models\Workday;
 use Illuminate\Support\Facades\DB;
@@ -249,6 +251,169 @@ class LedgerTest extends TestCase
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('ledgers')->where('id', $ledger->id)->update([
             'locked_at' => null,
         ]));
+    }
+
+    /**
+     * An open September ledger. Decision 81's rows are created against it
+     * *before* it locks — a row already overlapping a locked month cannot be
+     * inserted at all, which is the first thing these tests assert.
+     *
+     * @return array{0: string, 1: string, 2: Ledger} agency id, employee id, the ledger
+     */
+    private function september(): array
+    {
+        $ledger = Ledger::factory()->create(['month' => '2026-09-01']);
+
+        return [$ledger->agency_id, $ledger->employee_id, $ledger];
+    }
+
+    private function lockIt(Ledger $ledger): void
+    {
+        DB::table('ledgers')->where('id', $ledger->id)->update(['locked_at' => '2026-10-05 12:00:00']);
+    }
+
+    /**
+     * exemptions_frozen_month (decision 81). A locked month's occurrence
+     * counts and printed stamps are read from `exemptions` at request time,
+     * so the row has to be frozen the way the placement is: insert onto the
+     * month, re-date into it, re-date out of it (the OLD limb), delete off
+     * it.
+     */
+    public function test_a_write_cannot_change_which_locked_months_an_exemption_covers(): void
+    {
+        [$agency, $employee, $ledger] = $this->september();
+
+        $straddling = Exemption::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'date' => '2026-08-20',
+            'until' => '2026-09-05',
+        ]);
+
+        $this->lockIt($ledger);
+
+        $this->assertDatabaseRefuses('P0001', fn () => Exemption::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'date' => '2026-09-10',
+            'until' => '2026-09-10',
+        ]), 'an exemption cannot change which locked months it covers');
+
+        $october = Exemption::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'date' => '2026-10-05',
+            'until' => '2026-10-05',
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('exemptions')->where('id', $october->id)->update([
+            'date' => '2026-09-20',
+            'until' => '2026-09-20',
+        ]));
+
+        // The OLD limb: shortening the straddle so it no longer reaches
+        // September takes an excuse off a signed month, and the NEW range
+        // alone cannot see it.
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('exemptions')->where('id', $straddling->id)->update([
+            'until' => '2026-08-25',
+        ]));
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('exemptions')->where('id', $straddling->id)->delete());
+    }
+
+    /**
+     * The permitting path. A month nobody locked is editable, and so is a
+     * neighbouring month of a locked one — a rule that froze every row of an
+     * employee with any locked month would stop the office working.
+     */
+    public function test_an_exemption_outside_every_locked_month_is_writable(): void
+    {
+        [$agency, $employee, $ledger] = $this->september();
+        $this->lockIt($ledger);
+
+        $october = Exemption::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'date' => '2026-10-05',
+            'until' => '2026-10-05',
+        ]);
+
+        DB::table('exemptions')->where('id', $october->id)->update(['until' => '2026-10-07']);
+        $this->assertDatabaseHas('exemptions', ['id' => $october->id, 'until' => '2026-10-07']);
+
+        DB::table('exemptions')->where('id', $october->id)->delete();
+        $this->assertDatabaseMissing('exemptions', ['id' => $october->id]);
+    }
+
+    /**
+     * overtimes_frozen_month (decision 81). The authority is what daily rule
+     * 6 intersects the excess with, so filing one against a signed month
+     * changes a figure somebody has already certified.
+     */
+    public function test_a_write_cannot_change_which_locked_months_an_authority_covers(): void
+    {
+        [$agency, $employee, $ledger] = $this->september();
+
+        $overnight = Overtime::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'starts' => '2026-09-30 22:00:00',
+            'ends' => '2026-10-01 02:00:00',
+        ]);
+
+        $this->lockIt($ledger);
+
+        $this->assertDatabaseRefuses('P0001', fn () => Overtime::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'starts' => '2026-09-10 17:00:00',
+            'ends' => '2026-09-10 21:00:00',
+        ]), 'an overtime authority cannot change which locked months it covers');
+
+        $october = Overtime::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'starts' => '2026-10-05 17:00:00',
+            'ends' => '2026-10-05 21:00:00',
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('overtimes')->where('id', $october->id)->update([
+            'starts' => '2026-09-20 17:00:00',
+            'ends' => '2026-09-20 21:00:00',
+        ]));
+
+        // The OLD limb, and the reason the range runs `starts::date` through
+        // `ends::date`: an authority that began on 30 September is
+        // September's, and pushing it wholly into October withdraws it from
+        // a signed month.
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('overtimes')->where('id', $overnight->id)->update([
+            'starts' => '2026-10-01 22:00:00',
+            'ends' => '2026-10-02 02:00:00',
+        ]));
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('overtimes')->where('id', $overnight->id)->delete());
+    }
+
+    /**
+     * Both ends of the authority, not only the one `overtimes.date` records.
+     * An authority running 31 August 22:00 to 1 September 02:00 is dated
+     * August — `date` is generated from `starts::date` — and still
+     * authorises two hours that `Ledger::view()` reports on September's DTR,
+     * because that view asks `overlapping()` over the month plus a day.
+     * Freezing on the start alone would let it be filed against a signed
+     * September.
+     */
+    public function test_an_authority_ending_inside_a_locked_month_is_refused(): void
+    {
+        [$agency, $employee, $ledger] = $this->september();
+        $this->lockIt($ledger);
+
+        $this->assertDatabaseRefuses('P0001', fn () => Overtime::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'starts' => '2026-08-31 22:00:00',
+            'ends' => '2026-09-01 02:00:00',
+        ]), 'an overtime authority cannot change which locked months it covers');
     }
 
     /**

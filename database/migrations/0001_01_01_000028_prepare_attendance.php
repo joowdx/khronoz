@@ -304,6 +304,125 @@ return new class extends Migration
                 RETURN NEW;
             END $$;
         SQL);
+
+        // Decision 81. The two other tables a locked month's figures are read
+        // from. `deployments_frozen_month` (decision 55) freezes the
+        // placement; these freeze the authority and the excuse, on the same
+        // argument and against the same locked months, because a DTR that
+        // was signed for 180 minutes of overtime must not print 240 the next
+        // time it is opened.
+        //
+        // The same shape as deployments_frozen_month throughout: symmetric
+        // difference on an UPDATE so a row cannot be moved *out* of a locked
+        // month either, `locked_at IS NOT NULL` alone for "locked or
+        // attested", IF/ELSIF on TG_OP, and silence on an inverted range so
+        // exemptions_span_ordered and overtimes_dates_ordered keep their own
+        // refusals — daterange() would raise 22000 first.
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION exemptions_frozen_month() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    IF OLD.until < OLD.date THEN
+                        RETURN OLD;
+                    END IF;
+
+                    IF EXISTS (
+                        SELECT 1
+                          FROM ledgers
+                         WHERE ledgers.employee_id = OLD.employee_id
+                           AND ledgers.locked_at IS NOT NULL
+                           AND daterange(OLD.date, OLD.until, '[]')
+                               && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)')
+                    ) THEN
+                        RAISE EXCEPTION 'an exemption cannot change which locked months it covers';
+                    END IF;
+
+                    RETURN OLD;
+                END IF;
+
+                IF NEW.until < NEW.date THEN
+                    RETURN NEW;
+                END IF;
+
+                IF TG_OP = 'UPDATE' AND OLD.until < OLD.date THEN
+                    RETURN NEW;
+                END IF;
+
+                IF EXISTS (
+                    SELECT 1
+                      FROM ledgers
+                     WHERE ledgers.locked_at IS NOT NULL
+                       AND ledgers.employee_id IN (OLD.employee_id, NEW.employee_id)
+                       AND (
+                            (TG_OP = 'UPDATE'
+                             AND ledgers.employee_id = OLD.employee_id
+                             AND daterange(OLD.date, OLD.until, '[]')
+                                 && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)'))
+                            OR
+                            (ledgers.employee_id = NEW.employee_id
+                             AND daterange(NEW.date, NEW.until, '[]')
+                                 && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)'))
+                       )
+                ) THEN
+                    RAISE EXCEPTION 'an exemption cannot change which locked months it covers';
+                END IF;
+
+                RETURN NEW;
+            END $$;
+        SQL);
+
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION overtimes_frozen_month() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    IF OLD.ends < OLD.starts THEN
+                        RETURN OLD;
+                    END IF;
+
+                    IF EXISTS (
+                        SELECT 1
+                          FROM ledgers
+                         WHERE ledgers.employee_id = OLD.employee_id
+                           AND ledgers.locked_at IS NOT NULL
+                           AND daterange(OLD.starts::date, OLD.ends::date, '[]')
+                               && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)')
+                    ) THEN
+                        RAISE EXCEPTION 'an overtime authority cannot change which locked months it covers';
+                    END IF;
+
+                    RETURN OLD;
+                END IF;
+
+                IF NEW.ends < NEW.starts THEN
+                    RETURN NEW;
+                END IF;
+
+                IF TG_OP = 'UPDATE' AND OLD.ends < OLD.starts THEN
+                    RETURN NEW;
+                END IF;
+
+                IF EXISTS (
+                    SELECT 1
+                      FROM ledgers
+                     WHERE ledgers.locked_at IS NOT NULL
+                       AND ledgers.employee_id IN (OLD.employee_id, NEW.employee_id)
+                       AND (
+                            (TG_OP = 'UPDATE'
+                             AND ledgers.employee_id = OLD.employee_id
+                             AND daterange(OLD.starts::date, OLD.ends::date, '[]')
+                                 && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)'))
+                            OR
+                            (ledgers.employee_id = NEW.employee_id
+                             AND daterange(NEW.starts::date, NEW.ends::date, '[]')
+                                 && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)'))
+                       )
+                ) THEN
+                    RAISE EXCEPTION 'an overtime authority cannot change which locked months it covers';
+                END IF;
+
+                RETURN NEW;
+            END $$;
+        SQL);
     }
 
     /** The one place these are dropped; the argument lists are required. */
@@ -311,6 +430,8 @@ return new class extends Migration
     {
         DB::statement('DROP FUNCTION IF EXISTS workdays_ledger_open()');
         DB::statement('DROP FUNCTION IF EXISTS punches_ledger_open()');
+        DB::statement('DROP FUNCTION IF EXISTS exemptions_frozen_month()');
+        DB::statement('DROP FUNCTION IF EXISTS overtimes_frozen_month()');
         DB::statement('DROP FUNCTION IF EXISTS attestations_locked()');
         DB::statement('DROP FUNCTION IF EXISTS punches_timelog_live()');
         DB::statement('DROP FUNCTION IF EXISTS deployments_frozen_month()');
