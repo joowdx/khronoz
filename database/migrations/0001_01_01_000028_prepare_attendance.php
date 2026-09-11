@@ -227,11 +227,55 @@ return new class extends Migration
                 RETURN NEW;
             END $$;
         SQL);
+
+        // Decision 70. A locked month refuses workday writes in the database,
+        // not in the job: INSERT, UPDATE and DELETE of a workday whose ledger
+        // has locked_at set. Punches need no trigger of their own —
+        // punches.workday_id cascades from a workday that can no longer be
+        // deleted.
+        //
+        // IF / ELSIF on TG_OP, never CASE: plpgsql resolves field references
+        // in every CASE arm, and NEW is unassigned in a DELETE trigger.
+        // Return OLD from the DELETE branch and NEW otherwise — returning
+        // NULL would silently cancel the statement.
+        //
+        // An UPDATE has two ledgers: moving a row out of a locked month is
+        // as much a rewrite of signed history as moving one in. Skip the
+        // second lookup when the ids are equal (IS DISTINCT FROM).
+        //
+        // Silent when the ledger does not exist: the FK owes 23503. A scalar
+        // subquery, not a rowtype — this migration runs before `ledgers`
+        // exists, and a rowtype is resolved at compile time.
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION workdays_ledger_open() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    IF (SELECT locked_at IS NOT NULL FROM ledgers WHERE id = OLD.ledger_id) THEN
+                        RAISE EXCEPTION 'a workday cannot be written against a locked ledger';
+                    END IF;
+
+                    RETURN OLD;
+                END IF;
+
+                IF (SELECT locked_at IS NOT NULL FROM ledgers WHERE id = NEW.ledger_id) THEN
+                    RAISE EXCEPTION 'a workday cannot be written against a locked ledger';
+                END IF;
+
+                IF TG_OP = 'UPDATE' AND OLD.ledger_id IS DISTINCT FROM NEW.ledger_id THEN
+                    IF (SELECT locked_at IS NOT NULL FROM ledgers WHERE id = OLD.ledger_id) THEN
+                        RAISE EXCEPTION 'a workday cannot be written against a locked ledger';
+                    END IF;
+                END IF;
+
+                RETURN NEW;
+            END $$;
+        SQL);
     }
 
     /** The one place these are dropped; the argument lists are required. */
     public function down(): void
     {
+        DB::statement('DROP FUNCTION IF EXISTS workdays_ledger_open()');
         DB::statement('DROP FUNCTION IF EXISTS attestations_locked()');
         DB::statement('DROP FUNCTION IF EXISTS punches_timelog_live()');
         DB::statement('DROP FUNCTION IF EXISTS deployments_frozen_month()');

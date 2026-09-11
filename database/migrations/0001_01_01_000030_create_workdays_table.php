@@ -83,8 +83,20 @@ return new class extends Migration
         DB::statement('ALTER TABLE workdays ADD CONSTRAINT workdays_minutes_not_negative CHECK (worked >= 0 AND credited >= 0 AND tardy >= 0 AND undertime >= 0 AND excess >= 0 AND night >= 0 AND night_excess >= 0)');
         DB::statement('ALTER TABLE workdays ADD CONSTRAINT workdays_credited_needs_premium CHECK (credited = 0 OR premium IS NOT NULL)');
         DB::statement("ALTER TABLE workdays ADD CONSTRAINT workdays_shift_is_object CHECK (shift IS NULL OR jsonb_typeof(shift) = 'object')");
+
+        // Function created in 0001_01_01_000028_prepare_attendance.
+        // Decision 70: a locked month refuses workday writes in the database.
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER workdays_ledger_open
+                BEFORE INSERT OR UPDATE OR DELETE ON workdays
+                FOR EACH ROW EXECUTE FUNCTION workdays_ledger_open();
+        SQL);
     }
 
+    /**
+     * The trigger goes with the table; `workdays_ledger_open()` belongs to
+     * 0001_01_01_000028_prepare_attendance and is dropped only there.
+     */
     public function down(): void
     {
         Schema::dropIfExists('workdays');

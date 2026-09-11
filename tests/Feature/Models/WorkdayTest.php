@@ -391,4 +391,119 @@ class WorkdayTest extends TestCase
         $this->assertSame('Standard', $workday->shift['name']);
         $this->assertArrayHasKey('slots', $workday->shift);
     }
+
+    /**
+     * workdays_ledger_open, insert side (decision 70). The ledger is created
+     * unlocked (WorkdayFactory's default) then locked, so the factory insert
+     * itself is not the refusal.
+     */
+    public function test_a_workday_cannot_be_inserted_on_a_locked_ledger(): void
+    {
+        $workday = Workday::factory()->create();
+
+        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
+            'locked_at' => '2026-09-11 12:00:00',
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->insert(
+            $this->workdayRow($workday)
+        ));
+    }
+
+    /** workdays_ledger_open, update side. */
+    public function test_a_workday_cannot_be_updated_on_a_locked_ledger(): void
+    {
+        $workday = Workday::factory()->create();
+
+        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
+            'locked_at' => '2026-09-11 12:00:00',
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update([
+            'status' => 'absent',
+        ]));
+    }
+
+    /** workdays_ledger_open, delete side. Reads OLD: NEW is unassigned. */
+    public function test_a_workday_cannot_be_deleted_on_a_locked_ledger(): void
+    {
+        $workday = Workday::factory()->create();
+
+        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
+            'locked_at' => '2026-09-11 12:00:00',
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->delete());
+    }
+
+    /**
+     * workdays_ledger_open, the branch that reads OLD on an UPDATE.
+     *
+     * Moving a workday **out** of a locked month is as much a rewrite of
+     * signed history as moving one in, and the NEW check cannot see it: the
+     * destination ledger is open, so only OLD's is locked. Reachable because
+     * `ledgers` is UNIQUE (employee_id, month) — there is no second ledger for
+     * one employee-month, so a move is always a re-dating, and re-dating 30
+     * September to 1 October carries the row from September's ledger to
+     * October's in one statement.
+     *
+     * Found by mutation: deleting the OLD branch left the whole suite green,
+     * because every other lock test keeps the row in its own ledger.
+     */
+    public function test_a_workday_cannot_be_re_dated_out_of_a_locked_ledger(): void
+    {
+        $workday = Workday::factory()->create(['date' => '2026-09-30']);
+
+        $october = DB::table('ledgers')->insertGetId([
+            'id' => (string) Str::ulid(),
+            'agency_id' => $workday->agency_id,
+            'employee_id' => $workday->employee_id,
+            'month' => '2026-10-01',
+            'locked_at' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], 'id');
+
+        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
+            'locked_at' => '2026-10-05 12:00:00',
+        ]);
+
+        // September is locked, October is open. Without the OLD lookup the
+        // NEW check passes and the day leaves a signed month in silence.
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update([
+            'date' => '2026-10-01',
+            'ledger_id' => $october,
+        ]));
+    }
+
+    /**
+     * workdays_ledger_open, permitting path. Lock, prove a refusal, then
+     * clear locked_at and prove insert, update and delete all succeed — the
+     * legitimate unlock-then-recompute sequence, and proof the trigger
+     * reads current state rather than something cached at insert.
+     */
+    public function test_workday_writes_succeed_once_the_ledger_is_unlocked(): void
+    {
+        $workday = Workday::factory()->create();
+
+        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
+            'locked_at' => '2026-09-11 12:00:00',
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update([
+            'status' => 'absent',
+        ]));
+
+        DB::table('ledgers')->where('id', $workday->ledger_id)->update(['locked_at' => null]);
+
+        DB::table('workdays')->where('id', $workday->id)->update(['status' => 'absent']);
+        $this->assertDatabaseHas('workdays', ['id' => $workday->id, 'status' => 'absent']);
+
+        $id = (string) Str::ulid();
+        DB::table('workdays')->insert($this->workdayRow($workday, ['id' => $id]));
+        $this->assertDatabaseHas('workdays', ['id' => $id]);
+
+        DB::table('workdays')->where('id', $id)->delete();
+        $this->assertDatabaseMissing('workdays', ['id' => $id]);
+    }
 }
