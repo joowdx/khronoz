@@ -34,3 +34,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 _ide_helper.php
+
+# Local Headroom proxy state — a PID and a port from one machine's session.
+.claude/.headroom_wrap_*
