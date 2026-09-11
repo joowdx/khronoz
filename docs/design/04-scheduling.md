@@ -93,7 +93,7 @@ Rostering many at once has two shapes. A rotation cohort is a `Team`: assigning 
 
 The count of pairs is free: one for a straight shift, two for a day with lunch, more if an agency punches breaks. The shape of each pair is fixed and checked by a CHECK constraint calling a SQL function (07-constraints.md). The workday copies the whole shift, slots included, into its `shift` snapshot; there is no second slots column.
 
-Matching: a timelog goes to the nearest expected side whose window covers it. Inside a slot, before the midpoint is `in`, after is `out`, unless `trust` and the device state say otherwise. First wins for `in`, last for `out`. The full daily rules are in 06-attendance.md.
+Matching: a timelog goes to the nearest expected side whose window covers it. Inside a slot, before the midpoint is `in`, after is `out`, unless `trust` and the device state say otherwise — and those two are the same rule, since the midpoint is exactly where the nearer side stops being the in. Where several timelogs compete for one side the **nearest** fills it; only when two are equidistant does the kind decide, `in` taking the earlier and `out` the later (decision 67, which supersedes a bare "first wins for `in`, last for `out`" — read greedily that makes a stray 19:31 tap the departure of a 17:00 shift). A timelog that loses its nearest side is unused and does not cascade to another. The full daily rules are in 06-attendance.md.
 
 ## Examples
 
