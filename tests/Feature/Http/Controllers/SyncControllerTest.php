@@ -3,6 +3,7 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Enums\SyncTrigger;
 use App\Models\Agency;
 use App\Models\Sync;
 use App\Models\Terminal;
@@ -103,5 +104,28 @@ class SyncControllerTest extends TestCase
             ->all();
 
         $this->assertSame(['GET', 'HEAD'], $routes);
+    }
+
+    /**
+     * A run with no filename is named by how it started, in the enum's words.
+     *
+     * The cell applied `capitalize` to the raw value, so a file import read
+     * "Import" and a pushed run read "Push" where `SyncTrigger` says "File
+     * import" and "Pushed by device" — wrong on exactly the two triggers that
+     * have no filename to fall back from.
+     */
+    public function test_a_run_without_a_filename_is_named_by_the_enum(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewTerminals);
+        $terminal = Terminal::factory()->create(['agency_id' => $agency->id]);
+
+        Sync::factory()->on($terminal)->create(['reference' => null, 'trigger' => SyncTrigger::Push]);
+
+        $this->get(route('syncs.index'))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('syncs.0.trigger.value', 'push')
+                ->where('syncs.0.trigger.label', 'Pushed by device')
+        );
     }
 }

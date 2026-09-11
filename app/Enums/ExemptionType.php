@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors exemptions.type (varchar) and the exemptions_type_valid CHECK
  * (docs/design/07-constraints.md), settled as decision 19.
@@ -16,6 +18,8 @@ namespace App\Enums;
  */
 enum ExemptionType: string
 {
+    use HasChoices;
+
     /** Any leave of absence: vacation, sick, maternity, paternity, study, terminal. */
     case Leave = 'leave';
 

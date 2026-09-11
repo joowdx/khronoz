@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors syncs.trigger (varchar) and the syncs_trigger_valid CHECK
  * (trigger IN ('scheduled', 'manual', 'push', 'import')) —
@@ -15,6 +17,8 @@ namespace App\Enums;
  */
 enum SyncTrigger: string
 {
+    use HasChoices;
+
     /** The scheduler ran a pull. */
     case Scheduled = 'scheduled';
 

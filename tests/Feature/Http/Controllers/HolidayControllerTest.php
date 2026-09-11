@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Enums\HolidayType;
 use App\Enums\Permission;
 use App\Models\Agency;
 use App\Models\Holiday;
@@ -159,6 +160,36 @@ class HolidayControllerTest extends TestCase
 
         $this->get(route('holidays.index', ['year' => 'nonsense']))->assertInertia(
             fn (Assert $page) => $page->where('filters.year', (string) today()->year)
+        );
+    }
+
+    /**
+     * The rate arrives labelled, and the form's options come from the enum.
+     *
+     * `holidays/index.tsx` held a `RATES` map and `holiday-fields.tsx` four
+     * hardcoded options — a third copy of the cases, held to neither the
+     * enum nor the CHECK. Adding a statutory rate would have left the column
+     * blank and the picker short of an option.
+     */
+    public function test_the_rate_is_labelled_by_the_enum(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewCalendar);
+        Holiday::factory()->create(['agency_id' => $agency->id, 'date' => '2026-11-30', 'type' => HolidayType::Special]);
+
+        $this->get(route('holidays.index', ['year' => 2026]))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('holidays.0.type.value', 'special')
+                ->where('holidays.0.type.label', 'Special non-working')
+        );
+    }
+
+    public function test_the_form_offers_every_rate_the_check_allows(): void
+    {
+        $this->actingAsAgency(Agency::factory()->create(), Permission::ManageCalendar);
+
+        $this->get(route('holidays.create'))->assertInertia(
+            fn (Assert $page) => $page->where('rates', HolidayType::choices())
         );
     }
 }

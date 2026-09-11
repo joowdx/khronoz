@@ -41,7 +41,7 @@ class EnrollmentResource extends JsonResource
             'employee' => $this->whenLoaded('employee', fn (Employee $employee) => EmployeeResource::make($employee)->resolve()),
             'terminal_id' => $this->terminal_id,
             'uid' => $this->uid,
-            'privilege' => $this->privilege->value,
+            'privilege' => ['value' => $this->privilege->value, 'label' => $this->privilege->label()],
             'starts' => $this->starts->toDateString(),
             'ends' => $this->ends?->toDateString(),
             // Whether punches resolve through this row today. The date range

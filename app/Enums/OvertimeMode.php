@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors overtimes.mode (varchar) and the overtimes_mode_valid CHECK
  * (mode IN ('pay', 'cto')) — docs/design/07-constraints.md.
@@ -14,6 +16,8 @@ namespace App\Enums;
  */
 enum OvertimeMode: string
 {
+    use HasChoices;
+
     /** Paid at the overtime rate. */
     case Pay = 'pay';
 

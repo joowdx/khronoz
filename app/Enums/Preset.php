@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * A convenience bundle of permissions for the invite form. Presets exist only
  * in code — they expand to a plain permission list at creation time and are
@@ -9,6 +11,8 @@ namespace App\Enums;
  */
 enum Preset: string
 {
+    use HasChoices;
+
     case Admin = 'admin';
     case Timekeeper = 'timekeeper';
     case Viewer = 'viewer';

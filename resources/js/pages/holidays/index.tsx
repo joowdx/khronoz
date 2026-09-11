@@ -42,13 +42,6 @@ const FLEX_MIN = 300;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-const RATES: Record<string, string> = {
-    regular: 'Regular holiday',
-    special: 'Special non-working',
-    working: 'Special working',
-    local: 'Local holiday',
-};
-
 /**
  * A year at a time, because that is the unit a proclamation arrives in.
  *
@@ -173,7 +166,7 @@ export default function Index({
                                                 )}
                                             </span>
                                         </TableCell>
-                                        <TableCell>{RATES[holiday.type] ?? holiday.type}</TableCell>
+                                        <TableCell>{holiday.type.label}</TableCell>
                                         <TableCell className="text-muted-foreground">
                                             {holiday.national ? 'Nationwide' : 'This agency'}
                                         </TableCell>

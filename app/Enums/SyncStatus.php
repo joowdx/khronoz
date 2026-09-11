@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors syncs.status (varchar) and the syncs_status_valid CHECK
  * (status IN ('running', 'completed', 'failed')) —
@@ -16,6 +18,8 @@ namespace App\Enums;
  */
 enum SyncStatus: string
 {
+    use HasChoices;
+
     /** Opened, not yet closed. A run left here is one that died mid-flight. */
     case Running = 'running';
 

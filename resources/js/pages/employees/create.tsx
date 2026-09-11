@@ -4,6 +4,7 @@ import { EmployeeFields } from '@/components/employee-fields';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
+import type { Choice } from '@/types';
 import { index, store } from '@/routes/employees';
 
 /**
@@ -17,7 +18,7 @@ import { index, store } from '@/routes/employees';
  * column of `employees`. The description says so, because otherwise the first
  * thing a new user looks for here is the workgroup.
  */
-export default function Create() {
+export default function Create({ sexes }: { sexes: Choice[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -28,7 +29,7 @@ export default function Create() {
             <Form {...store.form()} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <EmployeeFields errors={errors} />
+                        <EmployeeFields sexes={sexes} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 <PlusIcon aria-hidden strokeWidth={1.5} />

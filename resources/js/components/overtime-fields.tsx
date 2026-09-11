@@ -134,7 +134,7 @@ export function OvertimeFields({
                             onValueChange={(next) => setMode(next ?? 'pay')}
                             invalid={invalid}
                             describedBy={describedBy}
-                            placeholder="Overtime pay"
+                            placeholder="Choose how it is paid"
                             searchPlaceholder="Search"
                             empty="No such mode."
                             options={modes.map((option) => ({ ...option, trigger: option.label }))}

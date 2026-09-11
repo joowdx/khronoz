@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors holidays.type (varchar) and the holidays_type_valid CHECK
  * (type IN ('regular', 'special', 'working', 'local')) — docs/design/07-constraints.md.
@@ -14,6 +16,8 @@ namespace App\Enums;
  */
 enum HolidayType: string
 {
+    use HasChoices;
+
     /** No work expected; worked time is premium-rated (200% in the private sector). */
     case Regular = 'regular';
 

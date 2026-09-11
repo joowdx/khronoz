@@ -43,7 +43,7 @@ class EmployeeResource extends JsonResource
             'middle_name' => $this->middle_name,
             'last_name' => $this->last_name,
             'suffix' => $this->suffix,
-            'sex' => $this->sex?->value,
+            'sex' => $this->sex === null ? null : ['value' => $this->sex->value, 'label' => $this->sex->label()],
             'birthdate' => $this->birthdate?->toDateString(),
             'email' => $this->email,
             'mobile' => $this->mobile,

@@ -67,8 +67,6 @@ function Blank({ children = 'Not recorded' }: { children?: string }) {
     return <span className="text-muted-foreground font-normal">{children}</span>;
 }
 
-const SEX = { male: 'Male', female: 'Female' } as const;
-
 export default function Show({ employee, workgroups }: { employee: Employee; workgroups: Workgroup[] }) {
     const can = useCan();
     const manage = can('organization.manage');
@@ -152,7 +150,9 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                             <div className="min-w-0">
                                 <p className="flex items-center gap-2.5 text-lg leading-6 font-semibold">
                                     <span className="truncate">{current.workgroup.name}</span>
-                                    {current.workgroup.kind && <Badge variant="outline">{current.workgroup.kind}</Badge>}
+                                    {current.workgroup.kind && (
+                                        <Badge variant="outline">{current.workgroup.kind}</Badge>
+                                    )}
                                 </p>
                                 {/* Where the workgroup sits, not just what it is
                                     called: two divisions can share a name and
@@ -187,7 +187,7 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                             <Fact label="Date of birth">
                                 {employee.birthdate ? formatDay(employee.birthdate) : <Blank />}
                             </Fact>
-                            <Fact label="Sex">{employee.sex ? SEX[employee.sex] : <Blank />}</Fact>
+                            <Fact label="Sex">{employee.sex?.label ?? <Blank />}</Fact>
                             <Fact label="Email">{employee.email ?? <Blank />}</Fact>
                             <Fact label="Mobile">{employee.mobile ?? <Blank />}</Fact>
                         </dl>
@@ -448,7 +448,12 @@ function MoveSheet({
                                           : `${employee.name} joins the workgroup on this date. Nothing before it changes.`}
                                 </SheetDescription>
 
-                                <Field className="mt-5" label="Workgroup" htmlFor="workgroup_id" error={errors.workgroup_id}>
+                                <Field
+                                    className="mt-5"
+                                    label="Workgroup"
+                                    htmlFor="workgroup_id"
+                                    error={errors.workgroup_id}
+                                >
                                     {({ id, invalid, describedBy }) => (
                                         <Combobox
                                             id={id}
@@ -503,7 +508,9 @@ function MoveSheet({
                                             className="mt-0.5"
                                         />
                                         <span>
-                                            <span className={cn('font-medium', !canReassign && 'text-muted-foreground')}>
+                                            <span
+                                                className={cn('font-medium', !canReassign && 'text-muted-foreground')}
+                                            >
                                                 Reassignment or detail
                                             </span>
                                             <span

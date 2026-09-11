@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\EnrollmentPrivilege;
 use App\Http\Requests\EndEnrollmentRequest;
 use App\Http\Requests\StoreEnrollmentRequest;
 use App\Http\Resources\EmployeeResource;
@@ -52,6 +53,7 @@ class TerminalEnrollmentController extends Controller
             'terminal' => TerminalResource::make($terminal)->resolve(),
             'enrollments' => EnrollmentResource::collection($enrollments)->resolve(),
             'employees' => fn () => $this->employees(),
+            'privileges' => EnrollmentPrivilege::choices(),
         ]);
     }
 

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TerminalKind;
+use App\Enums\TerminalProtocol;
 use App\Http\Requests\StoreTerminalRequest;
 use App\Http\Requests\UpdateTerminalRequest;
 use App\Http\Resources\TerminalResource;
@@ -74,6 +76,8 @@ class TerminalController extends Controller
 
         return Inertia::render('terminals/create', [
             'workgroups' => fn () => $this->workgroups(),
+            'kinds' => TerminalKind::choices(),
+            'protocols' => TerminalProtocol::choices(),
         ]);
     }
 
@@ -91,6 +95,8 @@ class TerminalController extends Controller
         return Inertia::render('terminals/edit', [
             'terminal' => TerminalResource::make($terminal)->resolve(),
             'workgroups' => fn () => $this->workgroups(),
+            'kinds' => TerminalKind::choices(),
+            'protocols' => TerminalProtocol::choices(),
         ]);
     }
 

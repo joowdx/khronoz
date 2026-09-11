@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * A permission a user can hold. Access is a set of these on the user, not a
  * role (docs/design/02-access.md rule 4) — the platform flag makes a
@@ -14,6 +16,8 @@ namespace App\Enums;
  */
 enum Permission: string
 {
+    use HasChoices;
+
     case ManageAgency = 'agency.manage';
     case ManageUsers = 'users.manage';
     case ViewOrganization = 'organization.view';

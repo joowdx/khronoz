@@ -191,16 +191,25 @@ export default function Index({
                                     <TableCell className="max-w-0">
                                         <span className="flex min-w-0 flex-col">
                                             <span className="truncate">
+                                                {/*
+                                                  A run with no filename is
+                                                  named by how it started, and
+                                                  the words come from
+                                                  SyncTrigger. `capitalize` on
+                                                  the raw value used to print
+                                                  "Import" and "Push" where
+                                                  the enum says "File import"
+                                                  and "Pushed by device" —
+                                                  wrong on exactly the two
+                                                  runs that have no filename
+                                                  to fall back from.
+                                                */}
                                                 {sync.reference ?? (
-                                                    <span className="text-muted-foreground capitalize">
-                                                        {sync.trigger}
-                                                    </span>
+                                                    <span className="text-muted-foreground">{sync.trigger.label}</span>
                                                 )}
                                             </span>
                                             {sync.status === 'failed' && (
-                                                <span className="text-destructive text-xs">
-                                                    Refused — {sync.error}
-                                                </span>
+                                                <span className="text-destructive text-xs">Refused — {sync.error}</span>
                                             )}
                                             {sync.status === 'running' && (
                                                 <span className="text-muted-foreground text-xs">Still running</span>

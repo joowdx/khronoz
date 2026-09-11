@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors employees.sex (nullable varchar) and the employees_sex_valid CHECK
  * (sex IN ('male', 'female')) read from the live DDL (docs/design/07-constraints.md).
@@ -10,6 +12,8 @@ namespace App\Enums;
  */
 enum Sex: string
 {
+    use HasChoices;
+
     case Male = 'male';
     case Female = 'female';
 

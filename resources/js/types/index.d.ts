@@ -61,7 +61,11 @@ export interface Agency {
     platform: boolean;
 }
 
-/** employees.sex is a nullable varchar plus a CHECK; null is "not recorded". */
+/**
+ * employees.sex is a nullable varchar plus a CHECK; null is "not recorded".
+ * The union is kept for the *value*, which forms and filters compare against;
+ * the display words come from the enum as a `Choice` (.ai/rules/resources.md).
+ */
 export type Sex = 'male' | 'female';
 
 /**
@@ -88,7 +92,7 @@ export interface Employee {
     middle_name: string | null;
     last_name: string;
     suffix: string | null;
-    sex: Sex | null;
+    sex: Choice | null;
     birthdate: string | null;
     email: string | null;
     mobile: string | null;
@@ -173,7 +177,7 @@ export interface Enrollment {
     terminal_id: string;
     /** The device user id, exactly as the device reports it. */
     uid: string;
-    privilege: string;
+    privilege: Choice;
     starts: string;
     ends: string | null;
     /** Whether punches resolve through this row today. */
@@ -227,9 +231,14 @@ export interface Sync {
     id: string;
     terminal_id: string;
     terminal?: Terminal | null;
-    /** "scheduled", "manual", "push" or "import" — only import has a writer today. */
-    trigger: string;
-    /** "running", "completed" or "failed". */
+    /** Only `import` has a writer today. Labelled by the enum. */
+    trigger: Choice;
+    /**
+     * "running", "completed" or "failed" — a bare value on purpose. The page
+     * branches on it and writes its own sentence ("Refused — …", "Still
+     * running") rather than printing a label, so there is no vocabulary here
+     * to drift.
+     */
     status: string;
     started_at: string;
     finished_at: string | null;
@@ -260,8 +269,8 @@ export interface Holiday {
     /** `YYYY-MM-DD`; never reparsed (`lib/dates.ts`). */
     date: string;
     name: string;
-    /** "regular", "special", "working" or "local" — a rate, not a scope. */
-    type: string;
+    /** A rate, not a scope. Labelled by the enum, never by the page. */
+    type: Choice;
     reference: string | null;
     declared_at: string;
     national: boolean;

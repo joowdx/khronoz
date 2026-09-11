@@ -5,8 +5,9 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/holidays';
+import type { Choice } from '@/types';
 
-export default function Create() {
+export default function Create({ rates }: { rates: Choice[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -17,7 +18,7 @@ export default function Create() {
             <Form {...store.form()} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <HolidayFields errors={errors} />
+                        <HolidayFields rates={rates} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 <PlusIcon aria-hidden strokeWidth={1.5} />

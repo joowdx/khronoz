@@ -4,7 +4,7 @@ import { TagInput } from '@/components/tag-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Employee } from '@/types';
+import type { Choice, Employee } from '@/types';
 
 /** Radix refuses an empty `value`, so "not recorded" needs a token of its own; the hidden input turns it back into ''. */
 const UNRECORDED = 'unrecorded';
@@ -53,13 +53,17 @@ function Subject({ title, children }: { title: string; children: ReactNode }) {
  */
 export function EmployeeFields({
     employee,
+    sexes,
     errors,
 }: {
     /** The record being edited, or nothing when one is being added. */
     employee?: Employee;
+    /** `Sex`, labelled by the enum. The "Not recorded" sentinel is not a case
+     *  of it — null is the absence of a value, not a third value. */
+    sexes: Choice[];
     errors: Partial<Record<string, string>>;
 }) {
-    const [sex, setSex] = useState<string>(employee?.sex ?? '');
+    const [sex, setSex] = useState<string>(employee?.sex?.value ?? '');
     const [tags, setTags] = useState<string[]>(employee?.tags ?? []);
     const [exempt, setExempt] = useState<boolean>(employee?.exempt ?? false);
 
@@ -170,8 +174,11 @@ export function EmployeeFields({
                                 </SelectTrigger>
                                 <SelectContent position="popper" align="start" sideOffset={6}>
                                     <SelectItem value={UNRECORDED}>Not recorded</SelectItem>
-                                    <SelectItem value="female">Female</SelectItem>
-                                    <SelectItem value="male">Male</SelectItem>
+                                    {sexes.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </>

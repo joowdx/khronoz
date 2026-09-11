@@ -5,12 +5,20 @@ import { TerminalFields } from '@/components/terminal-fields';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/terminals';
-import type { Workgroup } from '@/types';
+import type { Choice, Workgroup } from '@/types';
 
 /**
  * One 560px column and the submit row, the shape workgroups/create established.
  */
-export default function Create({ workgroups }: { workgroups: Workgroup[] }) {
+export default function Create({
+    workgroups,
+    kinds,
+    protocols,
+}: {
+    workgroups: Workgroup[];
+    kinds: Choice[];
+    protocols: Choice[];
+}) {
     return (
         <AppLayout>
             <PageHeader
@@ -21,7 +29,7 @@ export default function Create({ workgroups }: { workgroups: Workgroup[] }) {
             <Form {...store.form()} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <TerminalFields workgroups={workgroups} errors={errors} />
+                        <TerminalFields workgroups={workgroups} kinds={kinds} protocols={protocols} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 <PlusIcon aria-hidden strokeWidth={1.5} />

@@ -4,9 +4,9 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/holidays';
-import type { Holiday } from '@/types';
+import type { Choice, Holiday } from '@/types';
 
-export default function Edit({ holiday }: { holiday: Holiday }) {
+export default function Edit({ holiday, rates }: { holiday: Holiday; rates: Choice[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -17,7 +17,7 @@ export default function Edit({ holiday }: { holiday: Holiday }) {
             <Form {...update.form(holiday)} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <HolidayFields holiday={holiday} errors={errors} />
+                        <HolidayFields holiday={holiday} rates={rates} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 Save changes

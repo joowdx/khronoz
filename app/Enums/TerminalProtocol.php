@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors terminals.protocol (varchar) and the terminals_protocol_valid CHECK
  * (protocol IN ('push', 'pull', 'file')) — docs/design/07-constraints.md.
@@ -12,6 +14,8 @@ namespace App\Enums;
  */
 enum TerminalProtocol: string
 {
+    use HasChoices;
+
     /** The device opens the connection and posts its records to khronoz. */
     case Push = 'push';
 

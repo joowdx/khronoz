@@ -4,7 +4,7 @@ import { Field } from '@/components/field';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { flattenWorkgroups } from '@/lib/workgroups';
-import type { Terminal, Workgroup } from '@/types';
+import type { Choice, Terminal, Workgroup } from '@/types';
 
 /**
  * The fields of `terminals` an operator actually sets, in one 560px column —
@@ -27,12 +27,18 @@ import type { Terminal, Workgroup } from '@/types';
 export function TerminalFields({
     terminal,
     workgroups,
+    kinds,
+    protocols,
     errors,
 }: {
     /** The terminal being edited, or nothing when one is being added. */
     terminal?: Terminal;
     /** Every workgroup of the agency, flat — the "sits at" picker's options. */
     workgroups: Workgroup[];
+    /** TerminalKind and TerminalProtocol, labelled by the enums that hold the
+     *  CHECK's cases. Never restated here (.ai/rules/resources.md). */
+    kinds: Choice[];
+    protocols: Choice[];
     errors: Partial<Record<string, string>>;
 }) {
     const [workgroup, setWorkgroup] = useState<string | null>(terminal?.workgroup_id ?? null);
@@ -59,12 +65,7 @@ export function TerminalFields({
             </Field>
 
             <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-[180px_1fr]">
-                <Field
-                    label="Device number"
-                    htmlFor="code"
-                    error={errors.code}
-                    hint="As the device itself reports it."
-                >
+                <Field label="Device number" htmlFor="code" error={errors.code} hint="As the device itself reports it.">
                     {({ id, invalid, describedBy }) => (
                         <Input
                             id={id}
@@ -108,13 +109,10 @@ export function TerminalFields({
                             onValueChange={(next) => setKind(next ?? 'terminal')}
                             invalid={invalid}
                             describedBy={describedBy}
-                            placeholder="Networked terminal"
+                            placeholder="Choose a kind"
                             searchPlaceholder="Search kinds"
                             empty="No such kind."
-                            options={[
-                                { value: 'terminal', label: 'Networked terminal', trigger: 'Networked terminal' },
-                                { value: 'usb', label: 'Offline device', trigger: 'Offline device' },
-                            ]}
+                            options={kinds.map((option) => ({ ...option, trigger: option.label }))}
                         />
                     )}
                 </Field>
@@ -132,14 +130,10 @@ export function TerminalFields({
                             onValueChange={(next) => setProtocol(next ?? 'file')}
                             invalid={invalid}
                             describedBy={describedBy}
-                            placeholder="File import"
+                            placeholder="Choose how punches arrive"
                             searchPlaceholder="Search"
                             empty="No such method."
-                            options={[
-                                { value: 'file', label: 'File import', trigger: 'File import' },
-                                { value: 'pull', label: 'khronoz pulls', trigger: 'khronoz pulls' },
-                                { value: 'push', label: 'Device pushes', trigger: 'Device pushes' },
-                            ]}
+                            options={protocols.map((option) => ({ ...option, trigger: option.label }))}
                         />
                     )}
                 </Field>

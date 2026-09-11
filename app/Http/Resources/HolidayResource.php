@@ -28,7 +28,7 @@ class HolidayResource extends JsonResource
             'id' => $this->id,
             'date' => $this->date->toDateString(),
             'name' => $this->name,
-            'type' => $this->type->value,
+            'type' => ['value' => $this->type->value, 'label' => $this->type->label()],
             'reference' => $this->reference,
             'declared_at' => $this->declared_at->toDateTimeString(),
             // Declared by the platform for everyone, so this agency may read

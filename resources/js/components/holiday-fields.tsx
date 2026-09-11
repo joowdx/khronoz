@@ -3,7 +3,7 @@ import { Combobox } from '@/components/combobox';
 import { Field } from '@/components/field';
 import { Input } from '@/components/ui/input';
 import { manilaToday } from '@/lib/dates';
-import type { Holiday } from '@/types';
+import type { Choice, Holiday } from '@/types';
 
 /**
  * The five columns of `holidays`, in one 560px column.
@@ -21,12 +21,14 @@ import type { Holiday } from '@/types';
  */
 export function HolidayFields({
     holiday,
+    rates,
     errors,
 }: {
     holiday?: Holiday;
+    rates: Choice[];
     errors: Partial<Record<string, string>>;
 }) {
-    const [type, setType] = useState<string>(holiday?.type ?? 'regular');
+    const [type, setType] = useState<string>(holiday?.type.value ?? 'regular');
 
     return (
         <>
@@ -63,12 +65,7 @@ export function HolidayFields({
                         />
                     )}
                 </Field>
-                <Field
-                    label="Rate"
-                    htmlFor="type"
-                    error={errors.type}
-                    hint="What a worked or unworked day is worth."
-                >
+                <Field label="Rate" htmlFor="type" error={errors.type} hint="What a worked or unworked day is worth.">
                     {({ id, invalid, describedBy }) => (
                         <Combobox
                             id={id}
@@ -77,15 +74,10 @@ export function HolidayFields({
                             onValueChange={(next) => setType(next ?? 'regular')}
                             invalid={invalid}
                             describedBy={describedBy}
-                            placeholder="Regular holiday"
+                            placeholder="Choose a rate"
                             searchPlaceholder="Search"
                             empty="No such rate."
-                            options={[
-                                { value: 'regular', label: 'Regular holiday', trigger: 'Regular holiday' },
-                                { value: 'special', label: 'Special non-working', trigger: 'Special non-working' },
-                                { value: 'working', label: 'Special working', trigger: 'Special working' },
-                                { value: 'local', label: 'Local holiday', trigger: 'Local holiday' },
-                            ]}
+                            options={rates.map((option) => ({ ...option, trigger: option.label }))}
                         />
                     )}
                 </Field>

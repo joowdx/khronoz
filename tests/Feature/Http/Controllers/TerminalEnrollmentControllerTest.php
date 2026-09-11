@@ -3,6 +3,7 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Actions\RemoveEmployee;
+use App\Enums\EnrollmentPrivilege;
 use App\Enums\Permission;
 use App\Http\Requests\EndEnrollmentRequest;
 use App\Models\Agency;
@@ -377,6 +378,31 @@ class TerminalEnrollmentControllerTest extends TestCase
                 ->where('enrollments.0.uid', '0043')
                 ->where('enrollments.1.uid', '0042')
                 ->where('enrollments.1.employee', null)
+        );
+    }
+
+    /**
+     * The privilege column and the enrol dialog agree, because both take
+     * their words from `EnrollmentPrivilege`.
+     *
+     * They did not. The table cell rendered the raw value under a
+     * `capitalize` class — "Admin", "Superadmin" — while the dropdown three
+     * hundred lines below offered "Administrator" and "Super administrator".
+     * One screen, two names for one privilege.
+     */
+    public function test_the_privilege_is_labelled_by_the_enum(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        Enrollment::factory()->on($terminal)
+            ->create(['uid' => '0042', 'privilege' => EnrollmentPrivilege::Superadmin]);
+
+        $this->get(route('terminals.enrollments.index', $terminal))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('enrollments.0.privilege.value', 'superadmin')
+                ->where('enrollments.0.privilege.label', 'Super administrator')
+                ->where('privileges', EnrollmentPrivilege::choices())
         );
     }
 

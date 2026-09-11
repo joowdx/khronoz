@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\HolidayType;
 use App\Http\Requests\StoreHolidayRequest;
 use App\Http\Requests\UpdateHolidayRequest;
 use App\Http\Resources\HolidayResource;
@@ -54,7 +55,9 @@ class HolidayController extends Controller
     {
         Gate::authorize('create', Holiday::class);
 
-        return Inertia::render('holidays/create');
+        return Inertia::render('holidays/create', [
+            'rates' => HolidayType::choices(),
+        ]);
     }
 
     public function store(StoreHolidayRequest $request): RedirectResponse
@@ -71,6 +74,7 @@ class HolidayController extends Controller
 
         return Inertia::render('holidays/edit', [
             'holiday' => HolidayResource::make($holiday)->resolve(),
+            'rates' => HolidayType::choices(),
         ]);
     }
 

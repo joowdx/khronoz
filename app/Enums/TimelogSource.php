@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors timelogs.source (varchar) and the timelogs_source_valid CHECK
  * (source IN ('device', 'manual')) — docs/design/07-constraints.md.
@@ -14,6 +16,8 @@ namespace App\Enums;
  */
 enum TimelogSource: string
 {
+    use HasChoices;
+
     /** Captured by the terminal and carried in by a sync. */
     case Device = 'device';
 

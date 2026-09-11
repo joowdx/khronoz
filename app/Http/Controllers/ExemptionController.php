@@ -145,10 +145,7 @@ class ExemptionController extends Controller
      */
     private function types(): array
     {
-        return array_map(
-            fn (ExemptionType $type) => ['value' => $type->value, 'label' => $type->label()],
-            ExemptionType::cases(),
-        );
+        return ExemptionType::choices();
     }
 
     /** @return array<int, array<string, mixed>> */

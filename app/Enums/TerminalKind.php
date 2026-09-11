@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors terminals.kind (varchar) and the terminals_kind_valid CHECK
  * (kind IN ('terminal', 'usb')) — docs/design/07-constraints.md.
@@ -12,6 +14,8 @@ namespace App\Enums;
  */
 enum TerminalKind: string
 {
+    use HasChoices;
+
     /** A networked device khronoz can reach — push, pull, or a file exported from it. */
     case Terminal = 'terminal';
 

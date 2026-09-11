@@ -29,7 +29,7 @@ class SyncResource extends JsonResource
                 'terminal',
                 fn () => $this->terminal === null ? null : TerminalResource::make($this->terminal)->resolve(),
             ),
-            'trigger' => $this->trigger->value,
+            'trigger' => ['value' => $this->trigger->value, 'label' => $this->trigger->label()],
             'status' => $this->status->value,
             'started_at' => $this->started_at->toDateTimeString(),
             'finished_at' => $this->finished_at?->toDateTimeString(),

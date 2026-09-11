@@ -157,10 +157,7 @@ class OvertimeController extends Controller
      */
     private function modes(): array
     {
-        return array_map(
-            fn (OvertimeMode $mode) => ['value' => $mode->value, 'label' => $mode->label()],
-            OvertimeMode::cases(),
-        );
+        return OvertimeMode::choices();
     }
 
     /** @return array<int, array<string, mixed>> */

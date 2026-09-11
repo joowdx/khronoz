@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, show, update } from '@/routes/employees';
-import type { Employee } from '@/types';
+import type { Choice, Employee } from '@/types';
 
 /**
  * The add form's column and fields again, against a person who already
@@ -14,7 +14,7 @@ import type { Employee } from '@/types';
  * from the profile as often as from the row menu, and the profile is where
  * everything the form does not hold — the deployment history — is read.
  */
-export default function Edit({ employee }: { employee: Employee }) {
+export default function Edit({ employee, sexes }: { employee: Employee; sexes: Choice[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -25,7 +25,7 @@ export default function Edit({ employee }: { employee: Employee }) {
             <Form {...update.form(employee)} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <EmployeeFields employee={employee} errors={errors} />
+                        <EmployeeFields employee={employee} sexes={sexes} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 Save changes

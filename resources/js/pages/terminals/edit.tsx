@@ -4,7 +4,7 @@ import { TerminalFields } from '@/components/terminal-fields';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/terminals';
-import type { Terminal, Workgroup } from '@/types';
+import type { Choice, Terminal, Workgroup } from '@/types';
 
 /**
  * The add form again, against a terminal that already exists.
@@ -17,7 +17,17 @@ import type { Terminal, Workgroup } from '@/types';
  * which files the importer will accept from this terminal, which is why the
  * field carries the hint it does.
  */
-export default function Edit({ terminal, workgroups }: { terminal: Terminal; workgroups: Workgroup[] }) {
+export default function Edit({
+    terminal,
+    workgroups,
+    kinds,
+    protocols,
+}: {
+    terminal: Terminal;
+    workgroups: Workgroup[];
+    kinds: Choice[];
+    protocols: Choice[];
+}) {
     return (
         <AppLayout>
             <PageHeader
@@ -28,7 +38,13 @@ export default function Edit({ terminal, workgroups }: { terminal: Terminal; wor
             <Form {...update.form(terminal)} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <TerminalFields terminal={terminal} workgroups={workgroups} errors={errors} />
+                        <TerminalFields
+                            terminal={terminal}
+                            workgroups={workgroups}
+                            kinds={kinds}
+                            protocols={protocols}
+                            errors={errors}
+                        />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 Save changes

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\RemoveEmployee;
+use App\Enums\Sex;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
@@ -188,7 +189,9 @@ class EmployeeController extends Controller
     {
         Gate::authorize('create', Employee::class);
 
-        return Inertia::render('employees/create');
+        return Inertia::render('employees/create', [
+            'sexes' => Sex::choices(),
+        ]);
     }
 
     public function store(StoreEmployeeRequest $request): RedirectResponse
@@ -228,6 +231,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('employees/edit', [
             'employee' => EmployeeResource::make($employee)->resolve(),
+            'sexes' => Sex::choices(),
         ]);
     }
 

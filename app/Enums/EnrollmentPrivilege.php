@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Enums\Concerns\HasChoices;
+
 /**
  * Mirrors enrollments.privilege (varchar) and the enrollments_privilege_valid
  * CHECK (privilege IN ('user', 'enroller', 'admin', 'superadmin')) —
@@ -18,6 +20,8 @@ namespace App\Enums;
  */
 enum EnrollmentPrivilege: string
 {
+    use HasChoices;
+
     /** Can punch, and nothing else. Very nearly every enrollment. */
     case User = 'user';
 

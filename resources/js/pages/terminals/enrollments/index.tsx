@@ -28,7 +28,7 @@ import AppLayout from '@/layouts/app-layout';
 import { formatDay, manilaToday } from '@/lib/dates';
 import { index as terminalsIndex } from '@/routes/terminals';
 import { store, update } from '@/routes/terminals/enrollments';
-import type { Employee, Enrollment, Terminal } from '@/types';
+import type { Choice, Employee, Enrollment, Terminal } from '@/types';
 
 const COLUMNS = {
     uid: 130,
@@ -58,10 +58,13 @@ export default function Index({
     terminal,
     enrollments,
     employees,
+    privileges,
 }: {
     terminal: Terminal;
     enrollments: Enrollment[];
     employees: Employee[];
+    /** EnrollmentPrivilege, labelled by the enum that holds the CHECK's cases. */
+    privileges: Choice[];
 }) {
     const can = useCan();
     const manage = can('terminals.manage');
@@ -150,7 +153,17 @@ export default function Index({
                                             )}
                                         </span>
                                     </TableCell>
-                                    <TableCell className="capitalize">{enrollment.privilege}</TableCell>
+                                    {/*
+                                      The enum's words, which is what the
+                                      enrol dialog on this same page already
+                                      offered. `capitalize` on the raw value
+                                      printed "Admin" and "Superadmin" in
+                                      this column while the dropdown three
+                                      hundred lines below said "Administrator"
+                                      and "Super administrator" — one screen,
+                                      two names for one privilege.
+                                    */}
+                                    <TableCell>{enrollment.privilege.label}</TableCell>
                                     <TableCell className="tabular-nums">{formatDay(enrollment.starts)}</TableCell>
                                     <TableCell className="tabular-nums">
                                         {enrollment.ends ? (
@@ -174,6 +187,7 @@ export default function Index({
             <EnrolDialog
                 terminal={terminal}
                 employees={employees}
+                privileges={privileges}
                 open={enrolling}
                 onOpenChange={setEnrolling}
             />
@@ -197,11 +211,7 @@ function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enr
         <>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Actions for device user ${enrollment.uid}`}
-                    >
+                    <Button variant="ghost" size="icon-sm" aria-label={`Actions for device user ${enrollment.uid}`}>
                         <MoreHorizontalIcon aria-hidden strokeWidth={1.5} />
                     </Button>
                 </DropdownMenuTrigger>
@@ -220,8 +230,8 @@ function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enr
                         <DialogDescription>
                             {enrollment.employee?.name ?? 'This person'} stops being device user{' '}
                             <span className="text-foreground tabular-nums">{enrollment.uid}</span> on {terminal.name}.
-                            Punches already attributed to them stay; the device user id becomes free to reissue from
-                            the day after.
+                            Punches already attributed to them stay; the device user id becomes free to reissue from the
+                            day after.
                         </DialogDescription>
                     </DialogHeader>
                     <Form
@@ -286,11 +296,13 @@ function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enr
 function EnrolDialog({
     terminal,
     employees,
+    privileges,
     open,
     onOpenChange,
 }: {
     terminal: Terminal;
     employees: Employee[];
+    privileges: Choice[];
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
@@ -377,16 +389,7 @@ function EnrolDialog({
                                             placeholder="User"
                                             searchPlaceholder="Search"
                                             empty="No such privilege."
-                                            options={[
-                                                { value: 'user', label: 'User', trigger: 'User' },
-                                                { value: 'enroller', label: 'Enroller', trigger: 'Enroller' },
-                                                { value: 'admin', label: 'Administrator', trigger: 'Administrator' },
-                                                {
-                                                    value: 'superadmin',
-                                                    label: 'Super administrator',
-                                                    trigger: 'Super administrator',
-                                                },
-                                            ]}
+                                            options={privileges.map((option) => ({ ...option, trigger: option.label }))}
                                         />
                                     )}
                                 </Field>
