@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\Permission;
 use App\Support\AttlogParser;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -10,13 +9,22 @@ use Illuminate\Validation\Rule;
 class ImportTimelogsRequest extends FormRequest
 {
     /**
-     * `terminals.manage`, which already exists and is already mirrored in the
-     * TypeScript union and the implies() map (PermissionContractTest enforces
-     * that). Viewing timelogs is a narrower right than adding them.
+     * `terminals.manage` on *this* terminal, through the gate — matching
+     * StoreEnrollmentRequest, and every other write in the application.
+     *
+     * It used to call `$this->user()->allows(Permission::ManageTerminals)`
+     * directly. That reads the permissions column and never reaches
+     * `Gate::before`, which is where a platform superuser's authority lives
+     * (AppServiceProvider::configureAuthorization); platform users are stored
+     * with `permissions = []`, because superuser is the agency flag, not a
+     * held permission. So the one path in the application that inserts
+     * pay-relevant rows was the one path refusing the operator who may
+     * register the terminal and enrol people on it. Reproduced: sibling
+     * enrol 302, import 403.
      */
     public function authorize(): bool
     {
-        return $this->user()->allows(Permission::ManageTerminals);
+        return $this->user()->can('update', $this->route('terminal'));
     }
 
     /**

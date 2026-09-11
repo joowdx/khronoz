@@ -509,6 +509,29 @@ class ImportTimelogsTest extends TestCase
         $this->assertSame(0, Timelog::count());
     }
 
+    /**
+     * A platform superuser may import.
+     *
+     * `authorize()` used to read the permissions column directly, which never
+     * reaches `Gate::before` — and platform users are stored with
+     * `permissions = []`, because superuser is the agency flag rather than a
+     * held permission. So the one path in the application that inserts
+     * pay-relevant rows refused the operator who may register the terminal
+     * and enrol people on it. Reproduced before the fix: 403 here, 302 on the
+     * sibling enrol.
+     */
+    public function test_the_endpoint_admits_a_platform_superuser(): void
+    {
+        $terminal = $this->terminal();
+        $this->actingAsPlatform(Agency::findOrFail($terminal->agency_id));
+
+        $this->post(route('terminals.syncs.store', $terminal), [
+            'file' => UploadedFile::fake()->createWithContent('attlog.dat', "0001\t2026-09-01 08:01:23\t0\t1\n"),
+        ])->assertSessionHas('success');
+
+        $this->assertSame(1, Timelog::where('terminal_id', $terminal->id)->count());
+    }
+
     /** Another agency's terminal is a 404, not something this endpoint can write to. */
     public function test_the_endpoint_cannot_reach_another_agencys_terminal(): void
     {

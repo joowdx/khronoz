@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
 use App\Models\Agency;
 use App\Models\Employee;
@@ -208,6 +209,35 @@ class OvertimeControllerTest extends TestCase
             'purpose' => 'Year-end closing',
             'mode' => 'pay',
         ])->assertSessionHasErrors('employee_id');
+    }
+
+    /**
+     * The same offboarding lock as on exemptions: an authorised stretch that
+     * is already on the record stays correctable after the person is removed,
+     * while a *new* employee_id is still held to the picker.
+     */
+    public function test_an_authorisation_for_a_removed_employee_is_still_correctable(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $overtime = Overtime::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+        ]);
+
+        $this->withTenant($agency);
+        app(RemoveEmployee::class)->handle($employee->fresh());
+
+        $this->put(route('overtimes.update', $overtime), [
+            'employee_id' => $employee->id,
+            'starts' => $overtime->starts->format('Y-m-d\TH:i'),
+            'ends' => $overtime->ends->format('Y-m-d\TH:i'),
+            'purpose' => 'Year-end closing, per memorandum',
+            'mode' => $overtime->mode->value,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Year-end closing, per memorandum', $overtime->refresh()->purpose);
     }
 
     public function test_an_authorisation_can_be_withdrawn(): void

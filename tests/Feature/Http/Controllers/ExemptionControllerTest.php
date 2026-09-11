@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
 use App\Models\Agency;
 use App\Models\Employee;
@@ -203,6 +204,63 @@ class ExemptionControllerTest extends TestCase
 
         $this->assertSame('10:00:00', Exemption::sole()->starts);
         $this->assertArrayNotHasKey('partial', Exemption::sole()->getAttributes());
+    }
+
+    /**
+     * Offboarding must not lock the leave that is on the record.
+     *
+     * `RemoveEmployee` soft-deletes; the paired FK never sees an UPDATE, so
+     * the row stays valid and the index null-guards the missing person. But
+     * the update rule accepted only living ids, so fixing a typo on a 105-day
+     * maternity leave answered `Not found` — and saving meant choosing
+     * somebody else, which moves the leave onto them.
+     */
+    public function test_an_exemption_of_a_removed_employee_is_still_correctable(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $exemption = Exemption::factory()->spanning(105)->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-01-05',
+        ]);
+
+        $this->withTenant($agency);
+        app(RemoveEmployee::class)->handle($employee->fresh());
+
+        $this->put(route('exemptions.update', $exemption), [
+            'employee_id' => $employee->id,
+            'type' => 'leave',
+            'date' => '2026-01-05',
+            'until' => '2026-04-19',
+            'partial' => '0',
+            'remarks' => 'Maternity, RA 11210',
+            'approved_at' => '2025-12-29',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Maternity, RA 11210', $exemption->refresh()->remarks);
+    }
+
+    /** A *different* employee is still held to the picker: removed is not choosable. */
+    public function test_an_exemption_cannot_be_moved_onto_a_removed_employee(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $exemption = Exemption::factory()->create(['agency_id' => $agency->id]);
+        $removed = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        $this->withTenant($agency);
+        app(RemoveEmployee::class)->handle($removed->fresh());
+
+        $this->put(route('exemptions.update', $exemption), [
+            'employee_id' => $removed->id,
+            'type' => 'leave',
+            'date' => $exemption->date->toDateString(),
+            'until' => $exemption->until->toDateString(),
+            'partial' => '0',
+            'approved_at' => '2026-09-01',
+        ])->assertSessionHasErrors('employee_id');
     }
 
     public function test_an_exemption_cannot_end_before_it_starts(): void
