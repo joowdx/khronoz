@@ -198,6 +198,38 @@ export interface Timelog {
 }
 
 /**
+ * Matches `SyncResource`. One ingestion run, successful or refused.
+ *
+ * The four counters are balanced by `syncs_counts_balance`, so
+ * `accepted + duplicates + rejected === received` can be relied on without
+ * the page checking. `received` is rows **accounted for**, not lines read —
+ * on a run that died mid-chunk the difference is real and the status says so.
+ *
+ * `error` on a failed run carries the reason, and a file refused for naming
+ * two devices is the closest thing this system has to a tamper alert.
+ */
+export interface Sync {
+    id: string;
+    terminal_id: string;
+    terminal?: Terminal | null;
+    /** "scheduled", "manual", "push" or "import" — only import has a writer today. */
+    trigger: string;
+    /** "running", "completed" or "failed". */
+    status: string;
+    started_at: string;
+    finished_at: string | null;
+    received: number;
+    accepted: number;
+    duplicates: number;
+    rejected: number;
+    /** The source filename, for an import. */
+    reference: string | null;
+    earliest: string | null;
+    latest: string | null;
+    error: string | null;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.

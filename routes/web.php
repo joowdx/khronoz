@@ -6,6 +6,7 @@ use App\Http\Controllers\EmployeeDeploymentController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
+use App\Http\Controllers\SyncController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TerminalEnrollmentController;
 use App\Http\Controllers\TerminalSyncController;
@@ -59,6 +60,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
         Route::resource('terminals', TerminalController::class)->except(['show']);
+        // Every ingestion run, successful or refused. Read-only entirely:
+        // the app role has no DELETE here, because a run record that can be
+        // deleted is a run that can be denied.
+        Route::get('syncs', [SyncController::class, 'index'])->name('syncs.index');
+
         // What the devices recorded. Read-only apart from voiding, which is
         // the schema's doing rather than a choice: the app role has no DELETE
         // here and its UPDATE is revoked to (voided_at, reason) — decision 41.
