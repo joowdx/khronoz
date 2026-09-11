@@ -153,10 +153,11 @@ September                                        October
 Day   AM arr   AM dep   PM arr   PM dep           Day   AM arr   AM dep   PM arr   PM dep
  30   08:00    08:00⁺²                              1
                                                     2
-                                                    3   08:00    08:00⁺²
+                                                    3
+                                                    4   08:00    08:00⁺²
 ```
 
-All 48 hours are credited to 30 September, so September's totals carry 40 hours that happened in October. That is the convention: credit follows the day the duty started, which is how the paper form is filled for duty rotations. Because every punch keeps its full timestamp, a payroll export that wants calendar-day hours, night hours on 1 October for instance, derives them from `actual_at`; the DTR view does not.
+All 48 hours are credited to 30 September, so September's totals carry **32** hours that happened in October — 24 on the 1st and 8 on the 2nd, the duty's own 16 September hours running 08:00 to midnight. That is the convention: credit follows the day the duty started, which is how the paper form is filled for duty rotations. Because every punch keeps its full timestamp, a payroll export that wants calendar-day hours, night hours on 1 October for instance, derives them from `actual_at`; the DTR view does not.
 
 Until 2 October 08:00 the row prints `08:00 … ` and September cannot be locked. Printing before then is a draft.
 
