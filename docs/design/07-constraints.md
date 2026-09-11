@@ -609,7 +609,23 @@ CHECK (worked >= 0 AND credited >= 0 AND tardy >= 0 AND undertime >= 0
        AND excess >= 0 AND night >= 0 AND night_excess >= 0)           -- workdays_minutes_not_negative
 CHECK (credited = 0 OR premium IS NOT NULL)                            -- workdays_credited_needs_premium
 CHECK (shift IS NULL OR jsonb_typeof(shift) = 'object')
+-- trigger workdays_ledger_open, BEFORE INSERT OR UPDATE OR DELETE: raise if the ledger has locked_at set
 ```
+
+`workdays_ledger_open` is decision 70, and it is the tier this document previously
+assigned to the application: `06-attendance.md` Ledger rule 3 named the recompute job's
+`if` as the enforcement of the strongest invariant in the system. Four database guards
+already stand around the lock — `ledgers_lock_complete`, `ledgers_unlock_clean`,
+`attestations_locked`, `deployments_frozen_month` — and the one thing none of them covered
+was the rows the lock exists to protect. An `if` in a job holds only for the paths that
+remember it, and most of those paths are unwritten. The job's check stays as the courteous
+early exit that produces a readable message.
+
+It fires on `DELETE` as well, and on `UPDATE` it checks `OLD.ledger_id` too: `ledgers` is
+`UNIQUE (employee_id, month)`, so moving a workday between ledgers is a re-dating, and
+re-dating 30 September to 1 October carries the row out of a locked September into an
+unlocked October where only the `OLD` check can see it. Punches need no guard of their own —
+`punches.workday_id` cascades from a workday that can no longer be deleted.
 
 `STORED` is spelled out because Postgres 18 defaults generated columns to `VIRTUAL`, and virtual columns cannot be indexed or referenced by a foreign key.
 
@@ -652,6 +668,7 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 | Can a schedule be half-built? | deferred constraint trigger `turns_complete` |
 | Can a workgroup be its own ancestor? | trigger `workgroups_acyclic` |
 | Can a month be locked while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
+| Can a workday of a locked month be written, re-dated or deleted? | trigger `workdays_ledger_open`, reading `OLD.ledger_id` as well as `NEW`'s (decision 70) |
 | Can a deployment be created, re-dated or deleted under a month already locked or signed? | trigger `deployments_frozen_month`, reading `OLD` as well as `NEW` |
 | Can someone certify moving numbers, or move certified numbers? | trigger `attestations_locked`, trigger `ledgers_unlock_clean` |
 | Can a signer be from another agency, or sign a role twice? | paired FK on `(user_id, agency_id)`, `UNIQUE (ledger_id, role)` |
