@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One employee-month: the DTR page with a lock on it
@@ -16,8 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * workday computed in that month. Stores `locked_at` only — totals and the
  * monthly occurrence counts are derived from its workdays.
  *
- * `workdays()` and `attestations()` land with those tables. `view()` is a
- * later chunk.
+ * `attestations()` lands with that table. `view()` is a later chunk.
  */
 #[Fillable(['agency_id', 'employee_id', 'month', 'locked_at'])]
 class Ledger extends Model
@@ -37,6 +37,11 @@ class Ledger extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function workdays(): HasMany
+    {
+        return $this->hasMany(Workday::class);
     }
 
     public function locked(): bool

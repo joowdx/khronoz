@@ -6,12 +6,14 @@ use App\Enums\EnrollmentPrivilege;
 use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
 use App\Enums\OvertimeMode;
+use App\Enums\PunchKind;
 use App\Enums\Sex;
 use App\Enums\SyncStatus;
 use App\Enums\SyncTrigger;
 use App\Enums\TerminalKind;
 use App\Enums\TerminalProtocol;
 use App\Enums\TimelogSource;
+use App\Enums\WorkdayStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -45,6 +47,11 @@ class EnumCheckContractTest extends TestCase
             'terminals.kind' => [TerminalKind::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_kind_valid'],
             'terminals.protocol' => [TerminalProtocol::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_protocol_valid'],
             'timelogs.source' => [TimelogSource::class, '0001_01_01_000027_create_timelogs_table.php', 'timelogs_source_valid'],
+            'workdays.status' => [WorkdayStatus::class, '0001_01_01_000030_create_workdays_table.php', 'workdays_status_valid'],
+            'punches.kind' => [PunchKind::class, '0001_01_01_000031_create_punches_table.php', 'punches_kind_valid'],
+            // Not Premium: workdays_premium_valid is `premium IS NULL OR premium IN (...)`.
+            // Null is a legal value of the column and not a case of the enum,
+            // so the pairing this test asserts does not hold.
         ];
     }
 

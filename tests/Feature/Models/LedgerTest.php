@@ -5,6 +5,8 @@ namespace Tests\Feature\Models;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Ledger;
+use App\Models\Punch;
+use App\Models\Workday;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -184,10 +186,9 @@ class LedgerTest extends TestCase
     }
 
     /**
-     * ledgers_lock_complete, permitting path. workdays and punches do not
-     * exist yet, so the EXISTS is empty (or the function returns before
-     * querying them). A row created already locked, and a later UPDATE that
-     * sets locked_at, must both succeed — INSERT is a first-class event of
+     * ledgers_lock_complete, permitting path. A ledger with no punches yet
+     * has an empty EXISTS, so both a row created already locked and a later
+     * UPDATE that sets locked_at succeed — INSERT is a first-class event of
      * this trigger, not an accident of UPDATE OF.
      */
     public function test_a_ledger_with_no_workdays_may_lock(): void
@@ -206,9 +207,19 @@ class LedgerTest extends TestCase
     /** ledgers_lock_complete, refusing path. */
     public function test_a_ledger_cannot_lock_while_a_punch_is_still_due(): void
     {
-        $this->markTestSkipped('punches arrive in 0001_01_01_000031');
-
         $ledger = Ledger::factory()->create(['month' => '2026-09-01']);
+        $workday = Workday::factory()->create([
+            'agency_id' => $ledger->agency_id,
+            'employee_id' => $ledger->employee_id,
+            'ledger_id' => $ledger->id,
+            'date' => '2026-09-15',
+        ]);
+        Punch::factory()->missed()->create([
+            'agency_id' => $workday->agency_id,
+            'employee_id' => $workday->employee_id,
+            'workday_id' => $workday->id,
+            'expected_at' => '2026-09-15 08:00:00',
+        ]);
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('ledgers')->where('id', $ledger->id)->update([
             'locked_at' => '2026-09-11 12:00:00',
