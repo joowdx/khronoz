@@ -7,6 +7,8 @@ use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
 use App\Enums\OvertimeMode;
 use App\Enums\Sex;
+use App\Enums\SyncStatus;
+use App\Enums\SyncTrigger;
 use App\Enums\TerminalKind;
 use App\Enums\TerminalProtocol;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -37,6 +39,8 @@ class EnumCheckContractTest extends TestCase
             'exemptions.type' => [ExemptionType::class, '0001_01_01_000021_create_exemptions_table.php', 'exemptions_type_valid'],
             'overtimes.mode' => [OvertimeMode::class, '0001_01_01_000022_create_overtimes_table.php', 'overtimes_mode_valid'],
             'enrollments.privilege' => [EnrollmentPrivilege::class, '0001_01_01_000025_create_enrollments_table.php', 'enrollments_privilege_valid'],
+            'syncs.trigger' => [SyncTrigger::class, '0001_01_01_000026_create_syncs_table.php', 'syncs_trigger_valid'],
+            'syncs.status' => [SyncStatus::class, '0001_01_01_000026_create_syncs_table.php', 'syncs_status_valid'],
             'terminals.kind' => [TerminalKind::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_kind_valid'],
             'terminals.protocol' => [TerminalProtocol::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_protocol_valid'],
         ];
