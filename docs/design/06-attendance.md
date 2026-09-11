@@ -170,9 +170,13 @@ Until 2 October 08:00 the row prints `08:00 … ` and September cannot be locked
 
 One row per expected slot side. `timelog_id` null means missed. Matching uses the shift's `window` and `grace`; the attlog `state` is a hint unless the shift says `trust`.
 
+`actual_at` is the timelog's `time` **truncated to the minute** (decision 60). The device reports seconds — the worked example above is a 07:58:12 timelog against a 07:58 punch — and `timelogs.time` keeps them, so the raw fact stays reviewable through `timelog_id`. The punch holds the engine's reading of it, and holding two readings of one instant in the same row is what would let a timekeeper checking `tardy` by hand disagree with the engine.
+
 ## Daily rules
 
 The computation, from csc-rules.md sections C and E. Minutes everywhere; days come from the constants lookup at report time.
+
+**Whole minutes, reached by truncating instants and never by rounding spans** (decision 60). Every figure below is the difference of two minute-aligned instants, so the parts always sum to the whole — which is what the ledger's monthly totals are. Round each span independently instead and 07:00:00→08:23:30 is 84 while 08:23:30→17:00:00 is 517, and the two no longer add back to the 601 minutes the day spans. Truncation also never charges a minute the record cannot show: half a minute of lateness is not a minute of lateness.
 
 1. **Status.** Off turn: `off`. Non-working holiday or whole-day suspension with no punches: `holiday` or `suspended`. Whole-day exemption of a type that excuses: `exempt`. Remote shift: `remote`, worked = required, nothing else. Shift with no punch at all: `absent`. Otherwise `present`. **Status describes the expectation, not the attendance**, so work rendered against an empty expectation does not move it: a worked Off turn stays `off` and a worked non-working holiday stays `holiday`, and what records the work is `credited`, `excess` and `premium` (rule 10). The asymmetry in the sentences above — `off` unqualified, `holiday` qualified by "with no punches" — is a wording artefact from before that rule existed and is resolved here in favour of the expectation reading, so a deriver has no case to guess at.
 2. **Tardy** = per slot, `actual in − expected in − grace` when positive, summed. One tardy occurrence for the day when the sum is positive. A morning with no punches and an afternoon present is one tardy occurrence with the morning's minutes (MC 17 s. 2010).
