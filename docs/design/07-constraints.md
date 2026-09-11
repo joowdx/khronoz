@@ -271,6 +271,7 @@ FOREIGN KEY (sync_id)                REFERENCES syncs (id)
 FOREIGN KEY (user_id)                REFERENCES users (id)
 FOREIGN KEY (enrollment_id, employee_id, terminal_id, uid)
     REFERENCES enrollments (id, employee_id, terminal_id, uid)
+    ON DELETE RESTRICT ON UPDATE NO ACTION DEFERRABLE INITIALLY DEFERRED   -- decision 43: enrollment identity must stay correctable
 UNIQUE (terminal_id, uid, time, state, mode)                      -- the attlog natural key; the upsert target
 UNIQUE (id, employee_id)                                          -- target for the punch FK
 CHECK ((enrollment_id IS NULL) = (employee_id IS NULL))           -- resolved means both, unresolved means neither

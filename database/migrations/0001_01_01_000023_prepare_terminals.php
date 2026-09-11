@@ -58,49 +58,62 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // The same rule re-applied when an enrollment appears or its range
-        // moves. Two statements, and the second is the one a happy-path test
-        // never reaches: an enrollment narrowed off a timelog must null that
-        // timelog back out, or a punch stays attributed to someone who was not
-        // enrolled on that date.
+        // The same rule re-applied when an enrollment appears or moves.
         //
-        // Scoped to the (terminal_id, uid) pair of the row that fired it, so
-        // an enrollment change touches only the punches that could have
-        // resolved through it. When `uid` or `terminal_id` themselves change,
-        // Postgres fires this once per affected row; the OLD pair is covered
-        // because the trigger is declared for INSERT OR UPDATE and the OLD
-        // row's own pair no longer matches any enrollment, which the second
-        // statement handles on its next write. Deleting an enrollment that
-        // timelogs reference is refused by the paired FK — end it with `ends`.
+        // It runs for **both** the NEW pair and, on an update that changed
+        // them, the OLD (terminal_id, uid) pair — and that second pass is not
+        // symmetry for its own sake. `timelogs.uid` is what the *device*
+        // reported and is never rewritten (decision 42), so correcting an
+        // enrollment's mistyped uid from '1102' to '01102' leaves every punch
+        // it had resolved still carrying '1102'. Scoped to the NEW pair alone
+        // the function would never look at those rows, and they would stay
+        // attributed through an enrollment that no longer claims them —
+        // a wrong answer that looks exactly like a right one, and a foreign
+        // key violation at commit.
         //
-        // RETURN NULL because this is an AFTER trigger: the return value is
-        // ignored, and NULL says so.
+        // Two statements per pair. The first attaches every punch the covering
+        // enrollment now claims; the second detaches every punch no enrollment
+        // covers any more. The second is the branch a happy-path test never
+        // reaches and the one that keeps a narrowed range honest.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION enrollments_reresolve() RETURNS trigger
             LANGUAGE plpgsql SECURITY DEFINER AS $$
+            DECLARE
+                pair record;
             BEGIN
-                UPDATE timelogs
-                   SET enrollment_id = enrollments.id, employee_id = enrollments.employee_id
-                  FROM enrollments
-                 WHERE timelogs.terminal_id = NEW.terminal_id
-                   AND timelogs.uid = NEW.uid
-                   AND enrollments.terminal_id = timelogs.terminal_id
-                   AND enrollments.uid = timelogs.uid
-                   AND daterange(enrollments.starts, enrollments.ends, '[]') @> timelogs.time::date
-                   AND (timelogs.enrollment_id IS DISTINCT FROM enrollments.id
-                        OR timelogs.employee_id IS DISTINCT FROM enrollments.employee_id);
+                FOR pair IN
+                    SELECT DISTINCT candidate.terminal_id, candidate.uid
+                      FROM (VALUES
+                                (NEW.terminal_id, NEW.uid),
+                                (CASE WHEN TG_OP = 'UPDATE' THEN OLD.terminal_id END,
+                                 CASE WHEN TG_OP = 'UPDATE' THEN OLD.uid END)
+                           ) AS candidate(terminal_id, uid)
+                     WHERE candidate.terminal_id IS NOT NULL
+                       AND candidate.uid IS NOT NULL
+                LOOP
+                    UPDATE timelogs
+                       SET enrollment_id = enrollments.id, employee_id = enrollments.employee_id
+                      FROM enrollments
+                     WHERE timelogs.terminal_id = pair.terminal_id
+                       AND timelogs.uid = pair.uid
+                       AND enrollments.terminal_id = timelogs.terminal_id
+                       AND enrollments.uid = timelogs.uid
+                       AND daterange(enrollments.starts, enrollments.ends, '[]') @> timelogs.time::date
+                       AND (timelogs.enrollment_id IS DISTINCT FROM enrollments.id
+                            OR timelogs.employee_id IS DISTINCT FROM enrollments.employee_id);
 
-                UPDATE timelogs
-                   SET enrollment_id = NULL, employee_id = NULL
-                 WHERE timelogs.terminal_id = NEW.terminal_id
-                   AND timelogs.uid = NEW.uid
-                   AND timelogs.enrollment_id IS NOT NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM enrollments
-                        WHERE enrollments.terminal_id = timelogs.terminal_id
-                          AND enrollments.uid = timelogs.uid
-                          AND daterange(enrollments.starts, enrollments.ends, '[]') @> timelogs.time::date
-                   );
+                    UPDATE timelogs
+                       SET enrollment_id = NULL, employee_id = NULL
+                     WHERE timelogs.terminal_id = pair.terminal_id
+                       AND timelogs.uid = pair.uid
+                       AND timelogs.enrollment_id IS NOT NULL
+                       AND NOT EXISTS (
+                           SELECT 1 FROM enrollments
+                            WHERE enrollments.terminal_id = timelogs.terminal_id
+                              AND enrollments.uid = timelogs.uid
+                              AND daterange(enrollments.starts, enrollments.ends, '[]') @> timelogs.time::date
+                       );
+                END LOOP;
 
                 RETURN NULL;
             END $$;

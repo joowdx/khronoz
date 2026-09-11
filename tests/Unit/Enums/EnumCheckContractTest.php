@@ -11,6 +11,7 @@ use App\Enums\SyncStatus;
 use App\Enums\SyncTrigger;
 use App\Enums\TerminalKind;
 use App\Enums\TerminalProtocol;
+use App\Enums\TimelogSource;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -43,6 +44,7 @@ class EnumCheckContractTest extends TestCase
             'syncs.status' => [SyncStatus::class, '0001_01_01_000026_create_syncs_table.php', 'syncs_status_valid'],
             'terminals.kind' => [TerminalKind::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_kind_valid'],
             'terminals.protocol' => [TerminalProtocol::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_protocol_valid'],
+            'timelogs.source' => [TimelogSource::class, '0001_01_01_000027_create_timelogs_table.php', 'timelogs_source_valid'],
         ];
     }
 

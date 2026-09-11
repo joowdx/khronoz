@@ -1,0 +1,335 @@
+<?php
+
+namespace Tests\Feature\Models;
+
+use App\Models\Agency;
+use App\Models\Employee;
+use App\Models\Enrollment;
+use App\Models\Terminal;
+use App\Models\Timelog;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+/**
+ * `timelogs_resolve` and `enrollments_reresolve` — 03-terminals.md rule 3.
+ *
+ * Who a punch belongs to is the database's answer, not the application's. The
+ * predecessor re-derived it on every read through a four-way manual join
+ * rewritten in four places, one of which joined on the calendar date and broke
+ * on overnight shifts. Here it is written once, at insert, in SQL the app role
+ * cannot bypass — and re-applied by trigger when an enrollment moves.
+ *
+ * Every assertion goes through `fresh()`. `create()` does not re-select, so a
+ * model returned by the factory still reports the nulls that were *sent*, not
+ * what the trigger wrote.
+ */
+class TimelogResolutionTest extends TestCase
+{
+    /** @return array<string, mixed> */
+    private function rawTimelog(Enrollment $enrollment, array $overrides = []): array
+    {
+        return [
+            'id' => (string) Str::ulid(),
+            'agency_id' => $enrollment->agency_id,
+            'terminal_id' => $enrollment->terminal_id,
+            'sync_id' => null,
+            'employee_id' => null,
+            'enrollment_id' => null,
+            'uid' => $enrollment->uid,
+            'time' => $enrollment->starts->copy()->addDays(3)->setTime(8, 0)->toDateTimeString(),
+            'state' => 0,
+            'mode' => 1,
+            'source' => 'manual',
+            'user_id' => User::factory()->create(['agency_id' => $enrollment->agency_id])->id,
+            'voided_at' => null,
+            'reason' => null,
+            'created_at' => now(),
+            ...$overrides,
+        ];
+    }
+
+    /** The happy path: an enrolled uid, a date inside the range, both columns filled. */
+    public function test_a_punch_on_an_enrolled_uid_resolves_to_that_employee(): void
+    {
+        $enrollment = Enrollment::factory()->create();
+        $timelog = Timelog::factory()->resolving($enrollment)->create();
+
+        $resolved = $timelog->fresh();
+
+        $this->assertSame($enrollment->employee_id, $resolved->employee_id);
+        $this->assertSame($enrollment->id, $resolved->enrollment_id);
+    }
+
+    /**
+     * Outside every enrollment the row is **unresolved and still there**. Not
+     * an error and not hidden: a punch by somebody not yet enrolled is real
+     * data, and rejecting it is how a day goes missing without anyone noticing.
+     */
+    public function test_a_punch_outside_every_enrollment_stays_unresolved_and_visible(): void
+    {
+        $enrollment = Enrollment::factory()->closed('+1 month')->create();
+
+        $timelog = Timelog::factory()->resolving($enrollment)->create([
+            'time' => $enrollment->ends->copy()->addDay()->setTime(8, 0)->toDateTimeString(),
+        ]);
+
+        $resolved = $timelog->fresh();
+
+        $this->assertNull($resolved->employee_id);
+        $this->assertNull($resolved->enrollment_id);
+        $this->assertDatabaseHas('timelogs', ['id' => $timelog->id]);
+    }
+
+    /**
+     * **The application may not say who punched.** Whatever arrives in those
+     * two columns is overwritten by the trigger — here with the correct
+     * employee, not the impostor the caller named.
+     *
+     * This is the property that lets the next commit revoke the app role's
+     * UPDATE on them entirely.
+     */
+    public function test_the_database_overwrites_whatever_the_client_claims(): void
+    {
+        $enrollment = Enrollment::factory()->create();
+        $impostor = Employee::factory()->create(['agency_id' => $enrollment->agency_id]);
+
+        $id = (string) Str::ulid();
+
+        DB::table('timelogs')->insert($this->rawTimelog($enrollment, [
+            'id' => $id,
+            'employee_id' => $impostor->id,
+            'enrollment_id' => $enrollment->id,
+        ]));
+
+        $row = DB::table('timelogs')->where('id', $id)->first();
+
+        $this->assertSame($enrollment->employee_id, $row->employee_id);
+        $this->assertNotSame($impostor->id, $row->employee_id);
+    }
+
+    /**
+     * A uid reissued after its first holder left resolves **by date**, each
+     * punch to whoever held the uid that day.
+     *
+     * This is the case the predecessor's schema could not represent at all,
+     * and the reason `enrollments` is a range rather than a flag.
+     */
+    public function test_a_reissued_uid_resolves_each_punch_to_its_own_holder(): void
+    {
+        $leaver = Enrollment::factory()->closed('+1 month')->create();
+        $this->withTenant(Agency::findOrFail($leaver->agency_id));
+
+        $terminal = Terminal::findOrFail($leaver->terminal_id);
+        $joiner = Employee::factory()->create(['agency_id' => $leaver->agency_id]);
+
+        $successor = Enrollment::factory()->on($terminal)->forEmployee($joiner)->create([
+            'uid' => $leaver->uid,
+            'starts' => $leaver->ends->copy()->addDay(),
+        ]);
+
+        $early = Timelog::factory()->resolving($leaver)->create();
+        $late = Timelog::factory()->resolving($successor)->create();
+
+        $this->assertSame($leaver->employee_id, $early->fresh()->employee_id);
+        $this->assertSame($successor->employee_id, $late->fresh()->employee_id);
+        $this->assertNotSame($early->fresh()->employee_id, $late->fresh()->employee_id);
+    }
+
+    /**
+     * Decision 42, asserted through the trigger rather than argued in a
+     * comment: `007` and `7` are two device users, and the join is on the raw
+     * string.
+     *
+     * The predecessor cast this to an integer in two places, which merged them
+     * into one person — and raised outright on an alphanumeric uid.
+     */
+    public function test_a_leading_zero_uid_is_a_different_person(): void
+    {
+        $enrollment = Enrollment::factory()->create(['uid' => '007']);
+        $this->withTenant(Agency::findOrFail($enrollment->agency_id));
+
+        $terminal = Terminal::findOrFail($enrollment->terminal_id);
+
+        $punch = Timelog::factory()->on($terminal)->create([
+            'uid' => '7',
+            'time' => $enrollment->starts->copy()->addDays(3)->setTime(8, 0)->toDateTimeString(),
+        ]);
+
+        $this->assertNull($punch->fresh()->employee_id);
+    }
+
+    /** An alphanumeric device user id is data, not a crash (decision 42). */
+    public function test_an_alphanumeric_uid_resolves_like_any_other(): void
+    {
+        $enrollment = Enrollment::factory()->create(['uid' => 'A17']);
+        $timelog = Timelog::factory()->resolving($enrollment)->create();
+
+        $this->assertSame($enrollment->employee_id, $timelog->fresh()->employee_id);
+    }
+
+    /**
+     * `enrollments_reresolve`, insert branch: punches ingested **before**
+     * anybody was enrolled are picked up the moment the enrollment is created.
+     *
+     * That is what makes an unresolved timelog a recoverable state rather than
+     * a dead one — the timekeeper enrolls the person and the history attaches
+     * itself.
+     */
+    public function test_creating_an_enrollment_resolves_punches_already_ingested(): void
+    {
+        $terminal = Terminal::factory()->create();
+        $this->withTenant(Agency::findOrFail($terminal->agency_id));
+
+        $orphan = Timelog::factory()->on($terminal)->create([
+            'uid' => '0042',
+            'time' => '2026-03-10 08:00:00',
+        ]);
+
+        $this->assertNull($orphan->fresh()->employee_id);
+
+        $enrollment = Enrollment::factory()->on($terminal)->create([
+            'uid' => '0042',
+            'starts' => '2026-03-01',
+        ]);
+
+        $this->assertSame($enrollment->employee_id, $orphan->fresh()->employee_id);
+        $this->assertSame($enrollment->id, $orphan->fresh()->enrollment_id);
+    }
+
+    /**
+     * The second UPDATE in `enrollments_reresolve` — the branch a happy-path
+     * test never reaches.
+     *
+     * Narrowing an enrollment so it no longer covers a punch must null that
+     * punch back out. Without it the row stays attributed to somebody the
+     * database no longer believes was enrolled that day, which is a wrong
+     * answer that looks exactly like a right one.
+     */
+    public function test_moving_an_enrollment_off_a_punch_unresolves_it(): void
+    {
+        $enrollment = Enrollment::factory()->create();
+        $timelog = Timelog::factory()->resolving($enrollment)->create();
+
+        $this->assertSame($enrollment->employee_id, $timelog->fresh()->employee_id);
+
+        // Ends the day before the punch, so the range no longer covers it.
+        $enrollment->update(['ends' => $timelog->time->copy()->subDay()->toDateString()]);
+
+        $this->assertNull($timelog->fresh()->employee_id);
+        $this->assertNull($timelog->fresh()->enrollment_id);
+    }
+
+    /** Re-pointing an enrollment at another employee re-attributes its punches. */
+    public function test_changing_an_enrollments_employee_reattributes_its_punches(): void
+    {
+        $enrollment = Enrollment::factory()->create();
+        $timelog = Timelog::factory()->resolving($enrollment)->create();
+        $successor = Employee::factory()->create(['agency_id' => $enrollment->agency_id]);
+
+        $enrollment->update(['employee_id' => $successor->id]);
+
+        $this->assertSame($successor->id, $timelog->fresh()->employee_id);
+    }
+
+    /**
+     * **Correcting a mistyped device user id**, which is the mutation the
+     * OLD-pair pass in `enrollments_reresolve` exists for — and the reason
+     * `timelogs_enrollment_foreign` defers its update check.
+     *
+     * A timekeeper enrolls somebody as `1102`; the device actually reports
+     * `01102`. Punches arrive under both at different times, and correcting
+     * the enrollment has to move attribution in **both directions at once**:
+     * the rows the device reported as `1102` must let go, and the ones it
+     * reported as `01102` must attach.
+     *
+     * `timelogs.uid` itself never changes — it is what the device said, and
+     * rewriting it is the predecessor's single worst defect (decision 42). So
+     * the old rows cannot be dragged along by a cascade; they have to be
+     * released, which only the OLD-pair pass does.
+     */
+    public function test_correcting_a_mistyped_uid_moves_attribution_both_ways(): void
+    {
+        $enrollment = Enrollment::factory()->create(['uid' => '1102', 'starts' => '2026-03-01']);
+        $this->withTenant(Agency::findOrFail($enrollment->agency_id));
+
+        $terminal = Terminal::findOrFail($enrollment->terminal_id);
+
+        $underTypo = Timelog::factory()->on($terminal)->create(['uid' => '1102', 'time' => '2026-03-10 08:00:00']);
+        $underTruth = Timelog::factory()->on($terminal)->create(['uid' => '01102', 'time' => '2026-03-11 08:00:00']);
+
+        $this->assertSame($enrollment->employee_id, $underTypo->fresh()->employee_id);
+        $this->assertNull($underTruth->fresh()->employee_id);
+
+        $enrollment->update(['uid' => '01102']);
+
+        $this->assertNull($underTypo->fresh()->employee_id, 'punches the device reported as 1102 must let go');
+        $this->assertSame($enrollment->employee_id, $underTruth->fresh()->employee_id, 'punches reported as 01102 must attach');
+
+        // And the device's own record of what it saw is untouched.
+        $this->assertSame('1102', $underTypo->fresh()->uid);
+        $this->assertSame('01102', $underTruth->fresh()->uid);
+    }
+
+    /**
+     * The same OLD-pair pass, reached through `terminal_id` instead: an
+     * enrollment recorded against the wrong device releases the punches that
+     * device captured.
+     */
+    public function test_moving_an_enrollment_to_another_terminal_releases_the_old_devices_punches(): void
+    {
+        $enrollment = Enrollment::factory()->create(['starts' => '2026-03-01']);
+        $this->withTenant(Agency::findOrFail($enrollment->agency_id));
+
+        $lobby = Terminal::findOrFail($enrollment->terminal_id);
+        $annex = Terminal::factory()->create(['agency_id' => $enrollment->agency_id]);
+
+        $captured = Timelog::factory()->on($lobby)->create([
+            'uid' => $enrollment->uid,
+            'time' => '2026-03-10 08:00:00',
+        ]);
+
+        $this->assertSame($enrollment->employee_id, $captured->fresh()->employee_id);
+
+        $enrollment->update(['terminal_id' => $annex->id]);
+
+        $this->assertNull($captured->fresh()->employee_id);
+    }
+
+    /**
+     * Resolution survives the upsert. `ON CONFLICT DO NOTHING` still fires the
+     * BEFORE INSERT trigger for the row it then discards — one index lookup
+     * per duplicate and nothing else — and `RETURNING` yields only the rows
+     * actually inserted, which is exactly how the importer will count
+     * `accepted` against `duplicates`.
+     */
+    public function test_the_upsert_returns_only_rows_it_actually_inserted(): void
+    {
+        $enrollment = Enrollment::factory()->create();
+        $existing = Timelog::factory()->resolving($enrollment)->create();
+
+        $rows = [
+            // A duplicate of the row already present, on the natural key.
+            $this->rawTimelog($enrollment, [
+                'time' => $existing->time->toDateTimeString(),
+                'state' => $existing->state,
+                'mode' => $existing->mode,
+            ]),
+            // And one genuinely new punch.
+            $this->rawTimelog($enrollment, [
+                'time' => $existing->time->copy()->addHours(9)->toDateTimeString(),
+                'state' => 1,
+            ]),
+        ];
+
+        $returned = DB::table('timelogs')->insertOrIgnoreReturning(
+            $rows,
+            ['id', 'employee_id', 'time'],
+            ['terminal_id', 'uid', 'time', 'state', 'mode'],
+        );
+
+        $this->assertCount(1, $returned);
+        $this->assertSame($enrollment->employee_id, $returned->first()->employee_id);
+    }
+}
