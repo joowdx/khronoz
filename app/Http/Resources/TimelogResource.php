@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\AttlogMode;
+use App\Enums\AttlogState;
 use App\Models\Timelog;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -9,11 +11,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Matches the `Timelog` interface in resources/js/types/index.d.ts.
  *
- * `state` and `mode` cross as the **raw attlog integers** (03-terminals.md
- * rule 6). They are not mapped to labels here: an unfamiliar firmware emits
- * codes the documented table does not list, and a server-side enum would have
- * to choose between refusing them and inventing a name. The front end labels
- * what it recognises and prints the number otherwise, which loses nothing.
+ * `state` and `mode` cross as `{value, label}`, where `value` is the **raw
+ * attlog integer** (03-terminals.md rule 6) and `label` is what
+ * `AttlogState::describe()` and `AttlogMode::describe()` make of it.
+ *
+ * This file used to send the bare integers and argue for it: an unfamiliar
+ * firmware emits codes the documented table does not list, and a server-side
+ * enum would have to choose between refusing them and inventing a name. The
+ * premise was right and the conclusion did not follow. `describe()` takes the
+ * third option — the documented codes get their label, an undocumented one
+ * prints as its own number — so nothing is refused, nothing is invented, and
+ * the vocabulary stops living in a TypeScript map that
+ * `.ai/rules/resources.md` forbids. `EnumLabelContractTest` never caught that
+ * map because it discovers enums by their `label()`, and no enum existed.
  *
  * `time` is a naive local wall clock as the device reported it — never
  * converted, never adjusted for drift (rule 4) — so it crosses as a string and
@@ -35,8 +45,8 @@ class TimelogResource extends JsonResource
             ),
             'uid' => $this->uid,
             'time' => $this->time->toDateTimeString(),
-            'state' => $this->state,
-            'mode' => $this->mode,
+            'state' => ['value' => $this->state, 'label' => AttlogState::describe($this->state)],
+            'mode' => ['value' => $this->mode, 'label' => AttlogMode::describe($this->mode)],
             'source' => $this->source->value,
             // Null means unresolved, which is a normal and visible state — not
             // an error and never hidden.

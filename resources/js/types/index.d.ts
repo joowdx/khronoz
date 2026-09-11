@@ -188,9 +188,11 @@ export interface Enrollment {
  * Matches `TimelogResource`. What a device recorded — never a punch, which is
  * a matched slot side of a workday and belongs to Milestone 6.
  *
- * `state` and `mode` are the **raw attlog integers** (03-terminals.md rule 6).
- * An unfamiliar firmware emits codes the documented table does not list, so
- * they are labelled where recognised and printed as numbers otherwise.
+ * `state` and `mode` each carry the **raw attlog integer** (03-terminals.md
+ * rule 6) beside the label the server made of it. An unfamiliar firmware emits
+ * codes the documented table does not list, so an unrecognised one arrives
+ * labelled as its own number. The page holds no vocabulary of its own — that
+ * lives on `AttlogState` and `AttlogMode` (.ai/rules/resources.md).
  *
  * `employee_id` null means **unresolved**: the uid matched no enrollment on
  * that date. Normal, visible, and never hidden.
@@ -205,8 +207,13 @@ export interface Timelog {
     uid: string;
     /** `YYYY-MM-DD HH:MM:SS`, as the device reported it. */
     time: string;
-    state: number;
-    mode: number;
+    /**
+     * The raw attlog integer with the label the server made of it. An
+     * undocumented code arrives labelled as its own number — the enum is a
+     * reading of `value`, never a constraint on it (03-terminals.md rule 6).
+     */
+    state: { value: number; label: string };
+    mode: { value: number; label: string };
     source: string;
     employee_id: string | null;
     employee?: Employee | null;

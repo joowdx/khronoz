@@ -22,7 +22,12 @@ namespace App\Enums\Concerns;
  */
 trait HasChoices
 {
-    /** @return array<int, array{value: string, label: string}> */
+    /**
+     * `value` is the enum's backing type: a string for the varchar-backed
+     * enums, an int for the two that read the attlog's raw device codes.
+     *
+     * @return array<int, array{value: int|string, label: string}>
+     */
     public static function choices(): array
     {
         return array_map(

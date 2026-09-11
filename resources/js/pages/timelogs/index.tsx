@@ -26,7 +26,6 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { modeLabel, stateLabel } from '@/lib/attlog';
 import { formatDay } from '@/lib/dates';
 import { index, voidMethod as voidTimelog } from '@/routes/timelogs';
 import type { Terminal, Timelog } from '@/types';
@@ -344,8 +343,8 @@ export default function Index({
                                             )}
                                         </span>
                                     </TableCell>
-                                    <TableCell>{stateLabel(timelog.state)}</TableCell>
-                                    <TableCell className="text-muted-foreground">{modeLabel(timelog.mode)}</TableCell>
+                                    <TableCell>{timelog.state.label}</TableCell>
+                                    <TableCell className="text-muted-foreground">{timelog.mode.label}</TableCell>
                                     <TableCell className="text-right">
                                         {manage && timelog.voided_at === null && <VoidMenu timelog={timelog} />}
                                     </TableCell>
