@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Building2, LayoutGrid, Network, UserRoundCheck, UsersRound } from 'lucide-react';
+import { Building2, Fingerprint, LayoutGrid, Network, UserRoundCheck, UsersRound } from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -9,6 +9,7 @@ import { useCan } from '@/hooks/use-can';
 import { dashboard } from '@/routes';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as agenciesIndex } from '@/routes/platform/agencies';
+import { index as terminalsIndex } from '@/routes/terminals';
 import { index as workgroupsIndex } from '@/routes/workgroups';
 import { index as usersIndex } from '@/routes/users';
 import type { SharedProps } from '@/types';
@@ -79,6 +80,19 @@ export function AppSidebar() {
                           { title: 'Workgroups', href: workgroupsIndex().url, icon: Network },
                           { title: 'Employees', href: employeesIndex().url, icon: UsersRound },
                       ],
+                  },
+              ]
+            : []),
+        // Milestone 5. Grouped on its own rather than folded into
+        // Organization because a terminal is equipment, not a box on the org
+        // chart, and the permission that gates it is its own
+        // (`terminals.view`) — the sidebar mirrors the permission matrix, not
+        // the database's table list.
+        ...(insideAgency && can('terminals.view')
+            ? [
+                  {
+                      label: 'Terminals',
+                      items: [{ title: 'Terminals', href: terminalsIndex().url, icon: Fingerprint }],
                   },
               ]
             : []),

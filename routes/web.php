@@ -6,6 +6,7 @@ use App\Http\Controllers\EmployeeDeploymentController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
+use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TerminalSyncController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
@@ -55,6 +56,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->scopeBindings()
             ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
+        Route::resource('terminals', TerminalController::class)->except(['show']);
         // Ingestion. A sync is a *record of a run*, so creating one is the act
         // of importing — hence POST to the collection rather than a verb URL.
         // Milestone 5 ships file import only (decision 40); push and pull will

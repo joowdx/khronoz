@@ -111,6 +111,40 @@ export interface Workgroup {
 }
 
 /**
+ * Matches `TerminalResource`. A biometric device.
+ *
+ * `code` is the device number **as a string** and must stay one (decision 42):
+ * it is what the attlog stamps into every line, compared byte-for-byte at
+ * import, and `007` is not `7`.
+ *
+ * There is no `secret`. The comm key never leaves the database (decision 40);
+ * `has_secret` says only whether one is set.
+ */
+export interface Terminal {
+    id: string;
+    workgroup_id: string | null;
+    workgroup?: Workgroup | null;
+    /** The device number the attlog carries. A string, never a number. */
+    code: string;
+    name: string;
+    serial: string | null;
+    /** "terminal" (networked) or "usb" (carried across on a stick). */
+    kind: string;
+    /** "push", "pull" or "file" — only "file" has a writer today (decision 40). */
+    protocol: string;
+    host: string | null;
+    port: number | null;
+    /** Whether a comm key is set. Never the key itself. */
+    has_secret: boolean;
+    active: boolean;
+    /** `YYYY-MM-DD HH:MM:SS` or null; never reparsed client-side. */
+    seen_at: string | null;
+    synced_at: string | null;
+    /** The read offset for a future pull. An import never moves it. */
+    stamp: string | null;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.

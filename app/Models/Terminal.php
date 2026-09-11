@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A biometric device that captures timelogs (docs/design/03-terminals.md).
@@ -66,6 +67,24 @@ class Terminal extends Model
     public function workgroup(): BelongsTo
     {
         return $this->belongsTo(Workgroup::class);
+    }
+
+    /** Who this device can identify, over time. `covering($date)` picks the one that answers for a date. */
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class);
+    }
+
+    /** Every punch it has ever captured. Immutable, and never deleted (decision 41). */
+    public function timelogs(): HasMany
+    {
+        return $this->hasMany(Timelog::class);
+    }
+
+    /** Every ingestion run against this device, successful or not. */
+    public function syncs(): HasMany
+    {
+        return $this->hasMany(Sync::class);
     }
 
     /** Terminals still in service. `active` is a switch, not a delete — the punches stay. */
