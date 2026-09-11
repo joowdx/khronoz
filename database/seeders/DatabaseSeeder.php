@@ -18,6 +18,13 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(PlatformSeeder::class);
 
+        // The tier-2 defaults every agency copies at onboarding. Called here
+        // rather than from PlatformSeeder because the test suite seeds
+        // PlatformSeeder alone (TestCase::migrateDatabases) and a test
+        // asserting a count should not move when the product's default set
+        // gains a shift — tests build the platform fixtures they need.
+        $this->call(DefaultsSeeder::class);
+
         // Dev-only convenience login: a superuser of the platform agency, so
         // local development starts with an account that can manage every
         // agency (docs/design/02-access.md rule 3). Guarded so re-running the
