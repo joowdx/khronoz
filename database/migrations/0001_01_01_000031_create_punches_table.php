@@ -78,6 +78,16 @@ return new class extends Migration
                 BEFORE INSERT ON punches
                 FOR EACH ROW EXECUTE FUNCTION punches_timelog_live();
         SQL);
+
+        // Function created in 0001_01_01_000028_prepare_attendance. Decision
+        // 80: the same guard workdays carry, on the rows the lock exists to
+        // protect. `workdays_ledger_open` refuses rewriting the day; without
+        // this the app role could still rewrite its chain a punch at a time.
+        DB::unprepared(<<<'SQL'
+            CREATE TRIGGER punches_ledger_open
+                BEFORE INSERT OR UPDATE OR DELETE ON punches
+                FOR EACH ROW EXECUTE FUNCTION punches_ledger_open();
+        SQL);
     }
 
     /**

@@ -650,6 +650,7 @@ CHECK (expected_at IS NOT NULL OR actual_at IS NOT NULL)                        
 CHECK (kind IN ('in', 'out'))
 CHECK (slot > 0)
 -- trigger punches_timelog_live, BEFORE INSERT: raise if the timelog has voided_at set
+-- trigger punches_ledger_open, BEFORE INSERT/UPDATE/DELETE: raise if the workday's ledger is locked
 ```
 
 The composite FK to timelogs does more than it looks: an unresolved timelog has `employee_id` null, so it can never match a punch's non-null `employee_id`. A punch can only ever use a resolved timelog.

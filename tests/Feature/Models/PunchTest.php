@@ -419,4 +419,133 @@ class PunchTest extends TestCase
 
         return Timelog::factory()->resolving($enrollment)->create();
     }
+
+    /**
+     * punches_ledger_open, insert side (decision 80). Decision 70 said
+     * punches needed no guard of their own because they cascade from a
+     * workday that can no longer be deleted — which answers deleting the
+     * parent and not writing the child. The app role holds INSERT, UPDATE
+     * and DELETE here, so a signed month's chain was rewritable a row at a
+     * time with every guard around it intact.
+     *
+     * The ledger is created unlocked and locked afterwards, so the factory's
+     * own inserts are not the refusal.
+     */
+    public function test_a_punch_cannot_be_inserted_on_a_locked_ledger(): void
+    {
+        $punch = Punch::factory()->create();
+
+        $this->lock($punch);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->insert(
+            $this->punchRow($punch)
+        ), 'a punch cannot be written against a locked ledger');
+    }
+
+    /** punches_ledger_open, update side — the shape that rewrites a time. */
+    public function test_a_punch_cannot_be_updated_on_a_locked_ledger(): void
+    {
+        $punch = Punch::factory()->create();
+
+        $this->lock($punch);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->where('id', $punch->id)->update([
+            'actual_at' => '2026-09-15 07:59:00',
+            'deviation' => -1,
+        ]));
+    }
+
+    /** punches_ledger_open, delete side. Reads OLD: NEW is unassigned. */
+    public function test_a_punch_cannot_be_deleted_on_a_locked_ledger(): void
+    {
+        $punch = Punch::factory()->create();
+
+        $this->lock($punch);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->where('id', $punch->id)->delete());
+    }
+
+    /**
+     * punches_ledger_open, the branch that reads OLD on an UPDATE. Moving a
+     * punch **out** of a locked month is as much a rewrite as moving one in,
+     * and the NEW check cannot see it — the destination workday is open, so
+     * only OLD's ledger is locked.
+     */
+    public function test_a_punch_cannot_be_moved_out_of_a_locked_ledger(): void
+    {
+        $punch = Punch::factory()->create();
+        $open = Workday::factory()->create([
+            'agency_id' => $punch->agency_id,
+            'employee_id' => $punch->employee_id,
+            'date' => '2026-10-01',
+        ]);
+
+        $this->lock($punch);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->where('id', $punch->id)->update([
+            'workday_id' => $open->id,
+        ]));
+    }
+
+    /**
+     * punches_ledger_open, permitting path. The legitimate sequence is
+     * unlock then recompute, and `Computer` deletes and recreates a day's
+     * punches inside one transaction — so the trigger must read current
+     * state rather than anything cached at insert.
+     */
+    public function test_punch_writes_succeed_once_the_ledger_is_unlocked(): void
+    {
+        $punch = Punch::factory()->create();
+
+        $this->lock($punch);
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->where('id', $punch->id)->delete());
+
+        DB::table('ledgers')
+            ->whereIn('id', DB::table('workdays')->select('ledger_id')->where('id', $punch->workday_id))
+            ->update(['locked_at' => null]);
+
+        DB::table('punches')->where('id', $punch->id)->delete();
+        $this->assertDatabaseMissing('punches', ['id' => $punch->id]);
+
+        $id = (string) Str::ulid();
+        DB::table('punches')->insert($this->punchRow($punch, ['id' => $id]));
+        $this->assertDatabaseHas('punches', ['id' => $id]);
+    }
+
+    /**
+     * A transit is never "still due" and so never blocks a lock
+     * (decisions 78 and 80): `ledgers_lock_complete` compares
+     * `expected_at > locked_at`, and a null expectation makes that NULL. It
+     * is the right answer — a tap on a day that expected nothing has
+     * already happened and no later punch can be owed against it — but it
+     * follows from three-valued logic rather than from an explicit clause,
+     * so it is written down here.
+     */
+    public function test_a_transit_does_not_hold_a_ledger_open(): void
+    {
+        $punch = Punch::factory()->create();
+        DB::table('punches')->where('id', $punch->id)->update([
+            'expected_at' => null,
+            'deviation' => null,
+        ]);
+
+        DB::table('ledgers')
+            ->whereIn('id', DB::table('workdays')->select('ledger_id')->where('id', $punch->workday_id))
+            ->update(['locked_at' => '2026-09-01 12:00:00']);
+
+        $this->assertDatabaseHas('ledgers', ['locked_at' => '2026-09-01 12:00:00']);
+    }
+
+    /**
+     * Lock the ledger the punch's workday belongs to. The timestamp is after
+     * the factory's `expected_at` on purpose: `ledgers_lock_complete`
+     * refuses a lock while any punch is still due, so an earlier one would
+     * fail these tests on the arrange rather than the act.
+     */
+    private function lock(Punch $punch): void
+    {
+        DB::table('ledgers')
+            ->whereIn('id', DB::table('workdays')->select('ledger_id')->where('id', $punch->workday_id))
+            ->update(['locked_at' => '2026-09-30 12:00:00']);
+    }
 }

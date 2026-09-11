@@ -230,9 +230,7 @@ return new class extends Migration
 
         // Decision 70. A locked month refuses workday writes in the database,
         // not in the job: INSERT, UPDATE and DELETE of a workday whose ledger
-        // has locked_at set. Punches need no trigger of their own —
-        // punches.workday_id cascades from a workday that can no longer be
-        // deleted.
+        // has locked_at set.
         //
         // IF / ELSIF on TG_OP, never CASE: plpgsql resolves field references
         // in every CASE arm, and NEW is unassigned in a DELETE trigger.
@@ -270,12 +268,49 @@ return new class extends Migration
                 RETURN NEW;
             END $$;
         SQL);
+
+        // Decision 80. Punches need the same guard, and decision 70 said they
+        // did not. Its argument — punches.workday_id cascades from a workday
+        // that can no longer be deleted — answers deleting the *parent* and
+        // says nothing about writing the *child*: the app role holds INSERT,
+        // UPDATE and DELETE on punches, so a signed month's chain could be
+        // rewritten one row at a time with every guard around it intact.
+        //
+        // Two hops, workday then ledger, because punches carry no ledger_id.
+        // A cascading delete from workdays reaches here too and is correct:
+        // the parent's own trigger has already refused it if the month is
+        // locked, so the only cascades that arrive are from open ones.
+        DB::unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION punches_ledger_open() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                IF TG_OP = 'DELETE' THEN
+                    IF (SELECT l.locked_at IS NOT NULL FROM workdays w JOIN ledgers l ON l.id = w.ledger_id WHERE w.id = OLD.workday_id) THEN
+                        RAISE EXCEPTION 'a punch cannot be written against a locked ledger';
+                    END IF;
+
+                    RETURN OLD;
+                END IF;
+
+                IF (SELECT l.locked_at IS NOT NULL FROM workdays w JOIN ledgers l ON l.id = w.ledger_id WHERE w.id = NEW.workday_id) THEN
+                    RAISE EXCEPTION 'a punch cannot be written against a locked ledger';
+                END IF;
+
+                IF TG_OP = 'UPDATE' AND OLD.workday_id IS DISTINCT FROM NEW.workday_id THEN
+                    IF (SELECT l.locked_at IS NOT NULL FROM workdays w JOIN ledgers l ON l.id = w.ledger_id WHERE w.id = OLD.workday_id) THEN
+                        RAISE EXCEPTION 'a punch cannot be written against a locked ledger';
+                    END IF;
+                END IF;
+
+                RETURN NEW;
+            END $$;
+        SQL);
     }
 
     /** The one place these are dropped; the argument lists are required. */
     public function down(): void
     {
         DB::statement('DROP FUNCTION IF EXISTS workdays_ledger_open()');
+        DB::statement('DROP FUNCTION IF EXISTS punches_ledger_open()');
         DB::statement('DROP FUNCTION IF EXISTS attestations_locked()');
         DB::statement('DROP FUNCTION IF EXISTS punches_timelog_live()');
         DB::statement('DROP FUNCTION IF EXISTS deployments_frozen_month()');
