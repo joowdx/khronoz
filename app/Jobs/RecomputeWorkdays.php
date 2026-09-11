@@ -2,7 +2,11 @@
 
 namespace App\Jobs;
 
+use App\Attendance\Almanac;
+use App\Attendance\Calendar;
 use App\Attendance\Computer;
+use App\Attendance\Resolver;
+use App\Attendance\Week;
 use App\Enums\HolidayType;
 use App\Models\Agency;
 use App\Models\Employee;
@@ -49,6 +53,9 @@ class RecomputeWorkdays implements ShouldQueue
      * than discarding it.
      */
     public int $tries = 5;
+
+    /** Mirrors `Computer::precedingUnexcusedAbsence`'s look-back. */
+    private const REACH = 7;
 
     public function __construct(
         public string $employeeId,
@@ -151,15 +158,59 @@ class RecomputeWorkdays implements ShouldQueue
         $tenant->set($agency);
 
         $from = CarbonImmutable::parse($this->from);
-        $to = CarbonImmutable::parse($this->to);
+        $settings = new Settings($agency);
+        $to = $this->reaching($employee, $settings, CarbonImmutable::parse($this->to));
 
-        // Decision 66: an unworked regular holiday's credit depends on the
-        // preceding work day, so a punch on the 24th must also recompute
-        // the 25th. Forward reach is one day, and only for Regular.
-        if (Holiday::query()->covering($to->addDay())->where('type', HolidayType::Regular)->exists()) {
-            $to = $to->addDay();
+        (new Computer($employee, $settings))->over($from, $to);
+    }
+
+    /**
+     * `$to`, extended forward to a following regular holiday whose credit
+     * this range can still change (decisions 66 and 77).
+     *
+     * An unworked regular holiday credits `required` unless the preceding
+     * **work** day was an unexcused absence, so a punch arriving for that
+     * absence must recompute the holiday too. Decision 66 reached one day
+     * forward, which is the whole distance only when the two are adjacent.
+     * Decision 77 made the backward walk skip every day nothing was
+     * required on, and this is the same walk run the other way: it steps
+     * over rest days, non-working holidays and whole-day suspensions and
+     * stops at the first day work was expected on, because that day — not
+     * ours — is then the holiday's preceding work day and our range cannot
+     * move it. A Monday regular holiday after a weekend is the ordinary
+     * shape of this in the Philippines, and one day forward never reached
+     * it.
+     *
+     * Seven days is `Computer::precedingUnexcusedAbsence`'s own bound, and
+     * the two must agree: a distance the walk back would cross is a
+     * distance the dispatch has to cover.
+     */
+    private function reaching(Employee $employee, Settings $settings, CarbonImmutable $to): CarbonImmutable
+    {
+        $first = $to->addDay();
+        $last = $to->addDays(self::REACH);
+
+        [$weekStart] = Week::bounds($first);
+        [, $weekEnd] = Week::bounds($last);
+
+        $resolutions = (new Resolver($employee))->over($weekStart, $weekEnd);
+
+        foreach ($resolutions as $resolution) {
+            $resolution?->roster->schedule->loadMissing('fallbackShift');
         }
 
-        (new Computer($employee, new Settings($agency)))->over($from, $to);
+        $calendar = new Calendar($almanac = Almanac::for($employee, $weekStart, $weekEnd), $settings);
+
+        for ($date = $first; $date->lte($last); $date = $date->addDay()) {
+            if ($almanac->holidays($date)->contains(fn (Holiday $holiday): bool => $holiday->type === HolidayType::Regular)) {
+                return $date;
+            }
+
+            if ($calendar->apply($resolutions, $date)->status?->expectsWork() ?? true) {
+                return $to;
+            }
+        }
+
+        return $to;
     }
 }

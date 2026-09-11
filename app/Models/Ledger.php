@@ -94,7 +94,6 @@ class Ledger extends Model
         // straddling the month end draws from the neighbouring ledger
         // (decision 52). The period slice is then a filter in PHP.
         $loaded = Workday::query()
-            ->with('exemption')
             ->where('employee_id', $this->employee_id)
             ->whereBetween('date', [$loadFrom->toDateString(), $loadTo->toDateString()])
             ->orderBy('date')
@@ -127,16 +126,17 @@ class Ledger extends Model
         if ($settings->occurrences()) {
             $tardyOccurrences = $workdays->filter(fn (Workday $workday): bool => $workday->tardy > 0)->count();
             $undertimeOccurrences = $workdays->filter(fn (Workday $workday): bool => $workday->undertime > 0)->count();
-            // Decision 73: an absence is excused only when the stamped
-            // exemption's excused() is true, never merely because
-            // exemption_id is set. A personal locator slip is stamped and
-            // excuses nothing, and daily rule 7 says the day's absence
-            // stands. Asking the stamp is nonetheless sufficient:
-            // Calendar::exemptionState() ranks excused() true first, so
-            // if the stamp does not excuse, nothing covering that day
-            // does.
+            // Decision 77: `absent` already means unexcused, so the status
+            // is the whole test. Calendar::status() returns `Exempt` for
+            // any day carrying a **whole-day** excusing exemption, so a
+            // day that reaches `Absent` has none by construction and every
+            // excusing exemption still on it covers part of the day. Asking
+            // the stamp again read a two-hour excused pass on a day of no
+            // attendance as a fully excused absence and dropped the count
+            // to zero. Decision 73's insight — a stamp is not an excuse —
+            // stands; the stamp is simply the wrong place to look for it.
             $absences = $workdays
-                ->filter(fn (Workday $workday): bool => $workday->status === WorkdayStatus::Absent && $workday->exemption?->excused() !== true)
+                ->filter(fn (Workday $workday): bool => $workday->status === WorkdayStatus::Absent)
                 ->count();
         } else {
             $tardyOccurrences = 0;

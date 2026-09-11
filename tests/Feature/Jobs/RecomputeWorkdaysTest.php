@@ -8,6 +8,9 @@ use App\Models\Agency;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Ledger;
+use App\Models\Roster;
+use App\Models\Schedule;
+use App\Models\Shift;
 use App\Models\Workday;
 use App\Tenancy\Tenant;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -240,6 +243,96 @@ class RecomputeWorkdaysTest extends TestCase
             Workday::query()
                 ->where('employee_id', $employee->id)
                 ->whereDate('date', '2026-09-02')
+                ->exists(),
+        );
+    }
+
+    /**
+     * Mon-Fri working, Sat-Sun off, anchored Monday 7 September 2026 and
+     * open from 1 August, so every date these tests name has a turn.
+     */
+    private function rostered(Agency $agency): Employee
+    {
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $schedule = Schedule::factory()
+            ->withTurns(
+                Shift::factory()->create(['agency_id' => $agency->id]),
+                Shift::factory()->off()->create(['agency_id' => $agency->id]),
+            )
+            ->create(['agency_id' => $agency->id]);
+        Roster::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'schedule_id' => $schedule->id,
+            'anchor' => '2026-09-07',
+            'starts' => '2026-08-01',
+            'ends' => null,
+        ]);
+
+        return $employee;
+    }
+
+    /**
+     * Decision 77: the forward reach walks past days nothing was required
+     * on, exactly as the backward look-back does. A special non-working
+     * holiday on the 2nd is not the 3rd's preceding work day, so a punch
+     * arriving for the 1st still has to recompute the 3rd. One day forward
+     * left Christmas Day crediting an absence the 23rd had forfeited.
+     */
+    public function test_the_span_reaches_past_a_non_working_holiday_to_a_regular_holiday(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $employee = $this->rostered($agency);
+        Holiday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-09-02',
+            'type' => HolidayType::Special,
+        ]);
+        Holiday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-09-03',
+            'type' => HolidayType::Regular,
+        ]);
+
+        app(Tenant::class)->forget();
+
+        (new RecomputeWorkdays($employee->id, '2026-09-01', '2026-09-01'))
+            ->handle(app(Tenant::class));
+
+        $this->assertTrue(
+            Workday::query()
+                ->where('employee_id', $employee->id)
+                ->whereDate('date', '2026-09-03')
+                ->exists(),
+        );
+    }
+
+    /**
+     * And stops at the first day work was expected on. The 2nd is then the
+     * 3rd's preceding work day and this range cannot move it, so reaching
+     * the holiday would only write days nobody has worked yet.
+     */
+    public function test_the_span_does_not_reach_past_a_work_day_to_a_regular_holiday(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $employee = $this->rostered($agency);
+        Holiday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-09-03',
+            'type' => HolidayType::Regular,
+        ]);
+
+        app(Tenant::class)->forget();
+
+        (new RecomputeWorkdays($employee->id, '2026-09-01', '2026-09-01'))
+            ->handle(app(Tenant::class));
+
+        $this->assertFalse(
+            Workday::query()
+                ->where('employee_id', $employee->id)
+                ->whereDate('date', '2026-09-03')
                 ->exists(),
         );
     }

@@ -8,6 +8,7 @@ use App\Enums\MissingSide;
 use App\Enums\PunchKind;
 use App\Enums\WorkdayStatus;
 use App\Models\Agency;
+use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Enrollment;
 use App\Models\Exemption;
@@ -17,10 +18,12 @@ use App\Models\Punch;
 use App\Models\Roster;
 use App\Models\Schedule;
 use App\Models\Shift;
+use App\Models\Suspension;
 use App\Models\Timelog;
 use App\Models\Turn;
 use App\Models\User;
 use App\Models\Workday;
+use App\Models\Workgroup;
 use App\Support\Settings;
 use Carbon\CarbonImmutable;
 use Tests\TestCase;
@@ -555,6 +558,127 @@ class ComputerTest extends TestCase
         $holiday = $this->workday($employee, '2026-09-14');
         $this->assertSame(WorkdayStatus::Holiday, $holiday->status);
         $this->assertSame(0, $holiday->worked);
+    }
+
+    /**
+     * Decision 77: a holiday between the absence and the holiday does not
+     * launder it either. A special non-working holiday expects no work, so
+     * it is not "the immediately preceding work day" and the walk goes past
+     * it — the Christmas case, where an employee absent without leave on
+     * the 23rd was paid the 25th because Christmas Eve sat in between.
+     */
+    public function test_a_holiday_between_the_absence_and_the_holiday_does_not_launder_the_absence(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+        Holiday::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-09',
+            'type' => HolidayType::Special,
+        ]);
+        Holiday::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-10',
+            'type' => HolidayType::Regular,
+        ]);
+
+        $this->compute($employee, '2026-09-08', '2026-09-10');
+
+        $this->assertSame(WorkdayStatus::Absent, $this->workday($employee, '2026-09-08')->status);
+        $this->assertSame(WorkdayStatus::Holiday, $this->workday($employee, '2026-09-09')->status);
+        $holiday = $this->workday($employee, '2026-09-10');
+        $this->assertSame(WorkdayStatus::Holiday, $holiday->status);
+        $this->assertSame(0, $holiday->worked);
+    }
+
+    /**
+     * The other side of decision 77's `Exempt => true`: an excusing
+     * exemption **is** the answer when it is the preceding work day's own
+     * status. Absent without leave Monday, on approved leave Tuesday,
+     * regular holiday Wednesday — section F asks about Tuesday and
+     * Tuesday alone, so the credit stands. The walk stops at `exempt`; it
+     * only walks past days nothing was required on.
+     */
+    public function test_an_excused_day_stops_the_walk_short_of_an_earlier_absence(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+        Holiday::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-09',
+            'type' => HolidayType::Regular,
+        ]);
+        Exemption::factory()->create([
+            'agency_id' => $this->agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-09-08',
+        ]);
+
+        $this->compute($employee, '2026-09-07', '2026-09-09');
+
+        $this->assertSame(WorkdayStatus::Absent, $this->workday($employee, '2026-09-07')->status);
+        $this->assertSame(WorkdayStatus::Exempt, $this->workday($employee, '2026-09-08')->status);
+        $this->assertSame(480, $this->workday($employee, '2026-09-09')->worked);
+    }
+
+    /**
+     * The third day nothing was required on. A whole-day work suspension is
+     * not the preceding work day either — the employee could not have been
+     * present on it — so it does not launder the absence before it.
+     */
+    public function test_a_suspended_day_between_the_absence_and_the_holiday_does_not_launder_it(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+        Deployment::factory()->create([
+            'agency_id' => $this->agency->id,
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $this->agency->id])->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-01-01',
+            'ends' => '2026-12-31',
+        ]);
+        Holiday::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-10',
+            'type' => HolidayType::Regular,
+        ]);
+        Suspension::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-09',
+        ]);
+
+        $this->compute($employee, '2026-09-08', '2026-09-10');
+
+        $this->assertSame(WorkdayStatus::Absent, $this->workday($employee, '2026-09-08')->status);
+        $this->assertSame(WorkdayStatus::Suspended, $this->workday($employee, '2026-09-09')->status);
+        $this->assertSame(0, $this->workday($employee, '2026-09-10')->worked);
+    }
+
+    /**
+     * Decision 77: an excusing exemption covering **part** of a day of no
+     * attendance leaves the day `absent`, and an absence it does not cover
+     * is not excused. `Calendar::status()` reaches `exempt` only for a
+     * whole-day excuse, so this is the only shape an excusing stamp can
+     * take on an `absent` day — and reading that stamp paid the holiday
+     * off two excused hours.
+     */
+    public function test_a_partial_excusing_exemption_does_not_excuse_a_day_of_no_attendance(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+        Holiday::factory()->create([
+            'agency_id' => $this->agency->id,
+            'date' => '2026-09-09',
+            'type' => HolidayType::Regular,
+        ]);
+        Exemption::factory()->hours()->create([
+            'agency_id' => $this->agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-09-08',
+        ]);
+
+        $this->compute($employee, '2026-09-08', '2026-09-09');
+
+        $absent = $this->workday($employee, '2026-09-08');
+        $this->assertSame(WorkdayStatus::Absent, $absent->status);
+        $this->assertNotNull($absent->exemption_id);
+        $this->assertSame(0, $this->workday($employee, '2026-09-09')->worked);
     }
 
     /**

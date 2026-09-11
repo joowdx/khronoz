@@ -227,7 +227,13 @@ class LedgerViewTest extends TestCase
         $this->assertSame(1, $ledger->view(Period::Full)->absences);
     }
 
-    public function test_an_absent_day_with_an_excusing_exemption_is_not_an_occurrence(): void
+    /**
+     * Decision 77: a whole-day excusing exemption never reaches the count,
+     * because it never reaches `absent` — `Calendar::status()` makes that
+     * day `exempt`. This is the fixture the occurrence rule actually has
+     * to exclude, and the status excludes it on its own.
+     */
+    public function test_an_exempt_day_is_not_an_occurrence(): void
     {
         $ledger = $this->ledger();
         $leave = Exemption::factory()->create([
@@ -236,7 +242,7 @@ class LedgerViewTest extends TestCase
             'date' => '2026-09-01',
         ]);
         $this->workday($ledger, '2026-09-01', [
-            'status' => WorkdayStatus::Absent,
+            'status' => WorkdayStatus::Exempt,
             'exemption_id' => $leave->id,
         ]);
 
@@ -244,10 +250,34 @@ class LedgerViewTest extends TestCase
     }
 
     /**
+     * Decision 77: the stamp on an `absent` day is a **partial** excuse by
+     * construction, and two excused hours do not excuse six unexcused ones.
+     * Reading the stamp's `excused()` here dropped a day of no attendance
+     * out of the habitual-absenteeism count entirely.
+     */
+    public function test_an_absent_day_with_a_partial_excusing_exemption_is_an_occurrence(): void
+    {
+        $ledger = $this->ledger();
+        $pass = Exemption::factory()->hours()->create([
+            'agency_id' => $ledger->agency_id,
+            'employee_id' => $ledger->employee_id,
+            'date' => '2026-09-01',
+        ]);
+        $this->assertTrue($pass->excused());
+        $this->workday($ledger, '2026-09-01', [
+            'status' => WorkdayStatus::Absent,
+            'exemption_id' => $pass->id,
+        ]);
+
+        $this->assertSame(1, $ledger->view(Period::Full)->absences);
+    }
+
+    /**
      * Decision 73: a personal locator slip is stamped and excuses nothing.
      * Daily rule 7 says the day's absence stands as the punches make it, so
      * the stamp must not suppress a count that feeds habitual absenteeism
-     * under MC 04 s. 1991.
+     * under MC 04 s. 1991. Decision 77 keeps the outcome and drops the
+     * mechanism: the status is the whole test now.
      */
     public function test_an_absent_day_with_a_personal_exemption_is_an_occurrence(): void
     {

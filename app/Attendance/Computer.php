@@ -63,7 +63,7 @@ final class Computer
     /**
      * @param  array<string, Resolution|null>  $resolutions
      * @param  Collection<int, Timelog>  $timelogs
-     * @param  array<string, array{status: WorkdayStatus, excused: bool}>  $computed
+     * @param  array<string, array{status: WorkdayStatus}>  $computed
      */
     private function persist(
         Calendar $calendar,
@@ -132,10 +132,7 @@ final class Computer
             $workday->punches()->delete();
             $workday->punches()->createMany($this->punchRows($matching));
 
-            $computed[$date->toDateString()] = [
-                'status' => $derived->status,
-                'excused' => $day->excused !== [],
-            ];
+            $computed[$date->toDateString()] = ['status' => $derived->status];
         });
     }
 
@@ -193,17 +190,26 @@ final class Computer
 
     /**
      * The immediately preceding **work** day was an unexcused absence
-     * (decisions 66 and 68). Off is skipped, not a stop. Unexcused means
-     * Absent with no excusing exemption — never merely that
-     * `exemption_id` is set. The stamp is one exemption by precedence
-     * (decision 50), `excused()` true first, so if the stamp does not
-     * excuse, nothing covering that day excuses. A `personal` slip is
-     * stamped when it is the only exemption and changes no minute
-     * (decision 19). `$day->excused !== []` is the same question:
-     * Calendar fills that array only from exemptions whose `excused()`
-     * is true.
+     * (decisions 66, 68 and 77).
      *
-     * @param  array<string, array{status: WorkdayStatus, excused: bool}>  $computed
+     * "Work day" is the whole of the first half. A rest day, a holiday and
+     * a suspension are all days on which nothing was required, so none of
+     * them can be the absence the rule asks about and none of them ends the
+     * search — the walk continues while `WorkdayStatus::expectsWork()` is
+     * false, until it reaches a day work was expected on. Stopping
+     * at the first non-`Off` status paid Christmas Day to an employee
+     * absent without leave on the 23rd, because Christmas Eve is a special
+     * non-working holiday and sat in between.
+     *
+     * "Unexcused" is `Absent` and nothing further (decision 77). The status
+     * precedence already answers it: `Calendar::status()` returns `Exempt`
+     * for any day carrying a **whole-day** excusing exemption, so a day
+     * that reaches `Absent` has no whole-day excuse by construction, and
+     * every excusing exemption still attached to it is partial. Asking the
+     * exemption again read a one-hour excused pass on a day of no
+     * attendance as a fully excused absence.
+     *
+     * @param  array<string, array{status: WorkdayStatus}>  $computed
      */
     private function precedingUnexcusedAbsence(CarbonImmutable $date, array $computed): bool
     {
@@ -212,27 +218,22 @@ final class Computer
 
             if (isset($computed[$previous])) {
                 $status = $computed[$previous]['status'];
-                $excused = $computed[$previous]['excused'];
             } else {
-                $workday = Workday::query()
+                $status = Workday::query()
                     ->where('employee_id', $this->employee->id)
                     ->whereDate('date', $previous)
-                    ->first();
+                    ->value('status');
 
-                if ($workday === null) {
+                if ($status === null) {
                     continue;
                 }
-
-                $workday->loadMissing('exemption');
-                $status = $workday->status;
-                $excused = $workday->exemption?->excused() === true;
             }
 
-            if ($status === WorkdayStatus::Off) {
+            if (! $status->expectsWork()) {
                 continue;
             }
 
-            return $status === WorkdayStatus::Absent && ! $excused;
+            return $status === WorkdayStatus::Absent;
         }
 
         return false;
