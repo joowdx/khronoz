@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Employee;
 use App\Models\Enrollment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -24,7 +25,20 @@ class EnrollmentResource extends JsonResource
         return [
             'id' => $this->id,
             'employee_id' => $this->employee_id,
-            'employee' => EmployeeResource::make($this->whenLoaded('employee'))->resolve(),
+            // `employee_id` is NOT NULL, so `.ai/rules/resources.md`'s rule of
+            // thumb — "if the migration writes ->nullable(), the resource
+            // needs the closure" — said this one was safe. It is not.
+            // `Employee` soft-deletes, so `with('employee')` on an offboarded
+            // person loads **null** through the model's own scope, and the
+            // one-argument `whenLoaded` hands that null straight to
+            // `make()`: the framework only guards null when a closure is
+            // passed (ConditionallyLoadsAttributes::whenLoaded, the check
+            // after the func_num_args early return).
+            //
+            // The whole roster 500'd, every still-employed row with it — and
+            // soft-deleting an enrolled employee is the ordinary offboarding
+            // path.
+            'employee' => $this->whenLoaded('employee', fn (Employee $employee) => EmployeeResource::make($employee)->resolve()),
             'terminal_id' => $this->terminal_id,
             'uid' => $this->uid,
             'privilege' => $this->privilege->value,

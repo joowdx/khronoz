@@ -134,8 +134,19 @@ export default function Index({
                                     <TableCell className="tabular-nums">{enrollment.uid}</TableCell>
                                     <TableCell className="max-w-0">
                                         <span className="block truncate">
+                                            {/*
+                                              "Removed", not "Unknown".
+                                              `employee_id` is NOT NULL, so a
+                                              null relation has exactly one
+                                              cause: the employee was
+                                              offboarded and `Employee`'s
+                                              soft-delete scope hides them.
+                                              The system knows who this was;
+                                              saying "Unknown" would claim it
+                                              does not.
+                                            */}
                                             {enrollment.employee?.name ?? (
-                                                <span className="text-muted-foreground">Unknown</span>
+                                                <span className="text-muted-foreground">Removed</span>
                                             )}
                                         </span>
                                     </TableCell>

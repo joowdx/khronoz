@@ -54,3 +54,19 @@ The page renders what it is given and knows no vocabulary of its own.
 Cost of getting this wrong, twice in one session: `resources/js/lib/calendar.ts`
 (now deleted) dropped `ExemptionType::Emergency` entirely, mislabelled Personal,
 and invented an `emergency` overtime mode the CHECK allows only `pay`/`cto`.
+
+## A NOT NULL foreign key is not proof the relation cannot load null
+Amends "whenLoaded does not guard a nullable relation", whose rule of thumb — *if the migration writes `->nullable()` on the foreign key, the resource needs the closure* — is incomplete. A **soft-deleting parent** loads as null through its own global scope even when the FK is NOT NULL.
+
+That is how `EnrollmentResource::employee` was missed: `enrollments.employee_id` is NOT NULL, so the rule of thumb cleared it, and `RemoveEmployee` soft-deleting an enrolled person then took the whole roster down with a 500 ("Not a valid Inertia response" in a test — nothing names the column).
+
+The mechanical rule, checked against the framework: `whenLoaded` returns the raw value when called with **one argument**, and only guards null once a second argument is passed (`ConditionallyLoadsAttributes::whenLoaded`, the null check sits after the `func_num_args() === 1` return). So:
+
+- **Never** `Resource::make($this->whenLoaded('rel'))->resolve()` — the one-argument form inside `make()` is the bug, always.
+- **Always** `$this->whenLoaded('rel', fn (Model $rel) => Resource::make($rel)->resolve())`.
+
+The closure form needs no manual `=== null` check; the framework has already returned.
+
+Ask "can this parent soft-delete?" as well as "is the FK nullable?". Either answer yes means the closure form.
+
+Found by the 2026-09-11 four-way audit (Cursor).

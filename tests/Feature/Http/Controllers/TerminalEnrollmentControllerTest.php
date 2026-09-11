@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
 use App\Http\Requests\EndEnrollmentRequest;
 use App\Models\Agency;
@@ -341,6 +342,42 @@ class TerminalEnrollmentControllerTest extends TestCase
         ])->assertSessionHas('error');
 
         $this->assertNull($enrollment->fresh()->ends, 'the row must be untouched');
+    }
+
+    /**
+     * Offboarding an enrolled employee must not take the roster down.
+     *
+     * `employee_id` is NOT NULL, so `.ai/rules/resources.md`'s rule of thumb
+     * — "if the migration writes ->nullable(), the resource needs the
+     * closure" — passed this one. `Employee` soft-deletes, though, so
+     * `with('employee')` loads **null** and the one-argument `whenLoaded`
+     * handed it to `make()`: the whole page 500'd, every still-employed row
+     * with it. That screen is how an unresolved punch gets a person.
+     */
+    public function test_the_roster_survives_an_offboarded_employee(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        Enrollment::factory()->on($terminal)
+            ->create(['employee_id' => $employee->id, 'uid' => '0042', 'starts' => '2026-01-01']);
+        Enrollment::factory()->on($terminal)->create(['uid' => '0043', 'starts' => '2026-06-01']);
+
+        $this->withTenant($agency);
+        app(RemoveEmployee::class)->handle($employee->fresh());
+
+        $this->get(route('terminals.enrollments.index', $terminal))->assertInertia(
+            fn (Assert $page) => $page
+                ->component('terminals/enrollments/index')
+                ->has('enrollments', 2)
+                // The removed person's row is still listed, and still says
+                // which device user id was theirs — that is the whole point
+                // of keeping it.
+                ->where('enrollments.0.uid', '0043')
+                ->where('enrollments.1.uid', '0042')
+                ->where('enrollments.1.employee', null)
+        );
     }
 
     /** An enrollment of another terminal is a 404, not something this route can end. */
