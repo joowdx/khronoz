@@ -253,6 +253,30 @@ export interface Holiday {
 }
 
 /**
+ * Matches `SuspensionResource`. Work suspended for a day or part of one.
+ *
+ * `workgroup` null is **agency-wide**, not missing, and is the commonest shape
+ * — a typhoon closes the office, not one division. Naming a workgroup means
+ * that workgroup and everything under it.
+ *
+ * `starts`/`ends` null together is the whole day; the pair is held by
+ * `suspensions_hours_paired`, so one being set means both are.
+ */
+export interface Suspension {
+    id: string;
+    workgroup_id: string | null;
+    workgroup?: Workgroup | null;
+    date: string;
+    /** `HH:MM:SS` or null. Null on both means the whole day. */
+    starts: string | null;
+    ends: string | null;
+    reason: string;
+    reference: string | null;
+    declared_at: string;
+    user?: { id: string; name: string } | null;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.
