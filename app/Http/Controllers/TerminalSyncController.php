@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\ImportTimelogs;
 use App\Http\Requests\ImportTimelogsRequest;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Terminal;
 use App\Support\AttlogParser;
 use Illuminate\Http\RedirectResponse;
@@ -30,7 +31,7 @@ class TerminalSyncController extends Controller
         $path = $file->getRealPath();
 
         try {
-            $sync = $import->handle(
+            [$sync, $pairs] = $import->handle(
                 $terminal,
                 $path,
                 $file->getClientOriginalName(),
@@ -43,6 +44,8 @@ class TerminalSyncController extends Controller
         }
 
         $this->discard($path);
+
+        RecomputeWorkdays::dispatchFor($pairs);
 
         if ($sync->accepted === 0 && $sync->duplicates > 0) {
             return back()->with('success', "Nothing new — all {$sync->duplicates} records were already imported.");

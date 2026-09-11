@@ -7,6 +7,7 @@ use App\Enums\SyncTrigger;
 use App\Models\Sync;
 use App\Models\Terminal;
 use App\Support\AttlogParser;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
@@ -45,12 +46,25 @@ use Throwable;
  */
 final class ImportTimelogs
 {
+    /**
+     * Distinct dates per employee, not one entry per punch. `dispatchFor`
+     * reads the date; growing with rows would load a 500,000-row attlog
+     * into the same worker the parser was written not to blow up.
+     *
+     * @var array<string, array<string, true>>
+     */
+    private array $accepted = [];
+
     public function __construct(private readonly AttlogParser $parser) {}
 
     /**
-     * Stream $path into $terminal's timelogs and return the closed run.
+     * Stream $path into $terminal's timelogs and return the closed run
+     * together with the accepted (employee_id, time) pairs the insert
+     * returned. Callers dispatch from those pairs; this action does not —
+     * a recompute failure must not retry an ingestion that already committed.
      *
      * @param  string  $reference  the source filename, for the audit trail
+     * @return array{0: Sync, 1: list<array{employee_id: ?string, time: string}>}
      */
     public function handle(
         Terminal $terminal,
@@ -58,7 +72,9 @@ final class ImportTimelogs
         string $reference,
         string $layout = AttlogParser::LAYOUT_STANDARD,
         int $size = 500,
-    ): Sync {
+    ): array {
+        $this->accepted = [];
+
         $sync = Sync::create([
             'agency_id' => $terminal->agency_id,
             'terminal_id' => $terminal->id,
@@ -76,7 +92,7 @@ final class ImportTimelogs
         if ($refusal = $this->refuse($path, $layout, $terminal)) {
             $this->close($sync, SyncStatus::Failed, $tally, null, null, $refusal);
 
-            return $sync->refresh();
+            return [$sync->refresh(), []];
         }
 
         try {
@@ -110,7 +126,7 @@ final class ImportTimelogs
             throw $e;
         }
 
-        return $sync->refresh();
+        return [$sync->refresh(), $this->pairs()];
     }
 
     /**
@@ -240,7 +256,27 @@ final class ImportTimelogs
         foreach ($inserted as $row) {
             $earliest = $earliest === null ? $row->time : min($earliest, $row->time);
             $latest = $latest === null ? $row->time : max($latest, $row->time);
+            $this->accepted[$row->employee_id ?? ''][CarbonImmutable::parse($row->time)->toDateString()] = true;
         }
+    }
+
+    /**
+     * @return list<array{employee_id: ?string, time: string}>
+     */
+    private function pairs(): array
+    {
+        $pairs = [];
+
+        foreach ($this->accepted as $employeeId => $dates) {
+            foreach (array_keys($dates) as $date) {
+                $pairs[] = [
+                    'employee_id' => $employeeId === '' ? null : (string) $employeeId,
+                    'time' => $date,
+                ];
+            }
+        }
+
+        return $pairs;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\VoidTimelogRequest;
 use App\Http\Resources\TerminalResource;
 use App\Http\Resources\TimelogResource;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Terminal;
 use App\Models\Timelog;
 use Illuminate\Database\Eloquent\Builder;
@@ -118,6 +119,11 @@ class TimelogController extends Controller
 
             return back()->with('error', 'That punch was already voided. A void is final, and its reason stays as first recorded.');
         }
+
+        RecomputeWorkdays::dispatchFor([[
+            'employee_id' => $timelog->employee_id,
+            'time' => $timelog->time->toDateTimeString(),
+        ]]);
 
         return back()->with('success', 'Timelog voided.');
     }

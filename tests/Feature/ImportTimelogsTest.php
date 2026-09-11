@@ -5,14 +5,17 @@ namespace Tests\Feature;
 use App\Actions\ImportTimelogs;
 use App\Enums\Permission;
 use App\Enums\SyncStatus;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Agency;
 use App\Models\Enrollment;
 use App\Models\Sync;
 use App\Models\Terminal;
 use App\Models\Timelog;
 use App\Support\AttlogParser;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -51,7 +54,7 @@ class ImportTimelogsTest extends TestCase
 
     private function import(Terminal $terminal, string $path, string $reference = 'attlog.dat'): Sync
     {
-        return app(ImportTimelogs::class)->handle($terminal, $path, $reference);
+        return app(ImportTimelogs::class)->handle($terminal, $path, $reference)[0];
     }
 
     private function terminal(): Terminal
@@ -278,7 +281,7 @@ class ImportTimelogsTest extends TestCase
     {
         $terminal = $this->terminal();
 
-        $sync = app(ImportTimelogs::class)->handle(
+        [$sync] = app(ImportTimelogs::class)->handle(
             $terminal,
             $this->attlog("0001\t2026-09-01 08:01:23\t{$terminal->code}\t1\t4\t0\n"),
             'attlog.dat',
@@ -307,7 +310,7 @@ class ImportTimelogsTest extends TestCase
         $terminal = Terminal::factory()->create(['code' => '3']);
         $this->withTenant(Agency::findOrFail($terminal->agency_id));
 
-        $sync = app(ImportTimelogs::class)->handle(
+        [$sync] = app(ImportTimelogs::class)->handle(
             $terminal,
             $this->attlog("0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n"),
             'attlog.dat',
@@ -350,7 +353,7 @@ class ImportTimelogsTest extends TestCase
         );
 
         foreach ([$lobby, $annex] as $terminal) {
-            $sync = app(ImportTimelogs::class)->handle(
+            [$sync] = app(ImportTimelogs::class)->handle(
                 $terminal,
                 $tampered,
                 'attlog.dat',
@@ -404,7 +407,7 @@ class ImportTimelogsTest extends TestCase
         $terminal = Terminal::factory()->create(['code' => '7']);
         $this->withTenant(Agency::findOrFail($terminal->agency_id));
 
-        $sync = app(ImportTimelogs::class)->handle(
+        [$sync] = app(ImportTimelogs::class)->handle(
             $terminal,
             $this->attlog("0001\t2026-09-01 08:01:23\t7\t0\t1\t0\n"),
             'attlog.dat',
@@ -443,7 +446,7 @@ class ImportTimelogsTest extends TestCase
             $lines .= sprintf("0001\t2026-09-01 08:%02d:00\t0\t1\n", $minute);
         }
 
-        $sync = app(ImportTimelogs::class)->handle(
+        [$sync] = app(ImportTimelogs::class)->handle(
             $terminal,
             $this->attlog($lines),
             'attlog.dat',
@@ -545,5 +548,122 @@ class ImportTimelogsTest extends TestCase
         ])->assertNotFound();
 
         $this->assertSame(0, DB::table('timelogs')->count());
+    }
+
+    public function test_an_import_exposes_the_accepted_employee_and_time_pairs(): void
+    {
+        $terminal = $this->terminal();
+        $enrollment = Enrollment::factory()->on($terminal)->create([
+            'uid' => '0001',
+            'starts' => '2026-01-01',
+        ]);
+
+        [$sync, $pairs] = app(ImportTimelogs::class)->handle(
+            $terminal,
+            $this->attlog(
+                "0001\t2026-09-01 08:01:23\t0\t1\n".
+                "9999\t2026-09-01 08:15:00\t0\t1\n"
+            ),
+            'attlog.dat',
+        );
+
+        $this->assertSame(2, $sync->accepted);
+        $this->assertCount(2, $pairs);
+        $resolved = collect($pairs)->first(fn (array $pair): bool => $pair['employee_id'] === $enrollment->employee_id);
+        $orphan = collect($pairs)->first(fn (array $pair): bool => $pair['employee_id'] === null);
+        $this->assertNotNull($resolved);
+        $this->assertSame('2026-09-01', CarbonImmutable::parse($resolved['time'])->toDateString());
+        $this->assertNotNull($orphan);
+    }
+
+    public function test_accepted_pairs_collapse_to_one_entry_per_employee_and_date(): void
+    {
+        $terminal = $this->terminal();
+        $enrollment = Enrollment::factory()->on($terminal)->create([
+            'uid' => '0001',
+            'starts' => '2026-01-01',
+        ]);
+
+        $lines = '';
+
+        for ($minute = 0; $minute < 25; $minute++) {
+            $lines .= sprintf("0001\t2026-09-01 08:%02d:00\t0\t1\n", $minute);
+        }
+
+        [$sync, $pairs] = app(ImportTimelogs::class)->handle(
+            $terminal,
+            $this->attlog($lines),
+            'attlog.dat',
+        );
+
+        $this->assertSame(25, $sync->accepted);
+        $this->assertCount(1, $pairs);
+        $this->assertSame($enrollment->employee_id, $pairs[0]['employee_id']);
+        $this->assertSame('2026-09-01', $pairs[0]['time']);
+    }
+
+    public function test_the_action_does_not_dispatch_a_recompute(): void
+    {
+        Queue::fake([RecomputeWorkdays::class]);
+        $terminal = $this->terminal();
+        Enrollment::factory()->on($terminal)->create(['uid' => '0001', 'starts' => '2026-01-01']);
+
+        $this->import($terminal, $this->attlog("0001\t2026-09-01 08:01:23\t0\t1\n"));
+
+        Queue::assertNotPushed(RecomputeWorkdays::class);
+    }
+
+    public function test_the_artisan_command_dispatches_a_recompute_for_an_enrolled_punch(): void
+    {
+        Queue::fake([RecomputeWorkdays::class]);
+        $terminal = $this->terminal();
+        $enrollment = Enrollment::factory()->on($terminal)->create([
+            'uid' => '0001',
+            'starts' => '2026-01-01',
+        ]);
+        $path = $this->attlog("0001\t2026-09-01 08:01:23\t0\t1\n");
+
+        $this->artisan("timelogs:import {$terminal->code} {$path}")->assertSuccessful();
+
+        Queue::assertPushed(RecomputeWorkdays::class, function (RecomputeWorkdays $job) use ($enrollment): bool {
+            return $job->employeeId === $enrollment->employee_id
+                && $job->from === '2026-08-29'
+                && $job->to === '2026-09-01';
+        });
+    }
+
+    public function test_the_artisan_command_does_not_recompute_duplicates(): void
+    {
+        Queue::fake([RecomputeWorkdays::class]);
+        $terminal = $this->terminal();
+        Enrollment::factory()->on($terminal)->create(['uid' => '0001', 'starts' => '2026-01-01']);
+        $path = $this->attlog("0001\t2026-09-01 08:01:23\t0\t1\n");
+
+        $this->artisan("timelogs:import {$terminal->code} {$path}")->assertSuccessful();
+        Queue::assertPushedTimes(RecomputeWorkdays::class, 1);
+
+        $this->artisan("timelogs:import {$terminal->code} {$path}")->assertSuccessful();
+        Queue::assertPushedTimes(RecomputeWorkdays::class, 1);
+    }
+
+    public function test_the_terminal_sync_endpoint_dispatches_a_recompute_for_an_enrolled_punch(): void
+    {
+        Queue::fake([RecomputeWorkdays::class]);
+        $terminal = $this->terminal();
+        $enrollment = Enrollment::factory()->on($terminal)->create([
+            'uid' => '0001',
+            'starts' => '2026-01-01',
+        ]);
+        $this->actingAsAgency(Agency::findOrFail($terminal->agency_id), Permission::ManageTerminals);
+
+        $this->post(route('terminals.syncs.store', $terminal), [
+            'file' => UploadedFile::fake()->createWithContent('attlog.dat', "0001\t2026-09-01 08:01:23\t0\t1\n"),
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(RecomputeWorkdays::class, function (RecomputeWorkdays $job) use ($enrollment): bool {
+            return $job->employeeId === $enrollment->employee_id
+                && $job->from === '2026-08-29'
+                && $job->to === '2026-09-01';
+        });
     }
 }

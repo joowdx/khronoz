@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\ImportTimelogs as ImportTimelogsAction;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Agency;
 use App\Models\Scopes\AgencyScope;
 use App\Models\Terminal;
@@ -59,13 +60,15 @@ class ImportTimelogs extends Command
             return self::FAILURE;
         }
 
-        $sync = $import->handle(
+        [$sync, $pairs] = $import->handle(
             $terminal,
             $path,
             basename($path),
             $layout,
             (int) $this->option('chunk'),
         );
+
+        RecomputeWorkdays::dispatchFor($pairs);
 
         $this->components->twoColumnDetail('Terminal', "{$terminal->name} ({$terminal->code})");
         $this->components->twoColumnDetail('Received', (string) $sync->received);

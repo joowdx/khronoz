@@ -3,10 +3,12 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Agency;
 use App\Models\Enrollment;
 use App\Models\Terminal;
 use App\Models\Timelog;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -229,5 +231,54 @@ class TimelogControllerTest extends TestCase
         $theirs = Timelog::factory()->create();
 
         $this->patch(route('timelogs.void', $theirs), ['reason' => 'Duplicate scan'])->assertNotFound();
+    }
+
+    public function test_voiding_an_attributed_punch_dispatches_a_recompute(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $enrollment = Enrollment::factory()->create(['agency_id' => $agency->id, 'uid' => '0001']);
+        $timelog = Timelog::factory()->resolving($enrollment)->create(['time' => '2026-09-01 08:01:23'])->fresh();
+
+        Queue::fake([RecomputeWorkdays::class]);
+
+        $this->patch(route('timelogs.void', $timelog), ['reason' => 'Duplicate scan'])
+            ->assertSessionHas('success');
+
+        $this->assertNotNull($timelog->fresh()->voided_at);
+        Queue::assertPushed(RecomputeWorkdays::class, function (RecomputeWorkdays $job) use ($timelog): bool {
+            return $job->employeeId === $timelog->employee_id
+                && $job->from === '2026-08-29'
+                && $job->to === '2026-09-01';
+        });
+    }
+
+    public function test_voiding_an_unresolved_punch_does_not_dispatch_a_recompute(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $timelog = Timelog::factory()->on(Terminal::factory()->create(['agency_id' => $agency->id]))->create();
+
+        Queue::fake([RecomputeWorkdays::class]);
+
+        $this->patch(route('timelogs.void', $timelog), ['reason' => 'Duplicate scan'])
+            ->assertSessionHas('success');
+
+        Queue::assertNotPushed(RecomputeWorkdays::class);
+    }
+
+    public function test_a_refused_re_void_does_not_dispatch_a_recompute(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = Terminal::factory()->create(['agency_id' => $agency->id]);
+        $timelog = Timelog::factory()->on($terminal)->voided('Duplicate scan')->create();
+
+        Queue::fake([RecomputeWorkdays::class]);
+
+        $this->patch(route('timelogs.void', $timelog), ['reason' => 'oops'])
+            ->assertSessionHas('error');
+
+        Queue::assertNotPushed(RecomputeWorkdays::class);
     }
 }
