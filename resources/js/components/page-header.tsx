@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { MonthStepper } from '@/components/month-stepper';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 
 /**
@@ -62,9 +63,11 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
  * Because the bar lives inside the scroll container, a table head below it can
  * stick at `top: var(--bar-h)` and land exactly under it (§5.13).
  *
- * The month stepper form (§5.2) is not built: it needs a page whose data is
- * month-scoped, and the first of those is Workdays in Milestone 6. It will
- * replace the title in the heading row, not in the bar.
+ * The month stepper is §5.2's third form: pass `month` and the heading row
+ * renders 32px previous / the month as `<h1>` at 32/38/700 tabular-nums /
+ * 32px next, instead of the plain title. The breadcrumb bar still shows
+ * `title` — Workdays, Ledgers — so the trail names the screen and the
+ * heading names the month. Changing month focuses the `<h1>`.
  */
 export function PageHeader({
     title,
@@ -72,6 +75,7 @@ export function PageHeader({
     description,
     live = false,
     actions,
+    month,
 }: {
     title: string;
     /** The parent page. One level only, and always a real link (§5.2). */
@@ -82,6 +86,11 @@ export function PageHeader({
     live?: boolean;
     /** The page's one primary action, at the right of the heading row. */
     actions?: ReactNode;
+    /**
+     * Month-scoped pages (Workdays, Ledgers) pass this. `value` is `YYYY-MM`.
+     * Replaces the heading-row title only; the bar still reads `title`.
+     */
+    month?: { value: string; onChange: (month: string) => void };
 }) {
     return (
         <>
@@ -108,7 +117,11 @@ export function PageHeader({
             </header>
             <div className="flex flex-wrap items-start justify-between gap-4 pt-6 pb-6">
                 <div className="min-w-0">
-                    <h1 className="truncate text-2xl leading-[30px] font-bold tracking-[-0.011em]">{title}</h1>
+                    {month ? (
+                        <MonthStepper value={month.value} onChange={month.onChange} />
+                    ) : (
+                        <h1 className="truncate text-2xl leading-[30px] font-bold tracking-[-0.011em]">{title}</h1>
+                    )}
                     {description && (
                         <p className="text-muted-foreground flex items-center gap-[7px] pt-1.5 text-[13px] leading-[18px]">
                             {live && <span aria-hidden className="bg-positive size-1.5 shrink-0 rounded-full" />}

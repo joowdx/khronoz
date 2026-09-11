@@ -13,6 +13,8 @@ const MONTHS = [
     'December',
 ] as const;
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
 const MANILA_DAY = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
     year: 'numeric',
@@ -44,6 +46,29 @@ export function formatDay(iso: string): string {
     }
 
     return `${Number(day)} ${name} ${year}`;
+}
+
+/**
+ * `YYYY-MM-DD` as "Mon 8 September 2026" — `formatDay` plus the weekday.
+ *
+ * The weekday is half of why a DTR row looks wrong, so it has to sit on the
+ * date rather than in a column of its own. Same string-slicing discipline as
+ * `addDay`: parts go through `Date.UTC` and come back with `getUTCDay`, never
+ * through `new Date('2026-09-08')`, which is UTC midnight and prints the day
+ * before in a positive-offset zone.
+ */
+export function formatDayWithWeekday(iso: string): string {
+    const [year, month, day] = iso.split('-').map(Number);
+    const weekday =
+        year === undefined || month === undefined || day === undefined || Number.isNaN(year + month + day)
+            ? undefined
+            : WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+
+    if (weekday === undefined) {
+        return formatDay(iso);
+    }
+
+    return `${weekday} ${formatDay(iso)}`;
 }
 
 /**

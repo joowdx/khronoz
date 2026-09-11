@@ -75,3 +75,6 @@ Do not offer an action that cannot mean anything: a separated employee with no o
 
 ## Placement UI after decision 28
 Supersedes the hire/separation-date bounds and no-rehire instruction in “A profile page”: employees has no hired_at or separated_at. Move starts has minimum currentDeployment.starts + one day only when a placement is open; no open row means no artificial minimum and rehire uses the normal deploy operation. End placement is offered only with an open row, ends >= starts, and keeps its last day inclusive. No open row with history offers deployment again; no history offers first placement. Date strings still cross the wire as YYYY-MM-DD; birthdate and deployment starts/ends retain the existing helpers.
+
+## Minute columns use formatMinutes; a missing punch side is an attention dash
+Every minute figure on workdays/ledgers is formatMinutes() from lib/minutes.ts (485 → 8:05, 0 → —). The punch chain (PunchChain) renders actual_at as HH:MM sliced off the timestamp string, a missing actual_at as an em dash in text-attention, and the signed deviation as title (+3 / −2). Never hide a half-filled slot and never parse those timestamps with new Date().

@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { AlarmClock, Building2, CalendarDays, CalendarOff, CloudRainWind, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
+import { AlarmClock, BookOpen, Building2, CalendarDays, CalendarOff, ClipboardList, CloudRainWind, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -16,6 +16,8 @@ import { index as overtimesIndex } from '@/routes/overtimes';
 import { index as suspensionsIndex } from '@/routes/suspensions';
 import { index as syncsIndex } from '@/routes/syncs';
 import { index as timelogsIndex } from '@/routes/timelogs';
+import { index as workdaysIndex } from '@/routes/workdays';
+import { index as ledgersIndex } from '@/routes/ledgers';
 import { index as workgroupsIndex } from '@/routes/workgroups';
 import { index as usersIndex } from '@/routes/users';
 import type { SharedProps } from '@/types';
@@ -65,7 +67,7 @@ export function AppSidebar() {
      *   Scheduling          Shifts · Schedules · Rosters        Milestone 3
      *   Calendar            Calendar                            Milestone 4
      *   Terminals           Terminals                           Milestone 5
-     *   Daily time records  Workdays · Ledgers                  Milestone 6
+     *   Daily time records  Workdays · Ledgers                  Milestone 6 (this group)
      *
      * §10 also lists a Settings item for Milestone 1. There is no settings
      * screen yet, so it is not rendered; it joins the ungrouped run under
@@ -116,6 +118,17 @@ export function AppSidebar() {
                           { title: 'Terminals', href: terminalsIndex().url, icon: Fingerprint },
                           { title: 'Timelogs', href: timelogsIndex().url, icon: ScanLine },
                           { title: 'Imports', href: syncsIndex().url, icon: FileDown },
+                      ],
+                  },
+              ]
+            : []),
+        ...(insideAgency && can('ledgers.view')
+            ? [
+                  {
+                      label: 'Daily time records',
+                      items: [
+                          { title: 'Workdays', href: workdaysIndex().url, icon: ClipboardList },
+                          { title: 'Ledgers', href: ledgersIndex().url, icon: BookOpen },
                       ],
                   },
               ]
