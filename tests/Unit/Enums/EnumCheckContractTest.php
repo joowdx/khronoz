@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Enums;
 
+use App\Enums\EnrollmentPrivilege;
 use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
 use App\Enums\OvertimeMode;
@@ -35,6 +36,7 @@ class EnumCheckContractTest extends TestCase
             'holidays.type' => [HolidayType::class, '0001_01_01_000019_create_holidays_table.php', 'holidays_type_valid'],
             'exemptions.type' => [ExemptionType::class, '0001_01_01_000021_create_exemptions_table.php', 'exemptions_type_valid'],
             'overtimes.mode' => [OvertimeMode::class, '0001_01_01_000022_create_overtimes_table.php', 'overtimes_mode_valid'],
+            'enrollments.privilege' => [EnrollmentPrivilege::class, '0001_01_01_000025_create_enrollments_table.php', 'enrollments_privilege_valid'],
             'terminals.kind' => [TerminalKind::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_kind_valid'],
             'terminals.protocol' => [TerminalProtocol::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_protocol_valid'],
         ];
