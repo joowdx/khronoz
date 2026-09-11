@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDeploymentController;
+use App\Http\Controllers\ExemptionController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Platform\AgencyController;
@@ -68,6 +69,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // national ones — HolidayPolicy refuses editing the latter.
         Route::resource('holidays', HolidayController::class)->except(['show']);
         Route::resource('suspensions', SuspensionController::class)->except(['show']);
+        Route::resource('exemptions', ExemptionController::class)->except(['show']);
 
         // Every ingestion run, successful or refused. Read-only entirely:
         // the app role has no DELETE here, because a run record that can be

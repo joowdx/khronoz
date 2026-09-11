@@ -277,6 +277,34 @@ export interface Suspension {
 }
 
 /**
+ * Matches `ExemptionResource`. Why somebody was away and it is excused.
+ *
+ * `date .. until` is inclusive on both sides and `until` is never null
+ * (decision 38) — a one-day exemption is `until = date`. RA 11210's 105
+ * continuous days is one row, not 105.
+ *
+ * `starts`/`ends` are hours within a single day, and a multi-day exemption
+ * cannot carry them: a 10:00–14:00 window repeated across a statutory leave is
+ * not what any order means.
+ */
+export interface Exemption {
+    id: string;
+    employee_id: string;
+    employee?: Employee | null;
+    date: string;
+    /** The last day, inclusive. */
+    until: string;
+    type: string;
+    /** `HH:MM:SS` or null. Single-day exemptions only. */
+    starts: string | null;
+    ends: string | null;
+    reference: string | null;
+    remarks: string | null;
+    approved_at: string;
+    spans_days: boolean;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.
