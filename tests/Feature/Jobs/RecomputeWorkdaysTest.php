@@ -20,6 +20,7 @@ use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
+use Throwable;
 
 class RecomputeWorkdaysTest extends TestCase
 {
@@ -34,7 +35,13 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-09-08', '2026-09-08'))
             ->handle(app(Tenant::class));
 
-        $this->assertSame($agency->id, app(Tenant::class)->id());
+        // Decision 84: set on the way in and cleared on the way out, so the
+        // next job on this worker inherits nothing. The workday existing is
+        // the proof it was set while the job ran — AgencyScope fails closed
+        // and the write could not have happened otherwise.
+        $this->assertNull(app(Tenant::class)->id());
+
+        $this->withTenant($agency);
         $this->assertTrue(
             Workday::query()
                 ->where('employee_id', $employee->id)
@@ -217,6 +224,7 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-08-29', '2026-09-01'))
             ->handle(app(Tenant::class));
 
+        $this->withTenant($agency);
         $this->assertTrue(
             Workday::query()
                 ->where('employee_id', $employee->id)
@@ -241,12 +249,37 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-08-29', '2026-09-01'))
             ->handle(app(Tenant::class));
 
+        $this->withTenant($agency);
         $this->assertTrue(
             Workday::query()
                 ->where('employee_id', $employee->id)
                 ->whereDate('date', '2026-09-02')
                 ->exists(),
         );
+    }
+
+    /**
+     * Decision 84's other half: `finally`, not a trailing statement. A job
+     * that throws must still leave the worker clean, or the agency it was
+     * working on becomes the agency the next job silently reads.
+     */
+    public function test_the_tenant_is_cleared_even_when_the_job_throws(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $employee = $this->employee($agency);
+
+        app(Tenant::class)->forget();
+
+        try {
+            (new RecomputeWorkdays($employee->id, 'not-a-date', '2026-09-08'))
+                ->handle(app(Tenant::class));
+            $this->fail('expected the job to throw on an unparseable date');
+        } catch (Throwable) {
+            // the throw is the arrange; what is asserted is the cleanup
+        }
+
+        $this->assertNull(app(Tenant::class)->id());
     }
 
     /**
@@ -321,6 +354,7 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-09-01', '2026-09-01'))
             ->handle(app(Tenant::class));
 
+        $this->withTenant($agency);
         $this->assertTrue(
             Workday::query()
                 ->where('employee_id', $employee->id)
@@ -350,6 +384,7 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-09-01', '2026-09-01'))
             ->handle(app(Tenant::class));
 
+        $this->withTenant($agency);
         $this->assertFalse(
             Workday::query()
                 ->where('employee_id', $employee->id)
@@ -385,6 +420,7 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-08-29', '2026-09-01'))
             ->handle(app(Tenant::class));
 
+        $this->withTenant($agency);
         $this->assertFalse(
             Workday::query()
                 ->where('employee_id', $employee->id)
@@ -409,6 +445,7 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-09-08', '2026-09-08'))
             ->handle(app(Tenant::class));
 
+        $this->withTenant($agency);
         $this->assertFalse(Workday::query()->where('employee_id', $employee->id)->exists());
     }
 }

@@ -157,11 +157,21 @@ class RecomputeWorkdays implements ShouldQueue
 
         $tenant->set($agency);
 
-        $from = CarbonImmutable::parse($this->from);
-        $settings = new Settings($agency);
-        $to = $this->reaching($employee, $settings, CarbonImmutable::parse($this->to));
+        // Cleared on the way out, success or failure (decision 84). The
+        // worker is a long-lived process and the container survives the
+        // job, so an agency left set here is the agency the *next* job on
+        // that worker reads — and every job that does not set its own
+        // tenant is one AgencyScope then silently scopes to the wrong
+        // office. Decision 61 put the set here; this is its other half.
+        try {
+            $from = CarbonImmutable::parse($this->from);
+            $settings = new Settings($agency);
+            $to = $this->reaching($employee, $settings, CarbonImmutable::parse($this->to));
 
-        (new Computer($employee, $settings))->over($from, $to);
+            (new Computer($employee, $settings))->over($from, $to);
+        } finally {
+            $tenant->forget();
+        }
     }
 
     /**

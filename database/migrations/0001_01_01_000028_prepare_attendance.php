@@ -51,6 +51,17 @@ return new class extends Migration
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION ledgers_lock_complete() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
+                -- Decision 84: a lock is a state, not an event, so locking a
+                -- locked month is not a second lock — it is a re-dating of
+                -- the first, and an attestation seals the ledger as it was
+                -- at a moment. Moving locked_at past that moment leaves a
+                -- signature certifying a lock that had not yet happened.
+                -- Unlock first; ledgers_unlock_clean is what makes that a
+                -- decision somebody has to take.
+                IF TG_OP = 'UPDATE' AND OLD.locked_at IS NOT NULL AND OLD.locked_at IS DISTINCT FROM NEW.locked_at THEN
+                    RAISE EXCEPTION 'a locked ledger must be unlocked before it can be locked again';
+                END IF;
+
                 IF to_regclass('public.workdays') IS NULL OR to_regclass('public.punches') IS NULL THEN
                     RETURN NEW;
                 END IF;

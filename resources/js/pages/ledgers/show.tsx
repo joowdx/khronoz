@@ -239,9 +239,7 @@ function DayRow({ date, workday }: { date: string; workday: Workday | null }) {
     return (
         <TableRow>
             <TableCell className="tabular-nums">{formatDayWithWeekday(date)}</TableCell>
-            <TableCell>
-                {workday?.shift_name ?? <span className="text-muted-foreground">—</span>}
-            </TableCell>
+            <TableCell>{workday?.shift_name ?? <span className="text-muted-foreground">—</span>}</TableCell>
             <TableCell>
                 {workday ? (
                     <WorkdayStatus status={workday.status} premium={workday.premium} />
@@ -250,7 +248,7 @@ function DayRow({ date, workday }: { date: string; workday: Workday | null }) {
                 )}
             </TableCell>
             <TableCell>
-                <PunchChain punches={workday?.punches} />
+                <PunchChain punches={workday?.punches} date={workday?.date} />
             </TableCell>
             <MinuteCells workday={workday} />
         </TableRow>

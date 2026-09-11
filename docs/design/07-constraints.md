@@ -577,6 +577,7 @@ UNIQUE (employee_id, month)
 UNIQUE (id, employee_id, month)                                   -- target for the workday FK
 CHECK (month = make_date(extract(year from month)::int, extract(month from month)::int, 1))
 -- trigger ledgers_lock_complete, BEFORE INSERT OR UPDATE OF locked_at, when NEW.locked_at IS NOT NULL:
+-- trigger ledgers_lock_complete also refuses re-dating a lock: OLD.locked_at IS NOT NULL and changing (decision 84)
 --   raise if EXISTS (punch of a workday of this ledger with expected_at > NEW.locked_at)
 --   a month whose last shift ends past midnight cannot be locked before that out is due
 --   INSERT is covered as well as UPDATE: the app role may insert here, and a row created

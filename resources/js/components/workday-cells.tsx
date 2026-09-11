@@ -36,8 +36,15 @@ export function Who2({ employee }: { employee: Employee | null | undefined }) {
  * A missing side is daily rule 4 left in the data on purpose: never hidden,
  * never a blank, never a zero. The dash takes the attention colour. Each
  * punched time carries its signed deviation as a `title`.
+ *
+ * **A time on another calendar day carries `⁺¹`** (decision 84). The status
+ * belongs to the day the shift started on and is never split (decision 54),
+ * so a night shift's out at 06:00 sits on the next date — and a bare `06:00`
+ * beside a 22:00 in reads as a shift that ran backwards. `date` is the
+ * workday's, and the marker is the difference in calendar days, negative for
+ * a pre-midnight arrival against an after-midnight shift.
  */
-export function PunchChain({ punches }: { punches: Punch[] | undefined }) {
+export function PunchChain({ punches, date }: { punches: Punch[] | undefined; date?: string }) {
     if (punches === undefined || punches.length === 0) {
         return <span className="text-muted-foreground">—</span>;
     }
@@ -48,7 +55,10 @@ export function PunchChain({ punches }: { punches: Punch[] | undefined }) {
                 <span key={punch.id}>
                     {index > 0 && ' · '}
                     {punch.actual_at ? (
-                        <span title={signedDeviation(punch.deviation)}>{punch.actual_at.slice(11, 16)}</span>
+                        <span title={signedDeviation(punch.deviation)}>
+                            {punch.actual_at.slice(11, 16)}
+                            <DayMarker offset={dayOffset(date, punch.actual_at)} />
+                        </span>
                     ) : (
                         <span className="text-attention">—</span>
                     )}
@@ -57,6 +67,48 @@ export function PunchChain({ punches }: { punches: Punch[] | undefined }) {
         </span>
     );
 }
+
+/** Whole calendar days from the workday's date to the punch's. */
+function dayOffset(date: string | undefined, at: string): number {
+    if (date === undefined) {
+        return 0;
+    }
+
+    const days = (Date.parse(`${at.slice(0, 10)}T00:00:00Z`) - Date.parse(`${date}T00:00:00Z`)) / 86_400_000;
+
+    return Number.isFinite(days) ? Math.round(days) : 0;
+}
+
+/**
+ * `⁺¹` for the next day, `⁻¹` for the one before. Superscript characters
+ * rather than a `<sup>`: the chain is one line of tabular figures and a
+ * raised element would move the baseline of the row it sits in.
+ */
+function DayMarker({ offset }: { offset: number }) {
+    if (offset === 0) {
+        return null;
+    }
+
+    const digits = Math.abs(offset)
+        .toString()
+        .split('')
+        .map((digit) => SUPERSCRIPT[Number(digit)])
+        .join('');
+
+    // aria-hidden on the glyph alone: a superscript sign reads as noise, and
+    // an sr-only child of an aria-hidden parent is hidden with it.
+    return (
+        <>
+            <span aria-hidden className="text-muted-foreground">
+                {offset > 0 ? '⁺' : '⁻'}
+                {digits}
+            </span>
+            <span className="sr-only">{offset > 0 ? ` (next day)` : ` (previous day)`}</span>
+        </>
+    );
+}
+
+const SUPERSCRIPT = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
 export function WorkdayStatus({ status, premium }: { status: Choice; premium?: Choice | null }) {
     return (

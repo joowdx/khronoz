@@ -259,7 +259,7 @@ export default function Index({
                                             <WorkdayStatus status={workday.status} premium={workday.premium} />
                                         </TableCell>
                                         <TableCell>
-                                            <PunchChain punches={workday.punches} />
+                                            <PunchChain punches={workday.punches} date={workday.date} />
                                         </TableCell>
                                         <MinuteCells workday={workday} />
                                     </TableRow>

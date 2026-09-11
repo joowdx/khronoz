@@ -254,6 +254,46 @@ class LedgerTest extends TestCase
     }
 
     /**
+     * ledgers_lock_complete, the re-lock limb (decision 84). A lock is a
+     * state and not an event, so locking a locked month is a re-dating of
+     * the first lock — and an attestation seals the ledger as it was at a
+     * moment, so moving `locked_at` past that moment leaves a signature
+     * certifying a lock that had not yet happened. Unlock first.
+     */
+    public function test_a_locked_ledger_cannot_be_locked_again(): void
+    {
+        $ledger = Ledger::factory()->locked()->create(['month' => '2026-09-01']);
+
+        $this->assertDatabaseRefuses(
+            'P0001',
+            fn () => DB::table('ledgers')->where('id', $ledger->id)->update(['locked_at' => '2026-10-06 12:00:00']),
+            'a locked ledger must be unlocked before it can be locked again',
+        );
+    }
+
+    /** Unlock, then lock again: the legitimate sequence, and it leaves a trail. */
+    public function test_a_ledger_may_be_locked_again_after_it_is_unlocked(): void
+    {
+        $ledger = Ledger::factory()->locked()->create(['month' => '2026-09-01']);
+
+        DB::table('ledgers')->where('id', $ledger->id)->update(['locked_at' => null]);
+        DB::table('ledgers')->where('id', $ledger->id)->update(['locked_at' => '2026-10-06 12:00:00']);
+
+        $this->assertDatabaseHas('ledgers', ['id' => $ledger->id, 'locked_at' => '2026-10-06 12:00:00']);
+    }
+
+    /** Writing the same instant back is not a re-dating and is not refused. */
+    public function test_rewriting_the_same_lock_instant_is_allowed(): void
+    {
+        $ledger = Ledger::factory()->locked()->create(['month' => '2026-09-01']);
+        $at = DB::table('ledgers')->where('id', $ledger->id)->value('locked_at');
+
+        DB::table('ledgers')->where('id', $ledger->id)->update(['locked_at' => $at]);
+
+        $this->assertDatabaseHas('ledgers', ['id' => $ledger->id, 'locked_at' => $at]);
+    }
+
+    /**
      * An open September ledger. Decision 81's rows are created against it
      * *before* it locks — a row already overlapping a locked month cannot be
      * inserted at all, which is the first thing these tests assert.
