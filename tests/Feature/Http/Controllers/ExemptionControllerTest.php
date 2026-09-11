@@ -117,6 +117,94 @@ class ExemptionControllerTest extends TestCase
         $this->assertSame('10:00:00', Exemption::sole()->starts);
     }
 
+    /**
+     * The form's own regression, and the reason `partial` crosses the wire.
+     *
+     * Extending a one-day exemption used to unmount the hours inputs, which
+     * submitted nothing; `validated()` omitted the keys, `update()` never
+     * named the columns, the stored `starts` survived, and
+     * `exemptions_span_is_whole_days` answered the UPDATE with **23514** — a
+     * 500 on an edit the operator had every right to make.
+     */
+    public function test_extending_a_windowed_exemption_across_days_clears_its_hours(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $exemption = Exemption::factory()->hours('10:00:00', '12:00:00')->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-09-11',
+            'until' => '2026-09-11',
+        ]);
+
+        $this->put(route('exemptions.update', $exemption), [
+            'employee_id' => $exemption->employee_id,
+            'type' => 'leave',
+            'date' => '2026-09-11',
+            'until' => '2026-09-15',
+            'partial' => '0',
+            'approved_at' => '2026-09-10',
+        ])->assertSessionHasNoErrors();
+
+        $exemption->refresh();
+
+        $this->assertNull($exemption->starts);
+        $this->assertNull($exemption->ends);
+        $this->assertSame('2026-09-15', $exemption->until->toDateString());
+    }
+
+    /**
+     * The silent half of the same defect: the save reported success and the
+     * row stayed partial, so the deriver went on excusing two hours of a day
+     * the operator had marked wholly excused.
+     */
+    public function test_turning_the_window_off_clears_the_hours(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $exemption = Exemption::factory()->hours('10:00:00', '12:00:00')->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-09-11',
+            'until' => '2026-09-11',
+        ]);
+
+        $this->put(route('exemptions.update', $exemption), [
+            'employee_id' => $exemption->employee_id,
+            'type' => 'leave',
+            'date' => '2026-09-11',
+            'until' => '2026-09-11',
+            'partial' => '0',
+            'approved_at' => '2026-09-10',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNull($exemption->refresh()->starts);
+    }
+
+    /**
+     * `partial` is the form's switch, never a column. A caller that does not
+     * send it — anything that is not this form — keeps the old meaning, where
+     * `starts` and `ends` say what they say.
+     */
+    public function test_the_window_switch_is_never_stored(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        $this->post(route('exemptions.store'), [
+            'employee_id' => $employee->id,
+            'type' => 'pass',
+            'date' => '2026-09-15',
+            'until' => '2026-09-15',
+            'partial' => '1',
+            'starts' => '10:00',
+            'ends' => '12:00',
+            'approved_at' => '2026-09-14',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('10:00:00', Exemption::sole()->starts);
+        $this->assertArrayNotHasKey('partial', Exemption::sole()->getAttributes());
+    }
+
     public function test_an_exemption_cannot_end_before_it_starts(): void
     {
         $agency = Agency::factory()->create();

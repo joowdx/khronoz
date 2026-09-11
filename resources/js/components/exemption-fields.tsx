@@ -13,9 +13,14 @@ import type { Choice, Employee, Exemption } from '@/types';
  * (`exemptions_span_is_whole_days`). A 10:00–14:00 window repeated across a
  * 105-day maternity leave is not what any order means, and a row saying it
  * would have the deriver excuse four hours a day of a continuous statutory
- * entitlement — under-excusing by the whole thing. So the hours switch
- * disappears the moment the span covers more than one day, rather than
- * offering a field the database will refuse.
+ * entitlement — under-excusing by the whole thing. So across a span the
+ * switch is disabled and reads off, and the hours inputs are not offered.
+ *
+ * The switch is **submitted** rather than merely drawn. An unmounted input
+ * sends nothing, an absent key is not a null, and `update()` then leaves the
+ * hours exactly where they were — which is how extending a one-day exemption
+ * used to reach `exemptions_span_is_whole_days` as a 23514, and how turning
+ * the switch off used to report success and change nothing.
  *
  * `until` defaults to `date` because a one-day exemption is the common case
  * and, since decision 38, its canonical spelling.
@@ -36,8 +41,20 @@ export function ExemptionFields({
     const [date, setDate] = useState(exemption?.date ?? manilaToday());
     const [until, setUntil] = useState(exemption?.until ?? exemption?.date ?? manilaToday());
     const [partial, setPartial] = useState(Boolean(exemption?.starts));
+    // Lifted out of the inputs on purpose. They unmount whenever the span
+    // grows, and an uncontrolled input remounts at its default — so typing
+    // 13:00–15:30, nudging the date, and coming back used to silently restore
+    // 10:00–12:00.
+    const [starts, setStarts] = useState(exemption?.starts?.slice(0, 5) ?? '10:00');
+    const [ends, setEnds] = useState(exemption?.ends?.slice(0, 5) ?? '12:00');
 
     const oneDay = date === until;
+
+    // The switch's *effect*, not its position. A span of more than one day
+    // cannot carry hours, so the window is off there however the switch was
+    // last left — and `partial` survives untouched, so shrinking the span back
+    // to a single day restores the operator's own choice rather than a default.
+    const windowed = partial && oneDay;
 
     return (
         <>
@@ -136,22 +153,34 @@ export function ExemptionFields({
             </div>
 
             {/*
-              Hours are only offered for a single day. Across a span the
-              database refuses them outright, so the control is absent rather
-              than present-and-doomed.
-            */}
-            {oneDay && (
-                <Field
-                    className="mt-6"
-                    label="Part of the day only"
-                    htmlFor="partial"
-                    hint="Off means the whole day is excused."
-                >
-                    {({ id }) => <Switch id={id} checked={partial} onCheckedChange={setPartial} />}
-                </Field>
-            )}
+              Hours only apply to a single day (`exemptions_span_is_whole_days`).
+              The switch **stays on the screen** across a span, disabled and
+              off, saying why — it used to vanish, and a control that
+              disappears leaves the operator no way to see that the hours their
+              row still carried were about to be refused by a CHECK.
 
-            {oneDay && partial && (
+              `partial` is submitted on every save, so "off" is a value the
+              server can act on rather than an absence it cannot distinguish
+              from "unchanged".
+            */}
+            <input type="hidden" name="partial" value={windowed ? '1' : '0'} />
+
+            <Field
+                className="mt-6"
+                label="Part of the day only"
+                htmlFor="partial"
+                hint={
+                    oneDay
+                        ? 'Off means the whole day is excused.'
+                        : 'A leave spanning days excuses all of them. Set Until to the same day to excuse hours instead.'
+                }
+            >
+                {({ id }) => (
+                    <Switch id={id} checked={windowed} disabled={!oneDay} onCheckedChange={setPartial} />
+                )}
+            </Field>
+
+            {windowed && (
                 <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Field label="From" htmlFor="starts" error={errors.starts}>
                         {({ id, invalid, describedBy }) => (
@@ -159,7 +188,8 @@ export function ExemptionFields({
                                 id={id}
                                 name="starts"
                                 type="time"
-                                defaultValue={exemption?.starts?.slice(0, 5) ?? '10:00'}
+                                value={starts}
+                                onChange={(event) => setStarts(event.target.value)}
                                 aria-invalid={invalid}
                                 aria-describedby={describedBy}
                             />
@@ -171,7 +201,8 @@ export function ExemptionFields({
                                 id={id}
                                 name="ends"
                                 type="time"
-                                defaultValue={exemption?.ends?.slice(0, 5) ?? '12:00'}
+                                value={ends}
+                                onChange={(event) => setEnds(event.target.value)}
                                 aria-invalid={invalid}
                                 aria-describedby={describedBy}
                             />

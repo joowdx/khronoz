@@ -34,6 +34,10 @@ export function SuspensionFields({
 }) {
     const [workgroup, setWorkgroup] = useState<string | null>(suspension?.workgroup_id ?? null);
     const [partial, setPartial] = useState(Boolean(suspension?.starts));
+    // Lifted out of the inputs: they unmount with the switch, and an
+    // uncontrolled input remounts at its default rather than at what was typed.
+    const [starts, setStarts] = useState(suspension?.starts?.slice(0, 5) ?? '12:00');
+    const [ends, setEnds] = useState(suspension?.ends?.slice(0, 5) ?? '17:00');
 
     return (
         <>
@@ -119,6 +123,15 @@ export function SuspensionFields({
                 </Field>
             </div>
 
+            {/*
+              `partial` is **submitted**, not merely drawn. An unmounted input
+              sends nothing, and an absent key is not a null: `validated()`
+              omits it, `update()` never names the column, and the hours
+              already in the row survive a save the screen called successful.
+              Turning the switch off did nothing at all.
+            */}
+            <input type="hidden" name="partial" value={partial ? '1' : '0'} />
+
             <Field
                 className="mt-6"
                 label="Part of the day only"
@@ -136,7 +149,8 @@ export function SuspensionFields({
                                 id={id}
                                 name="starts"
                                 type="time"
-                                defaultValue={suspension?.starts?.slice(0, 5) ?? '12:00'}
+                                value={starts}
+                                onChange={(event) => setStarts(event.target.value)}
                                 aria-invalid={invalid}
                                 aria-describedby={describedBy}
                             />
@@ -148,7 +162,8 @@ export function SuspensionFields({
                                 id={id}
                                 name="ends"
                                 type="time"
-                                defaultValue={suspension?.ends?.slice(0, 5) ?? '17:00'}
+                                value={ends}
+                                onChange={(event) => setEnds(event.target.value)}
                                 aria-invalid={invalid}
                                 aria-describedby={describedBy}
                             />

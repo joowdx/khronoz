@@ -53,6 +53,37 @@ class SuspensionControllerTest extends TestCase
         $this->assertNull($suspension->ends);
     }
 
+    /**
+     * Turning "part of the day only" off used to report success and change
+     * nothing: the unmounted inputs submitted no keys, `validated()` omitted
+     * them, and the noon-to-five window stayed on a day the operator had just
+     * marked wholly suspended. `partial` is submitted so "off" is a value
+     * rather than an absence.
+     */
+    public function test_turning_the_window_off_clears_the_hours(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $suspension = Suspension::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-07-22',
+            'starts' => '12:00:00',
+            'ends' => '17:00:00',
+        ]);
+
+        $this->put(route('suspensions.update', $suspension), [
+            'date' => '2026-07-22',
+            'reason' => 'Typhoon Signal No. 3',
+            'partial' => '0',
+            'declared_at' => '2026-07-22',
+        ])->assertSessionHasNoErrors();
+
+        $suspension->refresh();
+
+        $this->assertNull($suspension->starts);
+        $this->assertNull($suspension->ends);
+    }
+
     /** Who declared it is the acting user, never a field the client sends (decision 39). */
     public function test_the_declaring_user_is_the_acting_user(): void
     {

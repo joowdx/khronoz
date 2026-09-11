@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ExemptionType;
+use App\Http\Requests\Concerns\ClearsDayWindow;
 use App\Models\Exemption;
 use App\Tenancy\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
@@ -10,6 +11,8 @@ use Illuminate\Validation\Rule;
 
 class StoreExemptionRequest extends FormRequest
 {
+    use ClearsDayWindow;
+
     public function authorize(): bool
     {
         return $this->user()->can('create', Exemption::class);
@@ -43,6 +46,7 @@ class StoreExemptionRequest extends FormRequest
             'type' => ['required', Rule::enum(ExemptionType::class)],
             'date' => ['required', 'date_format:Y-m-d'],
             'until' => ['required', 'date_format:Y-m-d', 'after_or_equal:date'],
+            'partial' => $this->partialRules(),
             'starts' => ['nullable', 'required_with:ends', 'date_format:H:i', 'prohibited_unless:until,'.$this->input('date')],
             'ends' => ['nullable', 'required_with:starts', 'date_format:H:i', 'after:starts', 'prohibited_unless:until,'.$this->input('date')],
             'reference' => ['nullable', 'string', 'max:255'],

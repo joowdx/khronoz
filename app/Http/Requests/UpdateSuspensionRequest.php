@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ClearsDayWindow;
 use App\Tenancy\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateSuspensionRequest extends FormRequest
 {
+    use ClearsDayWindow;
+
     public function authorize(): bool
     {
         return $this->user()->can('update', $this->route('suspension'));
@@ -40,6 +43,7 @@ class UpdateSuspensionRequest extends FormRequest
                 Rule::exists('workgroups', 'id')->where('agency_id', app(Tenant::class)->id()),
             ],
             'date' => ['required', 'date_format:Y-m-d'],
+            'partial' => $this->partialRules(),
             'starts' => ['nullable', 'required_with:ends', 'date_format:H:i'],
             'ends' => ['nullable', 'required_with:starts', 'date_format:H:i', 'after:starts'],
             'reason' => ['required', 'string', 'max:255'],
