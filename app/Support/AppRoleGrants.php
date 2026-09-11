@@ -116,6 +116,14 @@ class AppRoleGrants
 
         // A run record that can be deleted is a run that can be denied.
         static::narrow($db, 'syncs', ["REVOKE DELETE ON syncs FROM {$role}"]);
+
+        // A signature is added or removed, never edited (07-constraints.md
+        // attestations). `at` is when it was made, and REVOKE UPDATE is what
+        // makes that column the truth rather than a timestamp that can be
+        // rewritten. INSERT and DELETE stay: you certify by inserting a row
+        // and you un-certify by removing it, which is also how a locked
+        // ledger becomes unlockable again.
+        static::narrow($db, 'attestations', ["REVOKE UPDATE ON attestations FROM {$role}"]);
     }
 
     /**

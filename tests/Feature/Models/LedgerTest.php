@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Models;
 
+use App\Models\Attestation;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Ledger;
@@ -239,9 +240,11 @@ class LedgerTest extends TestCase
     /** ledgers_unlock_clean, refusing path. */
     public function test_a_ledger_with_attestations_cannot_unlock(): void
     {
-        $this->markTestSkipped('attestations arrive after 0001_01_01_000031');
-
         $ledger = Ledger::factory()->locked()->create(['month' => '2026-09-01']);
+        Attestation::factory()->create([
+            'agency_id' => $ledger->agency_id,
+            'ledger_id' => $ledger->id,
+        ]);
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('ledgers')->where('id', $ledger->id)->update([
             'locked_at' => null,

@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * workday computed in that month. Stores `locked_at` only — totals and the
  * monthly occurrence counts are derived from its workdays.
  *
- * `attestations()` lands with that table. `view()` is a later chunk.
+ * `view()` is a later chunk.
  */
 #[Fillable(['agency_id', 'employee_id', 'month', 'locked_at'])]
 class Ledger extends Model
@@ -42,6 +42,11 @@ class Ledger extends Model
     public function workdays(): HasMany
     {
         return $this->hasMany(Workday::class);
+    }
+
+    public function attestations(): HasMany
+    {
+        return $this->hasMany(Attestation::class);
     }
 
     public function locked(): bool
