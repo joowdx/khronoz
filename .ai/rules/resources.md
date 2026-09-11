@@ -23,3 +23,18 @@ To expose a column or aggregate that only some queries select, use `$this->whenH
 `whenHas` asks the model whether the attribute exists at all, which is the actual question, and still keeps the key absent so a missing value can never read as zero or "never".
 
 Found on `TerminalResource::last_import_at`, added by a `withMax` that only the index issues: `edit` and the enrollments page load the same terminal without it and both 500'd. Counts are already safe — `whenCounted` checks for the key rather than reading it.
+
+## whenLoaded does not guard a nullable relation
+`OtherResource::make($this->whenLoaded('rel'))->resolve()` crashes with "Attempt to read property id on null" whenever `rel` is a **nullable** belongsTo that loaded as null. `whenLoaded` only asks whether the relation was loaded, not whether it found anything — an eager-loaded null is loaded.
+
+Write it as:
+
+```php
+'rel' => $this->whenLoaded('rel', fn () => $this->rel === null ? null : OtherResource::make($this->rel)->resolve()),
+```
+
+In a controller this surfaces as a 500 and, in a test, as the unhelpful "Not a valid Inertia response" — nothing names the column.
+
+It has bitten three times in one milestone, each on the row the screen most exists to show: `TerminalResource::workgroup` (an agency-wide terminal, the commonest row on the index), `TimelogResource::terminal`, and `TimelogResource::employee` — where null means *unresolved*, which is exactly what the timelogs screen's main filter is built to find.
+
+Rule of thumb: if the migration writes `->nullable()` on the foreign key, the resource needs the closure.

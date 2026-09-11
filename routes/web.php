@@ -9,6 +9,7 @@ use App\Http\Controllers\Platform\EnterAgencyController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TerminalEnrollmentController;
 use App\Http\Controllers\TerminalSyncController;
+use App\Http\Controllers\TimelogController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
 use App\Http\Controllers\WorkgroupController;
@@ -58,6 +59,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('employees.deployments.destroy');
         Route::resource('workgroups', WorkgroupController::class)->except(['show']);
         Route::resource('terminals', TerminalController::class)->except(['show']);
+        // What the devices recorded. Read-only apart from voiding, which is
+        // the schema's doing rather than a choice: the app role has no DELETE
+        // here and its UPDATE is revoked to (voided_at, reason) — decision 41.
+        Route::get('timelogs', [TimelogController::class, 'index'])->name('timelogs.index');
+        Route::patch('timelogs/{timelog}/void', [TimelogController::class, 'void'])->name('timelogs.void');
+
         // Who a terminal can identify, over time — and in effect the
         // terminal's own page: TerminalController has no `show` because a
         // terminal's facts fit in the list, but its people do not. Scoped

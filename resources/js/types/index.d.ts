@@ -168,6 +168,36 @@ export interface Enrollment {
 }
 
 /**
+ * Matches `TimelogResource`. What a device recorded — never a punch, which is
+ * a matched slot side of a workday and belongs to Milestone 6.
+ *
+ * `state` and `mode` are the **raw attlog integers** (03-terminals.md rule 6).
+ * An unfamiliar firmware emits codes the documented table does not list, so
+ * they are labelled where recognised and printed as numbers otherwise.
+ *
+ * `employee_id` null means **unresolved**: the uid matched no enrollment on
+ * that date. Normal, visible, and never hidden.
+ *
+ * `time` is the device's own naive wall clock — never converted, never
+ * adjusted — so it is a string and is never reparsed.
+ */
+export interface Timelog {
+    id: string;
+    terminal_id: string;
+    terminal?: Terminal | null;
+    uid: string;
+    /** `YYYY-MM-DD HH:MM:SS`, as the device reported it. */
+    time: string;
+    state: number;
+    mode: number;
+    source: string;
+    employee_id: string | null;
+    employee?: Employee | null;
+    voided_at: string | null;
+    reason: string | null;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.

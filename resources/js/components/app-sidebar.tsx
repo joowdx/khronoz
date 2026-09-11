@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Building2, Fingerprint, LayoutGrid, Network, UserRoundCheck, UsersRound } from 'lucide-react';
+import { Building2, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -10,6 +10,7 @@ import { dashboard } from '@/routes';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as agenciesIndex } from '@/routes/platform/agencies';
 import { index as terminalsIndex } from '@/routes/terminals';
+import { index as timelogsIndex } from '@/routes/timelogs';
 import { index as workgroupsIndex } from '@/routes/workgroups';
 import { index as usersIndex } from '@/routes/users';
 import type { SharedProps } from '@/types';
@@ -92,7 +93,10 @@ export function AppSidebar() {
             ? [
                   {
                       label: 'Terminals',
-                      items: [{ title: 'Terminals', href: terminalsIndex().url, icon: Fingerprint }],
+                      items: [
+                          { title: 'Terminals', href: terminalsIndex().url, icon: Fingerprint },
+                          { title: 'Timelogs', href: timelogsIndex().url, icon: ScanLine },
+                      ],
                   },
               ]
             : []),
