@@ -8,9 +8,11 @@ use App\Http\Requests\StoreEnrollmentRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Http\Resources\EnrollmentResource;
 use App\Http\Resources\TerminalResource;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Employee;
 use App\Models\Enrollment;
 use App\Models\Terminal;
+use App\Models\Timelog;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +70,8 @@ class TerminalEnrollmentController extends Controller
      */
     public function store(StoreEnrollmentRequest $request, Terminal $terminal): RedirectResponse
     {
+        $before = $this->attributions($terminal, $request->string('uid')->toString());
+
         try {
             // Its own transaction, so a refused insert leaves the surrounding
             // one usable — otherwise the redirect's own queries answer 25P02.
@@ -82,6 +86,8 @@ class TerminalEnrollmentController extends Controller
 
             return back()->withInput()->with('error', $this->collision($e, $terminal, $request->validated()));
         }
+
+        $this->recompute($before, $terminal, $request->string('uid')->toString());
 
         return back()->with('success', 'Enrolled.');
     }
@@ -110,6 +116,8 @@ class TerminalEnrollmentController extends Controller
      */
     public function update(EndEnrollmentRequest $request, Terminal $terminal, Enrollment $enrollment): RedirectResponse
     {
+        $before = $this->attributions($terminal, $enrollment->uid);
+
         try {
             $closed = DB::transaction(fn () => $terminal->enrollments()
                 ->whereKey($enrollment->id)
@@ -127,7 +135,51 @@ class TerminalEnrollmentController extends Controller
             return back()->with('error', 'That enrollment changed while you were looking at it. Reload and try again.');
         }
 
+        $this->recompute($before, $terminal, $enrollment->uid);
+
         return back()->with('success', 'Enrollment ended.');
+    }
+
+    /**
+     * Every (employee, day) an enrollment change moves a punch between
+     * (Workday rule 3, decision 86).
+     *
+     * `enrollments_reresolve` re-attributes existing timelogs whenever an
+     * enrollment appears or moves, and it does it in SQL where no job sees
+     * it happen. That is not a calendar event and does not go through
+     * `FanOutRecompute`: a punch has changed hands, so the days on both
+     * sides of the move are days a timelog arrived on and the workday is
+     * created if it does not exist yet. The set is read once before the
+     * write and once after, and both are queued — the employee losing the
+     * punches needs the recompute as much as the one gaining them, and
+     * after the write the losing side is already gone from the table.
+     *
+     * `uid` is what the *device* reported and is never rewritten (decision
+     * 42), so the pair identifies the same rows before and after; only the
+     * attribution moves. Distinct on the day, not the punch: the span is
+     * per-day anyway, and this is a whole device user's history.
+     *
+     * @return list<object{employee_id: string, time: string}>
+     */
+    private function attributions(Terminal $terminal, string $uid): array
+    {
+        return Timelog::query()
+            ->where('terminal_id', $terminal->id)
+            ->where('uid', $uid)
+            ->whereNotNull('employee_id')
+            ->toBase()
+            ->distinct()
+            ->selectRaw('employee_id, time::date::text as time')
+            ->get()
+            ->all();
+    }
+
+    /**
+     * @param  list<object{employee_id: string, time: string}>  $before
+     */
+    private function recompute(array $before, Terminal $terminal, string $uid): void
+    {
+        RecomputeWorkdays::dispatchFor([...$before, ...$this->attributions($terminal, $uid)]);
     }
 
     /**

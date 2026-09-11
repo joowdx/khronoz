@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\HolidayType;
 use App\Models\Concerns\BelongsToAgency;
 use App\Models\Scopes\AgencyOrPlatformScope;
+use App\Tenancy\Tenant;
 use Carbon\CarbonInterface;
 use Database\Factories\HolidayFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -47,6 +48,19 @@ class Holiday extends Model
             'type' => HolidayType::class,
             'declared_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Owned by the platform agency, and so owed by every tenant.
+     *
+     * The predicate lives here because two places need it and they are not
+     * near each other: `HolidayPolicy` refuses an agency editing a national
+     * row, and `HolidayController` fans a recompute out to every agency for
+     * one (decision 86). Written twice it is written differently once.
+     */
+    public function national(): bool
+    {
+        return $this->agency_id === app(Tenant::class)->platformId();
     }
 
     /**

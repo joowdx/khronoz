@@ -4,9 +4,12 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
+use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
 use App\Models\Employee;
 use App\Models\Exemption;
+use App\Models\Ledger;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -329,5 +332,110 @@ class ExemptionControllerTest extends TestCase
             'until' => '2026-09-15',
             'approved_at' => '2026-09-14',
         ])->assertSessionHasErrors('employee_id');
+    }
+
+    /** Workday rule 3, decision 86: an exemption touching a date recomputes it. */
+    public function test_recording_an_exemption_queues_a_recompute_over_its_days(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->post(route('exemptions.store'), [
+            'employee_id' => $employee->id,
+            'type' => 'leave',
+            'date' => '2026-09-15',
+            'until' => '2026-09-17',
+            'approved_at' => '2026-09-14',
+        ])->assertSessionHas('success');
+
+        $this->assertQueued($employee->id, '2026-09-15', '2026-09-17');
+    }
+
+    /**
+     * Both spans. A leave slip re-dated stops excusing the days it left as
+     * much as it starts excusing the ones it reached, and the days it left
+     * are unreachable once the row has moved.
+     */
+    public function test_correcting_the_dates_queues_a_recompute_over_both_spans(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $exemption = Exemption::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-09-05',
+            'until' => '2026-09-06',
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->put(route('exemptions.update', $exemption), [
+            'employee_id' => $employee->id,
+            'type' => $exemption->type->value,
+            'date' => '2026-09-20',
+            'until' => '2026-09-21',
+            'approved_at' => '2026-09-04',
+        ])->assertSessionHas('success');
+
+        $this->assertQueued($employee->id, '2026-09-05', '2026-09-21');
+    }
+
+    public function test_withdrawing_an_exemption_queues_a_recompute(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $exemption = Exemption::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-09-15',
+            'until' => '2026-09-15',
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->delete(route('exemptions.destroy', $exemption))->assertSessionHas('success');
+
+        $this->assertQueued($employee->id, '2026-09-15', '2026-09-15');
+    }
+
+    /**
+     * Decision 81 froze this table against a locked month and nothing here
+     * translated the P0001, so an ordinary correction answered a 500.
+     */
+    public function test_an_exemption_reaching_a_locked_month_is_refused_with_a_message(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        Ledger::factory()->locked()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'month' => '2026-09-01',
+        ]);
+
+        $this->post(route('exemptions.store'), [
+            'employee_id' => $employee->id,
+            'type' => 'leave',
+            'date' => '2026-09-15',
+            'until' => '2026-09-15',
+            'approved_at' => '2026-09-14',
+        ])->assertSessionHas('error');
+
+        $this->assertSame(0, Exemption::query()->count());
+    }
+
+    private function assertQueued(string $employeeId, string $from, string $to): void
+    {
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$employeeId]
+                && $job->from === $from
+                && $job->to === $to,
+        );
     }
 }

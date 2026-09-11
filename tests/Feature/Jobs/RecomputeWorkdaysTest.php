@@ -448,4 +448,32 @@ class RecomputeWorkdaysTest extends TestCase
         $this->withTenant($agency);
         $this->assertFalse(Workday::query()->where('employee_id', $employee->id)->exists());
     }
+
+    /**
+     * Decision 86. A DTR is a historical pay record and the month somebody
+     * was removed in is the one still to be locked and signed, so a terminal
+     * syncing its backlog a week later must still reach them. Without
+     * `withTrashed()` the job did not skip them, it threw
+     * `ModelNotFoundException` and failed.
+     */
+    public function test_a_removed_employee_is_still_recomputed(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $employee = $this->employee($agency);
+        $employee->delete();
+
+        app(Tenant::class)->forget();
+
+        (new RecomputeWorkdays($employee->id, '2026-09-08', '2026-09-08'))
+            ->handle(app(Tenant::class));
+
+        $this->withTenant($agency);
+        $this->assertTrue(
+            Workday::query()
+                ->where('employee_id', $employee->id)
+                ->whereDate('date', '2026-09-08')
+                ->exists(),
+        );
+    }
 }

@@ -4,11 +4,14 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
 use App\Http\Requests\EndEmployeeDeploymentRequest;
+use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
+use App\Models\Ledger;
 use App\Models\Workgroup;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -684,5 +687,134 @@ class EmployeeDeploymentControllerTest extends TestCase
         ])->assertSessionHasErrors(['ends' => 'Before the current placement began.']);
 
         $this->assertNull($placement->fresh()->ends);
+    }
+
+    /**
+     * Workday rule 3, decision 86. A placement decides which days exist and
+     * a workgroup decides which closures reach them, so moving somebody is a
+     * recompute event even though a deployment holds no figure.
+     */
+    public function test_a_transfer_queues_a_recompute_from_the_day_it_starts(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $agency->id])->id,
+            'starts' => '2024-01-01',
+            'ends' => null,
+        ]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->post(route('employees.deployments.store', $employee), [
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $agency->id, 'name' => 'Records'])->id,
+            'starts' => '2026-03-01',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$employee->id]
+                && $job->from === '2026-03-01'
+                && $job->to === null,
+        );
+    }
+
+    /**
+     * From the earlier of the two end dates, because the days between them
+     * change hands either way: pulled in, they become days nobody was
+     * employed on; pushed out, days somebody was.
+     */
+    public function test_pulling_a_placements_end_in_queues_from_the_new_end(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01', 'ends' => '2026-06-30']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->patch(route('employees.deployments.update', $placement->employee), [
+            'deployment' => $placement->id, 'expects' => '2026-06-30', 'ends' => '2026-03-31',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$placement->employee_id]
+                && $job->from === '2026-03-31'
+                && $job->to === null,
+        );
+    }
+
+    /**
+     * The other direction, and the one that distinguishes "the earlier of the
+     * two" from "the new one": pushed out, the days between the old end and
+     * the new one become days somebody *was* employed on.
+     */
+    public function test_pushing_a_placements_end_out_queues_from_the_old_end(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2024-01-01', 'ends' => '2026-03-31']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->patch(route('employees.deployments.update', $placement->employee), [
+            'deployment' => $placement->id, 'expects' => '2026-03-31', 'ends' => '2026-06-30',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$placement->employee_id]
+                && $job->from === '2026-03-31'
+                && $job->to === null,
+        );
+    }
+
+    public function test_removing_a_deployment_queues_a_recompute_over_its_range(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => '2026-06-30']);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->delete(route('employees.deployments.destroy', [$placement->employee, $placement]))
+            ->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$placement->employee_id]
+                && $job->from === '2026-01-01'
+                && $job->to === '2026-06-30',
+        );
+    }
+
+    /**
+     * Two triggers on this table raise P0001 and they ask for opposite
+     * remedies. Before decision 86 the SQLSTATE alone decided the message,
+     * so a clerk whose September was signed was told to go and end a
+     * reassignment that does not exist.
+     */
+    public function test_a_placement_covering_a_locked_month_names_the_lock_and_not_a_reassignment(): void
+    {
+        $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
+        $agency = Agency::findOrFail($placement->agency_id);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $this->withTenant($agency);
+        Ledger::factory()->locked()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $placement->employee_id,
+            'month' => '2026-09-01',
+        ]);
+
+        $this->delete(route('employees.deployments.destroy', [$placement->employee, $placement]))
+            ->assertSessionHasErrors(['deployment' => 'That placement covers a locked month. Unlock the ledger first.']);
+
+        $this->assertDatabaseHas('deployments', ['id' => $placement->id]);
     }
 }

@@ -5,7 +5,6 @@ namespace App\Policies;
 use App\Enums\Permission;
 use App\Models\Holiday;
 use App\Models\User;
-use App\Tenancy\Tenant;
 
 /**
  * Gate::before (AppServiceProvider::configureAuthorization) answers true for a
@@ -36,16 +35,11 @@ class HolidayPolicy
      */
     public function update(User $user, Holiday $holiday): bool
     {
-        return $user->allows(Permission::ManageCalendar) && ! $this->national($holiday);
+        return $user->allows(Permission::ManageCalendar) && ! $holiday->national();
     }
 
     public function delete(User $user, Holiday $holiday): bool
     {
-        return $user->allows(Permission::ManageCalendar) && ! $this->national($holiday);
-    }
-
-    private function national(Holiday $holiday): bool
-    {
-        return $holiday->agency_id === app(Tenant::class)->platformId();
+        return $user->allows(Permission::ManageCalendar) && ! $holiday->national();
     }
 }

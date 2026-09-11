@@ -3,9 +3,13 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
+use App\Models\Deployment;
+use App\Models\Employee;
 use App\Models\Suspension;
 use App\Models\Workgroup;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -185,5 +189,144 @@ class SuspensionControllerTest extends TestCase
         $this->actingAsAgency(Agency::factory()->create(), Permission::ManageCalendar);
 
         $this->get(route('suspensions.edit', Suspension::factory()->create()))->assertNotFound();
+    }
+
+    /** Workday rule 3, decision 86: a closure recomputes the day it closed. */
+    public function test_an_agency_wide_suspension_queues_the_whole_agency(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->post(route('suspensions.store'), [
+            'date' => '2026-07-22',
+            'reason' => 'Typhoon Signal No. 3',
+            'declared_at' => '2026-07-22',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->agencyId === $agency->id
+                && $job->employeeIds === null
+                && $job->from === '2026-07-22'
+                && $job->to === '2026-07-22',
+        );
+    }
+
+    /**
+     * A workgroup's people are small by construction and `appliesTo()`
+     * already knows the subtree, so they travel by name. A whole agency's
+     * would not fit in a payload, which is why the case above travels as its
+     * agency instead.
+     */
+    public function test_a_workgroup_suspension_queues_only_its_people(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $agency->id]);
+        $inside = $this->deployed($agency, $workgroup);
+        $outside = $this->deployed($agency, Workgroup::factory()->create(['agency_id' => $agency->id]));
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->post(route('suspensions.store'), [
+            'workgroup_id' => $workgroup->id,
+            'date' => '2026-07-22',
+            'reason' => 'Water interruption',
+            'declared_at' => '2026-07-22',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->agencyId === null
+                && $job->employeeIds === [$inside->id],
+        );
+        Queue::assertNotPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => in_array($outside->id, $job->employeeIds ?? [], true),
+        );
+    }
+
+    /** Both reaches: a suspension moved stops closing the day it left. */
+    public function test_moving_a_suspension_queues_both_dates(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $suspension = Suspension::factory()->create([
+            'agency_id' => $agency->id,
+            'workgroup_id' => null,
+            'date' => '2026-07-22',
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->put(route('suspensions.update', $suspension), [
+            'date' => '2026-07-23',
+            'reason' => $suspension->reason,
+            'declared_at' => '2026-07-23',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushedTimes(FanOutRecompute::class, 2);
+        Queue::assertPushed(FanOutRecompute::class, fn (FanOutRecompute $job): bool => $job->from === '2026-07-22');
+        Queue::assertPushed(FanOutRecompute::class, fn (FanOutRecompute $job): bool => $job->from === '2026-07-23');
+    }
+
+    /** And once when the correction left the reach where it was. */
+    public function test_correcting_the_reason_queues_the_date_once(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $suspension = Suspension::factory()->create([
+            'agency_id' => $agency->id,
+            'workgroup_id' => null,
+            'date' => '2026-07-22',
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->put(route('suspensions.update', $suspension), [
+            'date' => '2026-07-22',
+            'reason' => 'Typhoon Signal No. 4',
+            'declared_at' => '2026-07-22',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushedTimes(FanOutRecompute::class, 1);
+    }
+
+    public function test_withdrawing_a_suspension_queues_its_date(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $suspension = Suspension::factory()->create([
+            'agency_id' => $agency->id,
+            'workgroup_id' => null,
+            'date' => '2026-07-22',
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->delete(route('suspensions.destroy', $suspension))->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->agencyId === $agency->id
+                && $job->from === '2026-07-22',
+        );
+    }
+
+    private function deployed(Agency $agency, Workgroup $workgroup): Employee
+    {
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'workgroup_id' => $workgroup->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-01-01',
+            'ends' => null,
+        ]);
+
+        return $employee;
     }
 }

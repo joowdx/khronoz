@@ -4,8 +4,10 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\HolidayType;
 use App\Enums\Permission;
+use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
 use App\Models\Holiday;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -190,6 +192,108 @@ class HolidayControllerTest extends TestCase
 
         $this->get(route('holidays.create'))->assertInertia(
             fn (Assert $page) => $page->where('rates', HolidayType::choices())
+        );
+    }
+
+    /**
+     * Workday rule 3, decision 86: the whole ISO week, because a compressed
+     * roster redistributes its hours when one of its days is declared and
+     * nothing at the point of declaring knows whose roster is compressed.
+     * 19 August 2026 is a Wednesday, so the week is Monday the 17th to
+     * Sunday the 23rd.
+     */
+    public function test_declaring_a_holiday_queues_the_agency_over_its_iso_week(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->post(route('holidays.store'), [
+            'date' => '2026-08-19',
+            'name' => 'Charter Day',
+            'type' => 'local',
+            'declared_at' => '2026-06-01',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->agencyId === $agency->id
+                && $job->employeeIds === null
+                && $job->from === '2026-08-17'
+                && $job->to === '2026-08-23',
+        );
+    }
+
+    /** Both weeks: a proclamation corrected gives back the day it took. */
+    public function test_moving_a_holiday_queues_both_weeks(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $holiday = Holiday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-08-19',
+            'name' => 'Charter Day',
+            'type' => HolidayType::Local,
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->put(route('holidays.update', $holiday), [
+            'date' => '2026-08-26',
+            'name' => 'Charter Day',
+            'type' => 'local',
+            'declared_at' => '2026-06-01',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushedTimes(FanOutRecompute::class, 2);
+        Queue::assertPushed(FanOutRecompute::class, fn (FanOutRecompute $job): bool => $job->from === '2026-08-17');
+        Queue::assertPushed(FanOutRecompute::class, fn (FanOutRecompute $job): bool => $job->from === '2026-08-24');
+    }
+
+    /** And one week when the correction was to the name, not the date. */
+    public function test_renaming_a_holiday_queues_its_week_once(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $holiday = Holiday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-08-19',
+            'name' => 'Charter Day',
+            'type' => HolidayType::Local,
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->put(route('holidays.update', $holiday), [
+            'date' => '2026-08-19',
+            'name' => 'City Charter Day',
+            'type' => 'local',
+            'declared_at' => '2026-06-01',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushedTimes(FanOutRecompute::class, 1);
+    }
+
+    public function test_removing_a_holiday_queues_its_week(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $holiday = Holiday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-08-19',
+            'type' => HolidayType::Local,
+        ]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->delete(route('holidays.destroy', $holiday))->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->agencyId === $agency->id
+                && $job->from === '2026-08-17'
+                && $job->to === '2026-08-23',
         );
     }
 }

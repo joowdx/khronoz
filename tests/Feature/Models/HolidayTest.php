@@ -221,4 +221,22 @@ class HolidayTest extends TestCase
 
         $this->assertSame($date->addDays(2)->toDateString(), $holiday->declared_at->toDateString());
     }
+
+    /**
+     * The one predicate two callers need: `HolidayPolicy` refuses an agency
+     * editing a national row, and `HolidayController` fans a recompute out to
+     * every agency for one (decision 86). Both used to spell it themselves.
+     */
+    public function test_a_holiday_of_the_platform_agency_is_national(): void
+    {
+        $this->assertTrue(Holiday::factory()->national()->create()->national());
+    }
+
+    public function test_an_agencys_own_holiday_is_not_national(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+
+        $this->assertFalse(Holiday::factory()->create(['agency_id' => $agency->id])->national());
+    }
 }

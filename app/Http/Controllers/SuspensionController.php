@@ -6,6 +6,7 @@ use App\Http\Requests\StoreSuspensionRequest;
 use App\Http\Requests\UpdateSuspensionRequest;
 use App\Http\Resources\SuspensionResource;
 use App\Http\Resources\WorkgroupResource;
+use App\Jobs\FanOutRecompute;
 use App\Models\Suspension;
 use App\Models\Workgroup;
 use Illuminate\Http\RedirectResponse;
@@ -66,6 +67,8 @@ class SuspensionController extends Controller
             'user_id' => $request->user()->id,
         ]);
 
+        $this->recompute($this->reach($suspension));
+
         return to_route('suspensions.index', ['year' => $suspension->date->year])
             ->with('success', 'Suspension declared.');
     }
@@ -82,7 +85,14 @@ class SuspensionController extends Controller
 
     public function update(UpdateSuspensionRequest $request, Suspension $suspension): RedirectResponse
     {
+        // Both reaches: a suspension moved to another date or another
+        // workgroup stops closing the office it left.
+        $before = $this->reach($suspension);
+
         $suspension->update($request->validated());
+
+        $this->recompute($before);
+        $this->recompute($this->reach($suspension->refresh()), $before);
 
         return to_route('suspensions.index', ['year' => $suspension->date->year])
             ->with('success', 'Suspension updated.');
@@ -98,9 +108,55 @@ class SuspensionController extends Controller
         Gate::authorize('delete', $suspension);
 
         $year = $suspension->date->year;
+        $reach = $this->reach($suspension);
         $suspension->delete();
 
+        $this->recompute($reach);
+
         return to_route('suspensions.index', ['year' => $year])->with('success', 'Suspension withdrawn.');
+    }
+
+    /**
+     * Who a declaration closes the office for, and on what date (Workday
+     * rule 3, decision 86).
+     *
+     * Captured as a *description* rather than dispatched on the spot,
+     * because an update has two of them and the one that is going away has
+     * to be read before the write and queued after it. A whole-agency
+     * suspension travels as its agency: `appliesTo()` would name every
+     * employee of it and the payload is the one thing this job refuses to
+     * carry at that size. A workgroup's is small by construction and
+     * `appliesTo()` already knows the subtree, and which of a movement and
+     * a placement wins.
+     *
+     * @return array{agency: ?string, employees: list<string>, date: string}
+     */
+    private function reach(Suspension $suspension): array
+    {
+        $employees = $suspension->workgroup_id === null
+            ? []
+            : $suspension->appliesTo()->orderBy('id')->pluck('id')->all();
+
+        return [
+            'agency' => $suspension->workgroup_id === null ? $suspension->agency_id : null,
+            'employees' => $employees,
+            'date' => $suspension->date->toDateString(),
+        ];
+    }
+
+    /**
+     * @param  array{agency: ?string, employees: list<string>, date: string}  $reach
+     * @param  ?array{agency: ?string, employees: list<string>, date: string}  $unless  Already queued.
+     */
+    private function recompute(array $reach, ?array $unless = null): void
+    {
+        if ($reach === $unless) {
+            return;
+        }
+
+        $reach['agency'] === null
+            ? FanOutRecompute::forEmployees($reach['employees'], $reach['date'], $reach['date'])
+            : FanOutRecompute::forAgency($reach['agency'], $reach['date'], $reach['date']);
     }
 
     private function year(string $value): int

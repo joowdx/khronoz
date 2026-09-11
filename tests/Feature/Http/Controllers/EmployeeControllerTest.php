@@ -4,12 +4,14 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -752,5 +754,28 @@ class EmployeeControllerTest extends TestCase
 
         $this->assertSame('2024-12-31', $placement->fresh()->ends->toDateString());
         $this->assertSoftDeleted('employees', ['id' => $placement->employee_id]);
+    }
+
+    /**
+     * Workday rule 3, decision 86. Every placement closes at today, so from
+     * tomorrow this person is employed nowhere and any day already computed
+     * past that is a day nobody was employed on.
+     */
+    public function test_removing_an_employee_queues_a_recompute_from_today(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        $this->delete(route('employees.destroy', $employee))->assertSessionHas('success');
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$employee->id]
+                && $job->from === today()->toDateString()
+                && $job->to === null,
+        );
     }
 }

@@ -9,6 +9,7 @@ use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Http\Resources\WorkgroupResource;
+use App\Jobs\FanOutRecompute;
 use App\Models\Employee;
 use App\Models\Workgroup;
 use App\Tenancy\Tenant;
@@ -251,6 +252,13 @@ class EmployeeController extends Controller
         Gate::authorize('delete', $employee);
 
         $remove->handle($employee);
+
+        // Every placement is closed at today, so from tomorrow this person is
+        // employed nowhere and the days they were given are days nobody was
+        // employed on (Workday rule 3, decision 86). The recompute is what
+        // clears them; the ledger for the month they left stays, which is the
+        // whole point of `LedgerController` loading employees `withTrashed()`.
+        FanOutRecompute::forEmployees([$employee->id], today()->toDateString());
 
         return redirect()->route('employees.index')->with('success', "{$employee->name} removed.");
     }

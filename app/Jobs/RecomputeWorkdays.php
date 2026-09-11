@@ -150,28 +150,35 @@ class RecomputeWorkdays implements ShouldQueue
         return [(new WithoutOverlapping($this->employeeId))->releaseAfter(60)->expireAfter(180)];
     }
 
+    /**
+     * `withTrashed()`, for `LedgerController`'s reason (decision 86): a DTR is
+     * a historical pay record, and the month an employee was removed in is
+     * exactly the one still to be locked and signed. `RemoveEmployee` closes
+     * the open placement and soft-deletes the person, so a holiday corrected
+     * over that month, or a terminal syncing its backlog a week later, must
+     * still reach them — and without this the job did not skip them, it threw
+     * `ModelNotFoundException` and failed. Decision 82's employment gate is
+     * what keeps the recompute itself honest: their days after removal are
+     * outside every deployment and write nothing.
+     */
     public function handle(Tenant $tenant): void
     {
-        $employee = Employee::withoutGlobalScope(AgencyScope::class)->findOrFail($this->employeeId);
+        $employee = Employee::withoutGlobalScope(AgencyScope::class)->withTrashed()->findOrFail($this->employeeId);
         $agency = Agency::findOrFail($employee->agency_id);
 
-        $tenant->set($agency);
-
-        // Cleared on the way out, success or failure (decision 84). The
-        // worker is a long-lived process and the container survives the
+        // Put back on the way out, success or failure (decisions 84 and 86).
+        // The worker is a long-lived process and the container survives the
         // job, so an agency left set here is the agency the *next* job on
         // that worker reads — and every job that does not set its own
         // tenant is one AgencyScope then silently scopes to the wrong
         // office. Decision 61 put the set here; this is its other half.
-        try {
+        $tenant->within($agency, function () use ($employee, $agency): void {
             $from = CarbonImmutable::parse($this->from);
             $settings = new Settings($agency);
             $to = $this->reaching($employee, $settings, CarbonImmutable::parse($this->to));
 
             (new Computer($employee, $settings))->over($from, $to);
-        } finally {
-            $tenant->forget();
-        }
+        });
     }
 
     /**

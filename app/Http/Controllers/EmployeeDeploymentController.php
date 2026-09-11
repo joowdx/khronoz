@@ -6,9 +6,11 @@ use App\Actions\ReassignEmployee;
 use App\Actions\TransferEmployee;
 use App\Http\Requests\DeployEmployeeRequest;
 use App\Http\Requests\EndEmployeeDeploymentRequest;
+use App\Jobs\FanOutRecompute;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
+use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -95,13 +97,17 @@ class EmployeeDeploymentController extends Controller
                 ]]),
                 '23514' => ValidationException::withMessages(['starts' => ['Before the current placement began.']]),
                 'P0001' => ValidationException::withMessages(['starts' => [
-                    $reassigning
-                        ? 'Outside the placement this reassignment departs from.'
-                        : 'End the open reassignment before transferring this employee.',
+                    $this->frozen($e)
+                        ? 'That range covers a locked month. Unlock the ledger first.'
+                        : ($reassigning
+                            ? 'Outside the placement this reassignment departs from.'
+                            : 'End the open reassignment before transferring this employee.'),
                 ]]),
                 default => $e,
             };
         }
+
+        $this->recompute($employee, $request->date('starts'), $request->date('ends'));
 
         $verb = $reassigning ? 'reassigned to' : 'moved to';
 
@@ -160,7 +166,11 @@ class EmployeeDeploymentController extends Controller
         } catch (QueryException $e) {
             throw match ($e->getCode()) {
                 '23514' => ValidationException::withMessages(['ends' => ['Before the current placement began.']]),
-                'P0001' => ValidationException::withMessages(['ends' => ['End the reassignment nested under this placement first.']]),
+                'P0001' => ValidationException::withMessages(['ends' => [
+                    $this->frozen($e)
+                        ? 'That placement covers a locked month. Unlock the ledger first.'
+                        : 'End the reassignment nested under this placement first.',
+                ]]),
                 default => $e,
             };
         }
@@ -169,6 +179,13 @@ class EmployeeDeploymentController extends Controller
             return redirect()->route('employees.show', $employee)
                 ->with('error', 'That placement changed while you were looking at it. Check the history and try again.');
         }
+
+        // From the earlier of the two end dates: moving `ends` in orphans
+        // every day after it, and moving it out employs them.
+        $expects = $request->date('expects');
+        $ends = $request->date('ends');
+
+        $this->recompute($employee, $expects !== null && $expects->lt($ends) ? $expects : $ends, null);
 
         return redirect()->route('employees.show', $employee)->with('success', 'Placement ended.');
     }
@@ -192,11 +209,13 @@ class EmployeeDeploymentController extends Controller
      * this employee's placements uses; the route's ->scopeBindings() has
      * already made a deployment of another employee a 404.
      *
-     * Owed to Milestone 6 (06-attendance.md, open item 5): a deployment
-     * overlapping a locked or attested ledger month must refuse every write,
-     * this one included. It cannot be built until `ledgers` exists, and until
-     * then nothing reads a deployment range, so deletion is unconditionally
-     * safe.
+     * No longer unconditional, and the two rules that changed it both landed
+     * in Milestone 6. `deployments_frozen_month` (decision 55, open item 5)
+     * refuses any write whose range covers a locked ledger month, so a
+     * deletion reaching a signed month raises P0001 — translated below.
+     * And decision 82 made a deployment range decide which days exist at
+     * all, so removing one leaves workdays behind: the recompute is what
+     * clears them (decision 86).
      */
     public function destroy(Employee $employee, Deployment $deployment): RedirectResponse
     {
@@ -213,10 +232,54 @@ class EmployeeDeploymentController extends Controller
                 '23001' => ValidationException::withMessages([
                     'deployment' => ['Remove the reassignment nested under this placement first.'],
                 ]),
+                'P0001' => ValidationException::withMessages([
+                    'deployment' => [
+                        $this->frozen($e)
+                            ? 'That placement covers a locked month. Unlock the ledger first.'
+                            : 'Remove the reassignment nested under this placement first.',
+                    ],
+                ]),
                 default => $e,
             };
         }
 
+        $this->recompute($employee, $deployment->starts, $deployment->ends);
+
         return redirect()->route('employees.show', $employee)->with('success', 'Deployment removed.');
+    }
+
+    /**
+     * Which P0001 this is.
+     *
+     * Two triggers on this table raise it and they ask for opposite
+     * remedies: `deployments_nested` says end the reassignment, and
+     * `deployments_frozen_month` (decision 55) says unlock the ledger. A
+     * `match` on the SQLSTATE alone told a clerk whose September was signed
+     * to go and look for a reassignment that does not exist. Postgres offers
+     * no constraint name on a RAISE — plpgsql's exception carries only the
+     * message — so the message is the only thing there is to read, and it is
+     * the trigger's own words rather than a phrase invented here.
+     */
+    private function frozen(QueryException $e): bool
+    {
+        return str_contains($e->getMessage(), 'locked months');
+    }
+
+    /**
+     * A deployment change is a recompute event (Workday rule 3, decision 86).
+     *
+     * Not because a placement holds a figure — it holds none — but because
+     * decision 82 made the deployment range the answer to *which days exist*,
+     * and because a workgroup is what a suspension is declared against, so
+     * moving somebody moves which office closures reach them. Narrowing a
+     * range is the sharp case: the days it no longer covers keep the workdays
+     * they were given, and `Computer` deletes them on the way through.
+     *
+     * `$to` null is open-ended, which is what an open placement is. The job
+     * clamps both ends to the days actually computed.
+     */
+    private function recompute(Employee $employee, CarbonInterface $from, ?CarbonInterface $to): void
+    {
+        FanOutRecompute::forEmployees([$employee->id], $from->toDateString(), $to?->toDateString());
     }
 }

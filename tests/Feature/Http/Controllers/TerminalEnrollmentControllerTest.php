@@ -6,11 +6,13 @@ use App\Actions\RemoveEmployee;
 use App\Enums\EnrollmentPrivilege;
 use App\Enums\Permission;
 use App\Http\Requests\EndEnrollmentRequest;
+use App\Jobs\RecomputeWorkdays;
 use App\Models\Agency;
 use App\Models\Employee;
 use App\Models\Enrollment;
 use App\Models\Terminal;
 use App\Models\Timelog;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -416,5 +418,97 @@ class TerminalEnrollmentControllerTest extends TestCase
 
         $this->patch(route('terminals.enrollments.update', [$mine, $theirs]), ['ends' => '2026-09-30'])
             ->assertNotFound();
+    }
+
+    /**
+     * Workday rule 3, decision 86. `enrollments_reresolve` re-attributes
+     * existing timelogs in SQL, where no job sees it happen: correcting a
+     * mistyped device user id hands a whole history of punches to somebody,
+     * and the days on both sides of that move have to be recomputed. This is
+     * not a calendar event — a punch changed hands — so it goes straight to
+     * `RecomputeWorkdays` and its T−3…T span.
+     */
+    public function test_enrolling_queues_a_recompute_for_the_punches_it_claims(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $orphan = Timelog::factory()->create([
+            'agency_id' => $agency->id,
+            'terminal_id' => $terminal->id,
+            'uid' => '0042',
+            'time' => '2026-02-10 08:00:00',
+        ]);
+        $this->assertNull($orphan->fresh()->employee_id);
+
+        Queue::fake([RecomputeWorkdays::class]);
+
+        $this->post(route('terminals.enrollments.store', $terminal), [
+            'employee_id' => $employee->id,
+            'uid' => '0042',
+            'privilege' => 'user',
+            'starts' => '2026-01-01',
+        ])->assertSessionHas('success');
+
+        Queue::assertPushed(
+            RecomputeWorkdays::class,
+            fn (RecomputeWorkdays $job): bool => $job->employeeId === $employee->id
+                && $job->from === '2026-02-07'
+                && $job->to === '2026-02-10',
+        );
+    }
+
+    /**
+     * And the other side of the move. After the write the losing employee is
+     * already gone from the table, so the set has to be read before it too —
+     * a punch nobody owns any more is a punch whose workday still counts it.
+     */
+    public function test_ending_an_enrollment_queues_a_recompute_for_the_punch_it_releases(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-01-01']);
+        $punch = Timelog::factory()->resolving($enrollment)->create(['time' => '2026-02-10 08:00:00']);
+        $employeeId = $punch->fresh()->employee_id;
+
+        Queue::fake([RecomputeWorkdays::class]);
+
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), [
+            'ends' => '2026-02-09',
+            'expects' => '',
+        ])->assertSessionHas('success');
+
+        $this->assertNull($punch->fresh()->employee_id);
+        Queue::assertPushed(
+            RecomputeWorkdays::class,
+            fn (RecomputeWorkdays $job): bool => $job->employeeId === $employeeId
+                && $job->from === '2026-02-07'
+                && $job->to === '2026-02-10',
+        );
+    }
+
+    /**
+     * A refused write changed nothing, so it queues nothing. The `expects`
+     * predicate is checked in the request, so a stale form never reaches the
+     * UPDATE — and the recompute sits after both.
+     */
+    public function test_a_stale_form_queues_no_recompute(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-01-01', 'ends' => '2026-03-31']);
+        Timelog::factory()->resolving($enrollment)->create(['time' => '2026-02-10 08:00:00']);
+
+        Queue::fake([RecomputeWorkdays::class]);
+
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), [
+            'ends' => '2026-02-09',
+            'expects' => '',
+        ])->assertSessionHasErrors('ends');
+
+        Queue::assertNotPushed(RecomputeWorkdays::class);
     }
 }

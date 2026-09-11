@@ -58,6 +58,8 @@ final class Computer
         $employed = $this->employedDates($start, $end);
         $computed = [];
 
+        $this->discardOrphans($start, $end, $employed);
+
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
             if (! isset($employed[$date->toDateString()])) {
                 continue;
@@ -65,6 +67,47 @@ final class Computer
 
             $this->persist($calendar, $resolutions, $almanac, $timelogs, $date, $computed);
         }
+    }
+
+    /**
+     * Delete workdays in the range for dates nobody was employed on
+     * (decision 86, the other half of decision 82).
+     *
+     * The gate in `over()` stops a date outside employment from being
+     * *written*; it says nothing about a row already there. Narrowing a
+     * deployment — a transfer back-dated, a removal corrected, an `ends`
+     * moved in — is precisely the change that turns yesterday's honest
+     * workday into an absence recorded against somebody who did not work
+     * here, and the gate then skips the date and leaves the row standing.
+     * A recompute that cannot remove what it would no longer write is not
+     * idempotent, so this runs on every pass and not only after a
+     * deployment change: any path that reaches a date is the path that owns
+     * what is on it.
+     *
+     * Restricted to open months. `deployments_frozen_month` already refuses
+     * a deployment change that touches a locked month, so an orphan inside
+     * one cannot be newly created; the filter is what keeps
+     * `workdays_ledger_open` from aborting the transaction over a row this
+     * pass has no business deleting anyway. Punches go with the workday —
+     * `punches.workday_id` cascades, and decision 80's trigger lets a
+     * cascade from an open month through.
+     *
+     * @param  array<string, true>  $employed
+     */
+    private function discardOrphans(CarbonImmutable $start, CarbonImmutable $end, array $employed): void
+    {
+        Workday::query()
+            ->where('employee_id', $this->employee->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->whereIn(
+                'ledger_id',
+                Ledger::query()
+                    ->select('id')
+                    ->where('employee_id', $this->employee->id)
+                    ->whereNull('locked_at'),
+            )
+            ->when($employed !== [], fn (Builder $kept) => $kept->whereNotIn('date', array_keys($employed)))
+            ->delete();
     }
 
     /**

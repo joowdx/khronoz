@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Attendance\Week;
 use App\Enums\HolidayType;
 use App\Http\Controllers\Concerns\TranslatesUniqueCollisions;
 use App\Http\Requests\StoreHolidayRequest;
 use App\Http\Requests\UpdateHolidayRequest;
 use App\Http\Resources\HolidayResource;
+use App\Jobs\FanOutRecompute;
 use App\Models\Holiday;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,6 +69,8 @@ class HolidayController extends Controller
     {
         $holiday = $this->translatingCollisions(['holidays_agency_id_date_name_unique' => 'name'], fn () => Holiday::create($request->validated()));
 
+        $this->recompute($this->reach($holiday));
+
         return to_route('holidays.index', ['year' => $holiday->date->year])
             ->with('success', 'Holiday added.');
     }
@@ -83,7 +87,14 @@ class HolidayController extends Controller
 
     public function update(UpdateHolidayRequest $request, Holiday $holiday): RedirectResponse
     {
+        // Both reaches: a proclamation corrected to another date gives back
+        // the day it was wrongly taken from.
+        $before = $this->reach($holiday);
+
         $this->translatingCollisions(['holidays_agency_id_date_name_unique' => 'name'], fn () => $holiday->update($request->validated()));
+
+        $this->recompute($before);
+        $this->recompute($this->reach($holiday->refresh()), $before);
 
         return to_route('holidays.index', ['year' => $holiday->date->year])
             ->with('success', 'Holiday updated.');
@@ -100,9 +111,61 @@ class HolidayController extends Controller
         Gate::authorize('delete', $holiday);
 
         $year = $holiday->date->year;
+        $reach = $this->reach($holiday);
         $holiday->delete();
 
+        $this->recompute($reach);
+
         return to_route('holidays.index', ['year' => $year])->with('success', 'Holiday removed.');
+    }
+
+    /**
+     * Who a proclamation reaches, and over which days (Workday rule 3,
+     * decision 86).
+     *
+     * **The whole ISO week, not the date.** Rule 3 asks for the week only
+     * for a compressed roster whose Off turn the holiday lands on — a CWW
+     * week redistributes its hours, so the four days that are worked change
+     * when the fifth is declared — and nothing at the point of declaring it
+     * knows whose roster is compressed. The week is seven recomputes of a
+     * clamped span instead of one, and it is the difference between the rule
+     * holding and a controller guessing at rosters it has not loaded.
+     *
+     * A national holiday belongs to the platform agency and reaches every
+     * tenant, which is `AgencyOrPlatformScope`'s rule read from the writing
+     * side. Its id list is the one this job will not carry, so it travels as
+     * no scope at all. **No screen declares one yet** — these routes are in
+     * the agency group and a platform user who has entered no agency gets a
+     * 404 — so that limb is written for the platform calendar screen rather
+     * than reached today; `Holiday::national()` is where it is tested.
+     *
+     * @return array{platform: bool, agency: string, from: string, to: string}
+     */
+    private function reach(Holiday $holiday): array
+    {
+        [$from, $to] = Week::bounds($holiday->date->toImmutable());
+
+        return [
+            'platform' => $holiday->national(),
+            'agency' => $holiday->agency_id,
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+        ];
+    }
+
+    /**
+     * @param  array{platform: bool, agency: string, from: string, to: string}  $reach
+     * @param  ?array{platform: bool, agency: string, from: string, to: string}  $unless  Already queued.
+     */
+    private function recompute(array $reach, ?array $unless = null): void
+    {
+        if ($reach === $unless) {
+            return;
+        }
+
+        $reach['platform']
+            ? FanOutRecompute::forEveryAgency($reach['from'], $reach['to'])
+            : FanOutRecompute::forAgency($reach['agency'], $reach['from'], $reach['to']);
     }
 
     /** A four-digit year, defaulting to the current one. */

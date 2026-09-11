@@ -951,4 +951,91 @@ class ComputerTest extends TestCase
 
         $this->assertSame($actual, $punch->actual_at->format('Y-m-d H:i:s'));
     }
+
+    /**
+     * Decision 86, the other half of decision 82. The gate stops a date
+     * outside employment being *written*; it says nothing about a row
+     * already there, and narrowing a deployment is exactly what turns
+     * yesterday's honest workday into an absence recorded against somebody
+     * who did not work here.
+     */
+    public function test_a_workday_outside_the_employment_range_is_deleted(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+        $this->assertNotNull($this->workday($employee, '2026-09-10'));
+
+        Deployment::query()->where('employee_id', $employee->id)->update(['ends' => '2026-09-09']);
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertTrue($this->exists($employee, '2026-09-09'));
+        $this->assertFalse($this->exists($employee, '2026-09-10'));
+    }
+
+    /** And its punches go with it, because `punches.workday_id` cascades. */
+    public function test_deleting_an_orphaned_workday_takes_its_punches(): void
+    {
+        ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
+        $this->tap($enrollment, '2026-09-10 08:00:00');
+        $this->tap($enrollment, '2026-09-10 17:00:00');
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+        $workday = $this->workday($employee, '2026-09-10');
+        $this->assertTrue(Punch::query()->where('workday_id', $workday->id)->exists());
+
+        Deployment::query()->where('employee_id', $employee->id)->update(['ends' => '2026-09-09']);
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertFalse(Punch::query()->where('workday_id', $workday->id)->exists());
+    }
+
+    /**
+     * Never out of a locked month. `deployments_frozen_month` already refuses
+     * the change that would orphan one, so this filter is what keeps
+     * `workdays_ledger_open` from aborting the transaction over a row this
+     * pass has no business touching.
+     */
+    public function test_an_orphaned_workday_in_a_locked_month_is_left_alone(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        Deployment::query()->where('employee_id', $employee->id)->update(['ends' => '2026-09-09']);
+        Ledger::query()->where('employee_id', $employee->id)->update(['locked_at' => now()]);
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertTrue($this->exists($employee, '2026-09-10'));
+    }
+
+    /**
+     * And the discard leaves the days it has no business touching *as they
+     * are*, not deleted and rewritten. A workday is `updateOrCreate`d, so its
+     * row survives every later recompute; deleting the range wholesale and
+     * rebuilding it would reach the same figures through a new id every time
+     * a punch arrived, and a DTR row is a handle somebody keeps.
+     */
+    public function test_recomputing_a_day_keeps_the_row_it_already_had(): void
+    {
+        ['employee' => $employee] = $this->standardWeek();
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+        $id = $this->workday($employee, '2026-09-10')->id;
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertSame($id, $this->workday($employee, '2026-09-10')->id);
+    }
+
+    private function exists(Employee $employee, string $date): bool
+    {
+        return Workday::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $date)
+            ->exists();
+    }
 }

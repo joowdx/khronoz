@@ -7,11 +7,14 @@ use App\Http\Requests\StoreExemptionRequest;
 use App\Http\Requests\UpdateExemptionRequest;
 use App\Http\Resources\EmployeeResource;
 use App\Http\Resources\ExemptionResource;
+use App\Jobs\FanOutRecompute;
 use App\Models\Employee;
 use App\Models\Exemption;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -91,12 +94,18 @@ class ExemptionController extends Controller
 
     public function store(StoreExemptionRequest $request): RedirectResponse
     {
-        Exemption::create([
-            ...$request->validated(),
-            // Who entered it. Never sent by the client — decision 39's
-            // actor_of_agency trigger refuses a user of a third agency.
-            'user_id' => $request->user()->id,
-        ]);
+        try {
+            $exemption = DB::transaction(fn () => Exemption::create([
+                ...$request->validated(),
+                // Who entered it. Never sent by the client — decision 39's
+                // actor_of_agency trigger refuses a user of a third agency.
+                'user_id' => $request->user()->id,
+            ]));
+        } catch (QueryException $e) {
+            return $this->refused($e) ?? throw $e;
+        }
+
+        $this->recompute($exemption);
 
         return to_route('exemptions.index')->with('success', 'Exemption recorded.');
     }
@@ -114,7 +123,17 @@ class ExemptionController extends Controller
 
     public function update(UpdateExemptionRequest $request, Exemption $exemption): RedirectResponse
     {
-        $exemption->update($request->validated());
+        // Both spans: a re-dated exemption stops excusing the days it left
+        // as much as it starts excusing the ones it reached.
+        $before = [$exemption->date->toDateString(), $exemption->until->toDateString()];
+
+        try {
+            DB::transaction(fn () => $exemption->update($request->validated()));
+        } catch (QueryException $e) {
+            return $this->refused($e) ?? throw $e;
+        }
+
+        $this->recompute($exemption->refresh(), $before);
 
         return to_route('exemptions.index')->with('success', 'Exemption updated.');
     }
@@ -123,9 +142,53 @@ class ExemptionController extends Controller
     {
         Gate::authorize('delete', $exemption);
 
-        $exemption->delete();
+        try {
+            DB::transaction(fn () => $exemption->delete());
+        } catch (QueryException $e) {
+            return $this->refused($e) ?? throw $e;
+        }
+
+        $this->recompute($exemption);
 
         return to_route('exemptions.index')->with('success', 'Exemption removed.');
+    }
+
+    /**
+     * The refusal as a message, or null when it is not one of ours.
+     *
+     * P0001 is `exemptions_frozen_month` (decision 81): an excuse may not
+     * change which locked months it covers. It arrived with the freeze and
+     * nothing here translated it, so correcting a September leave slip in
+     * October answered a 500 — the trigger holding the line and the screen
+     * reporting it as a fault of the application.
+     *
+     * Each write is wrapped in its own transaction for the reason
+     * `TerminalEnrollmentController::store` is: a refusal aborts the
+     * transaction it runs in, and without a savepoint of its own the caught
+     * exception leaves the redirect's queries answering 25P02.
+     */
+    private function refused(QueryException $e): ?RedirectResponse
+    {
+        return match ($e->getCode()) {
+            'P0001' => back()->withInput()->with('error', 'Those days fall in a locked month. Unlock the ledger first.'),
+            default => null,
+        };
+    }
+
+    /**
+     * Workday rule 3, decision 86: an exemption touching a date recomputes
+     * it. One employee and a known span, so the fan-out job resolves
+     * nothing — it is here rather than in the model so the dispatch stays
+     * at the caller, which is `ImportTimelogs`' rule and the reason a
+     * recompute failure cannot retry the write that succeeded.
+     *
+     * @param  list<string>  $also  A span the row also used to occupy.
+     */
+    private function recompute(Exemption $exemption, array $also = []): void
+    {
+        $dates = [$exemption->date->toDateString(), $exemption->until->toDateString(), ...$also];
+
+        FanOutRecompute::forEmployees([$exemption->employee_id], min($dates), max($dates));
     }
 
     private function day(string $value): string

@@ -96,11 +96,7 @@ class OvertimeController extends Controller
                 'user_id' => $request->user()->id,
             ]));
         } catch (QueryException $e) {
-            if ($e->getCode() !== '23P01') {
-                throw $e;
-            }
-
-            return back()->withInput()->with('error', 'That person is already authorised for overtime over part of those hours.');
+            return $this->refused($e) ?? throw $e;
         }
 
         return to_route('overtimes.index')->with('success', 'Overtime authorised.');
@@ -122,11 +118,7 @@ class OvertimeController extends Controller
         try {
             DB::transaction(fn () => $overtime->update($request->authorised()));
         } catch (QueryException $e) {
-            if ($e->getCode() !== '23P01') {
-                throw $e;
-            }
-
-            return back()->withInput()->with('error', 'That person is already authorised for overtime over part of those hours.');
+            return $this->refused($e) ?? throw $e;
         }
 
         return to_route('overtimes.index')->with('success', 'Overtime updated.');
@@ -136,9 +128,33 @@ class OvertimeController extends Controller
     {
         Gate::authorize('delete', $overtime);
 
-        $overtime->delete();
+        try {
+            DB::transaction(fn () => $overtime->delete());
+        } catch (QueryException $e) {
+            return $this->refused($e) ?? throw $e;
+        }
 
         return to_route('overtimes.index')->with('success', 'Authorisation withdrawn.');
+    }
+
+    /**
+     * The refusal as a message, or null when it is not one of ours.
+     *
+     * P0001 is `overtimes_frozen_month` (decision 81): an authority may not
+     * change which locked months it covers, because `Ledger::view()` reads
+     * this table live and a slip filed after the fact would move a figure
+     * somebody has signed. It arrived with the freeze and nothing here
+     * translated it, so withdrawing a September authority in October
+     * answered a 500 — the trigger was doing its job and the screen made it
+     * look like a bug in the application.
+     */
+    private function refused(QueryException $e): ?RedirectResponse
+    {
+        return match ($e->getCode()) {
+            '23P01' => back()->withInput()->with('error', 'That person is already authorised for overtime over part of those hours.'),
+            'P0001' => back()->withInput()->with('error', 'Those hours fall in a locked month. Unlock the ledger first.'),
+            default => null,
+        };
     }
 
     private function day(string $value): string

@@ -6,6 +6,7 @@ use App\Actions\RemoveEmployee;
 use App\Enums\Permission;
 use App\Models\Agency;
 use App\Models\Employee;
+use App\Models\Ledger;
 use App\Models\Overtime;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -256,5 +257,54 @@ class OvertimeControllerTest extends TestCase
         $this->actingAsAgency(Agency::factory()->create(), Permission::ManageCalendar);
 
         $this->get(route('overtimes.edit', Overtime::factory()->create()))->assertNotFound();
+    }
+
+    /**
+     * Decision 81 froze this table against a locked month — `Ledger::view()`
+     * reads it live, so a slip withdrawn after the fact would move a figure
+     * somebody has signed. Nothing here translated the P0001, so an ordinary
+     * withdrawal answered a 500 and the trigger doing its job looked like a
+     * fault of the application.
+     */
+    public function test_withdrawing_an_authority_in_a_locked_month_is_refused_with_a_message(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $overtime = Overtime::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+        ]);
+        Ledger::factory()->locked()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'month' => '2026-09-01',
+        ]);
+
+        $this->delete(route('overtimes.destroy', $overtime))->assertSessionHas('error');
+
+        $this->assertDatabaseHas('overtimes', ['id' => $overtime->id]);
+    }
+
+    /** The exclusion constraint's own message survives the same translation. */
+    public function test_overlapping_hours_are_still_refused_by_their_own_message(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageCalendar);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        Overtime::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-09-15 17:00:00',
+            'ends' => '2026-09-15 20:00:00',
+        ]);
+
+        $this->post(route('overtimes.store'), [
+            'employee_id' => $employee->id,
+            'starts' => '2026-09-15T18:00',
+            'ends' => '2026-09-15T21:00',
+            'purpose' => 'Overlaps the first',
+            'mode' => 'pay',
+        ])->assertSessionHas('error', 'That person is already authorised for overtime over part of those hours.');
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature\Actions;
 use App\Actions\AssignSchedule;
 use App\Actions\AssignSchedules;
 use App\Actions\AssignTeam;
+use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
 use App\Models\Employee;
 use App\Models\Roster;
@@ -12,6 +13,7 @@ use App\Models\Schedule;
 use App\Models\Team;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AssignScheduleTest extends TestCase
@@ -280,5 +282,35 @@ class AssignScheduleTest extends TestCase
         $this->assertSame('2026-09-14', $after->anchor->toDateString());
         $this->assertSame('2026-11-01', $after->starts->toDateString());
         $this->assertSame(2, DB::table('rosters')->where('employee_id', $employee->id)->count());
+    }
+
+    /**
+     * Workday rule 3, decision 86. The span opens at `$starts` and never
+     * closes, whatever `$ends` says: closing the standing roster hands the
+     * days after `$ends` to no roster at all, so they change too.
+     */
+    public function test_assigning_a_schedule_queues_a_recompute_from_the_day_it_starts(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $schedule = Schedule::factory()->create(['agency_id' => $agency->id]);
+
+        Queue::fake([FanOutRecompute::class]);
+
+        app(AssignSchedule::class)->handle(
+            $employee,
+            $schedule,
+            Carbon::parse('2026-09-07'),
+            Carbon::parse('2026-09-14'),
+            Carbon::parse('2026-09-20'),
+        );
+
+        Queue::assertPushed(
+            FanOutRecompute::class,
+            fn (FanOutRecompute $job): bool => $job->employeeIds === [$employee->id]
+                && $job->from === '2026-09-14'
+                && $job->to === null,
+        );
     }
 }
