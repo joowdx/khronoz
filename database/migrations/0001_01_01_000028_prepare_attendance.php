@@ -141,6 +141,19 @@ return new class extends Migration
         // BEFORE ROW trigger always runs ahead of CHECKs. The same shape as
         // agency_not_platform() on a missing agency — another constraint
         // owes the refusal, and raising first would leave it untested.
+        //
+        // The UPDATE limb compares the range's **intersection with the
+        // month** and not whether it overlaps (decision 85). Decision 58
+        // says coverage, and a boolean overlap is a coarser question: an
+        // open placement re-dated from 1 January to 15 September still
+        // overlaps a locked September, so the XOR of two trues permitted a
+        // write that erased the first fortnight of a signed month. Two
+        // ranges covering the same days of a month canonicalise to the same
+        // daterange and two disjoint ones both to `empty`, so decision 58's
+        // load-bearing permit — closing an open placement that still covers
+        // the month — still passes. `CASE` is safe here and only here: both
+        // records are assigned inside an UPDATE, which is the whole reason
+        // the TG_OP branching above is IF/ELSIF.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION deployments_frozen_month() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -178,13 +191,15 @@ return new class extends Migration
                          WHERE ledgers.locked_at IS NOT NULL
                            AND ledgers.employee_id IN (OLD.employee_id, NEW.employee_id)
                            AND (
-                                (ledgers.employee_id = OLD.employee_id
-                                 AND daterange(OLD.starts, OLD.ends, '[]')
-                                     && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)'))
+                                CASE WHEN ledgers.employee_id = OLD.employee_id
+                                     THEN daterange(OLD.starts, OLD.ends, '[]')
+                                          * daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)')
+                                     ELSE 'empty'::daterange END
                                 IS DISTINCT FROM
-                                (ledgers.employee_id = NEW.employee_id
-                                 AND daterange(NEW.starts, NEW.ends, '[]')
-                                     && daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)'))
+                                CASE WHEN ledgers.employee_id = NEW.employee_id
+                                     THEN daterange(NEW.starts, NEW.ends, '[]')
+                                          * daterange(ledgers.month, (ledgers.month + interval '1 month')::date, '[)')
+                                     ELSE 'empty'::daterange END
                            )
                     ) THEN
                         RAISE EXCEPTION 'a deployment cannot change which locked months it covers';

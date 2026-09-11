@@ -501,6 +501,40 @@ class LedgerTest extends TestCase
     }
 
     /**
+     * Decision 85. The comparison is of *coverage*, not of overlap: an open
+     * placement re-dated from 1 January to 15 September still overlaps a
+     * locked September, so the symmetric difference of two booleans was
+     * false and the write went through — erasing the first fortnight of a
+     * signed month from the record its visibility is derived from, and
+     * leaving decision 82's employment range disagreeing with the workdays
+     * already stored against it.
+     */
+    public function test_a_placement_cannot_be_shortened_inside_a_locked_month(): void
+    {
+        $covering = $this->placementLockedInSeptember([
+            'starts' => '2026-01-01',
+            'ends' => null,
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('deployments')->where('id', $covering->id)->update([
+            'starts' => '2026-09-15',
+        ]));
+    }
+
+    /** The other end, and the same reading: giving back days it did not cover. */
+    public function test_a_placement_cannot_be_lengthened_inside_a_locked_month(): void
+    {
+        $covering = $this->placementLockedInSeptember([
+            'starts' => '2026-09-10',
+            'ends' => null,
+        ]);
+
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('deployments')->where('id', $covering->id)->update([
+            'starts' => '2026-09-01',
+        ]));
+    }
+
+    /**
      * Decision 58's load-bearing permit: closing an open placement that still
      * covers the locked month must succeed. An overlap rule would refuse
      * TransferEmployee and RemoveEmployee from the first lock, permanently.

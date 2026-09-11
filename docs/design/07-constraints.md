@@ -213,6 +213,8 @@ altering that coverage retroactively changes who could see, attest or correct a 
 already be signed. Delete-as-correction (decision 35) is the write that needs it most, and until
 this milestone deletion was unconditionally safe because nothing read a range.
 
+The `UPDATE` limb compares each range's **intersection with the month** and not whether it overlaps (decision 85): decision 58 says coverage, and a boolean overlap is a coarser question. An open placement re-dated from 1 January to 15 September still overlaps a locked September, so the symmetric difference of two trues was false and the write erased the first fortnight of a signed month. Two ranges covering the same days canonicalise to the same `daterange` and two disjoint ones both to `empty`, so decision 58's load-bearing permit — closing an open placement that still covers the month — is unaffected.
+
 **Coverage, and deliberately not overlap** (decision 58). An open substantive placement has an
 unbounded upper bound and therefore overlaps every month the employee will ever have. A rule
 phrased on overlap would refuse `TransferEmployee` and `RemoveEmployee` — both of which merely
