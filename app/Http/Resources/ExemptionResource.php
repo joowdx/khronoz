@@ -36,7 +36,10 @@ class ExemptionResource extends JsonResource
             ),
             'date' => $this->date->toDateString(),
             'until' => $this->until->toDateString(),
-            'type' => $this->type->value,
+            // `{value, label}`, the shape UserResource's permission groups
+            // already use: the words come from the enum's own label(), never
+            // from a map in TypeScript.
+            'type' => ['value' => $this->type->value, 'label' => $this->type->label()],
             'starts' => $this->starts,
             'ends' => $this->ends,
             'reference' => $this->reference,

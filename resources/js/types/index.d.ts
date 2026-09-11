@@ -21,6 +21,19 @@ export interface AuthUser {
     platform: boolean;
     employee_id: string | null;
 }
+/**
+ * One value of a PHP enum, with the words that enum's own `label()` returns.
+ *
+ * The labels are never restated in TypeScript. An enum's cases are held to the
+ * database's CHECK by `EnumCheckContractTest`, so a hand-written map here
+ * would be a third copy nothing holds to the other two — and it drifts
+ * silently, showing a value the CHECK refuses or missing one it allows.
+ */
+export interface Choice {
+    value: string;
+    label: string;
+}
+
 export interface PermissionGroupEntry {
     value: Permission;
     label: string;
@@ -294,7 +307,7 @@ export interface Exemption {
     date: string;
     /** The last day, inclusive. */
     until: string;
-    type: string;
+    type: Choice;
     /** `HH:MM:SS` or null. Single-day exemptions only. */
     starts: string | null;
     ends: string | null;

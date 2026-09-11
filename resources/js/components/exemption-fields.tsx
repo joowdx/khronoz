@@ -3,9 +3,8 @@ import { Combobox } from '@/components/combobox';
 import { Field } from '@/components/field';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { EXEMPTION_TYPES } from '@/lib/calendar';
 import { manilaToday } from '@/lib/dates';
-import type { Employee, Exemption } from '@/types';
+import type { Choice, Employee, Exemption } from '@/types';
 
 /**
  * Recording an exemption.
@@ -24,14 +23,16 @@ import type { Employee, Exemption } from '@/types';
 export function ExemptionFields({
     exemption,
     employees,
+    types,
     errors,
 }: {
     exemption?: Exemption;
     employees: Employee[];
+    types: Choice[];
     errors: Partial<Record<string, string>>;
 }) {
     const [employee, setEmployee] = useState<string | null>(exemption?.employee_id ?? null);
-    const [type, setType] = useState<string>(exemption?.type ?? 'leave');
+    const [type, setType] = useState<string>(exemption?.type.value ?? 'leave');
     const [date, setDate] = useState(exemption?.date ?? manilaToday());
     const [until, setUntil] = useState(exemption?.until ?? exemption?.date ?? manilaToday());
     const [partial, setPartial] = useState(Boolean(exemption?.starts));
@@ -88,7 +89,7 @@ export function ExemptionFields({
                         placeholder="Leave"
                         searchPlaceholder="Search"
                         empty="No such kind."
-                        options={EXEMPTION_TYPES}
+                        options={types.map((option) => ({ ...option, trigger: option.label }))}
                     />
                 )}
             </Field>

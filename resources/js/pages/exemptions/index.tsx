@@ -27,10 +27,9 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCan } from '@/hooks/use-can';
 import AppLayout from '@/layouts/app-layout';
-import { EXEMPTION_TYPES, exemptionLabel } from '@/lib/calendar';
 import { formatDay } from '@/lib/dates';
 import { create, destroy, edit, index } from '@/routes/exemptions';
-import type { Employee, Exemption } from '@/types';
+import type { Choice, Employee, Exemption } from '@/types';
 
 interface Filters {
     employee: string;
@@ -88,11 +87,13 @@ export default function Index({
     pagination,
     filters,
     employees,
+    types,
 }: {
     exemptions: Exemption[];
     pagination: Pagination;
     filters: Filters;
     employees: Employee[];
+    types: Choice[];
 }) {
     const can = useCan();
     const manage = can('calendar.manage');
@@ -154,7 +155,7 @@ export default function Index({
                             searchPlaceholder="Search"
                             empty="No such kind."
                             clearLabel="Any kind"
-                            options={EXEMPTION_TYPES}
+                            options={types.map((option) => ({ ...option, trigger: option.label }))}
                         />
                     )}
                 </Field>
@@ -253,7 +254,7 @@ export default function Index({
                                             )}
                                         </span>
                                     </TableCell>
-                                    <TableCell>{exemptionLabel(exemption.type)}</TableCell>
+                                    <TableCell>{exemption.type.label}</TableCell>
                                     <TableCell className="tabular-nums">
                                         {exemption.starts && exemption.ends ? (
                                             `${exemption.starts.slice(0, 5)}–${exemption.ends.slice(0, 5)}`

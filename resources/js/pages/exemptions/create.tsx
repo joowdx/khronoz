@@ -5,9 +5,9 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/exemptions';
-import type { Employee } from '@/types';
+import type { Choice, Employee } from '@/types';
 
-export default function Create({ employees }: { employees: Employee[] }) {
+export default function Create({ employees, types }: { employees: Employee[]; types: Choice[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -18,7 +18,7 @@ export default function Create({ employees }: { employees: Employee[] }) {
             <Form {...store.form()} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <ExemptionFields employees={employees} errors={errors} />
+                        <ExemptionFields employees={employees} types={types} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 <PlusIcon aria-hidden strokeWidth={1.5} />

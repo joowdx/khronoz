@@ -75,6 +75,7 @@ class ExemptionController extends Controller
                 'to' => $to,
             ],
             'employees' => fn () => $this->employees(),
+            'types' => fn () => $this->types(),
         ]);
     }
 
@@ -82,7 +83,10 @@ class ExemptionController extends Controller
     {
         Gate::authorize('create', Exemption::class);
 
-        return Inertia::render('exemptions/create', ['employees' => fn () => $this->employees()]);
+        return Inertia::render('exemptions/create', [
+            'employees' => fn () => $this->employees(),
+            'types' => fn () => $this->types(),
+        ]);
     }
 
     public function store(StoreExemptionRequest $request): RedirectResponse
@@ -104,6 +108,7 @@ class ExemptionController extends Controller
         return Inertia::render('exemptions/edit', [
             'exemption' => ExemptionResource::make($exemption)->resolve(),
             'employees' => fn () => $this->employees(),
+            'types' => fn () => $this->types(),
         ]);
     }
 
@@ -126,6 +131,24 @@ class ExemptionController extends Controller
     private function day(string $value): string
     {
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
+    }
+
+    /**
+     * The kinds an exemption may be, in the order the enum declares them.
+     *
+     * Shipped rather than restated in TypeScript, matching
+     * `UserController::accesses()`: `EnumCheckContractTest` holds these cases
+     * to the database's CHECK, and a second list in the front end is a copy
+     * nothing holds to either.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function types(): array
+    {
+        return array_map(
+            fn (ExemptionType $type) => ['value' => $type->value, 'label' => $type->label()],
+            ExemptionType::cases(),
+        );
     }
 
     /** @return array<int, array<string, mixed>> */

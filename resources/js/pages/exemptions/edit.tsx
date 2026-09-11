@@ -4,9 +4,17 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/exemptions';
-import type { Employee, Exemption } from '@/types';
+import type { Choice, Employee, Exemption } from '@/types';
 
-export default function Edit({ exemption, employees }: { exemption: Exemption; employees: Employee[] }) {
+export default function Edit({
+    exemption,
+    employees,
+    types,
+}: {
+    exemption: Exemption;
+    employees: Employee[];
+    types: Choice[];
+}) {
     return (
         <AppLayout>
             <PageHeader
@@ -17,7 +25,7 @@ export default function Edit({ exemption, employees }: { exemption: Exemption; e
             <Form {...update.form(exemption)} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <ExemptionFields exemption={exemption} employees={employees} errors={errors} />
+                        <ExemptionFields exemption={exemption} employees={employees} types={types} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 Save changes
