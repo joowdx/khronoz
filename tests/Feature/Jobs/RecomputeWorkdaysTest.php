@@ -5,6 +5,7 @@ namespace Tests\Feature\Jobs;
 use App\Enums\HolidayType;
 use App\Jobs\RecomputeWorkdays;
 use App\Models\Agency;
+use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Ledger;
@@ -12,6 +13,7 @@ use App\Models\Roster;
 use App\Models\Schedule;
 use App\Models\Shift;
 use App\Models\Workday;
+use App\Models\Workgroup;
 use App\Tenancy\Tenant;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -25,7 +27,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         app(Tenant::class)->forget();
 
@@ -60,7 +62,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         Queue::fake([RecomputeWorkdays::class]);
 
@@ -80,7 +82,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         Queue::fake([RecomputeWorkdays::class]);
 
@@ -113,7 +115,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         Queue::fake([RecomputeWorkdays::class]);
 
@@ -139,7 +141,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         Queue::fake([RecomputeWorkdays::class]);
 
@@ -165,7 +167,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         Queue::fake([RecomputeWorkdays::class]);
 
@@ -203,7 +205,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
         Holiday::factory()->create([
             'agency_id' => $agency->id,
             'date' => '2026-09-02',
@@ -232,7 +234,7 @@ class RecomputeWorkdaysTest extends TestCase
         ]);
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
 
         app(Tenant::class)->forget();
 
@@ -248,12 +250,31 @@ class RecomputeWorkdaysTest extends TestCase
     }
 
     /**
+     * Workday rule 1 counts only days in the employment range (decision 82),
+     * so a job that is meant to write anything needs its employee placed.
+     */
+    private function employee(Agency $agency): Employee
+    {
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+
+        Deployment::factory()->create([
+            'agency_id' => $agency->id,
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $agency->id])->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-01-01',
+            'ends' => null,
+        ]);
+
+        return $employee;
+    }
+
+    /**
      * Mon-Fri working, Sat-Sun off, anchored Monday 7 September 2026 and
      * open from 1 August, so every date these tests name has a turn.
      */
     private function rostered(Agency $agency): Employee
     {
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
         $schedule = Schedule::factory()
             ->withTurns(
                 Shift::factory()->create(['agency_id' => $agency->id]),
@@ -352,7 +373,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
         Holiday::factory()->create([
             'agency_id' => $agency->id,
             'date' => '2026-09-02',
@@ -376,7 +397,7 @@ class RecomputeWorkdaysTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $this->withTenant($agency);
-        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $employee = $this->employee($agency);
         Ledger::factory()->locked()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,

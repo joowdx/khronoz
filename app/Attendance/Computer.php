@@ -3,6 +3,7 @@
 namespace App\Attendance;
 
 use App\Enums\WorkdayStatus;
+use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Ledger;
 use App\Models\Punch;
@@ -11,6 +12,7 @@ use App\Models\Workday;
 use App\Support\Settings;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -53,11 +55,64 @@ final class Computer
         $almanac = Almanac::for($this->employee, $weekStart, $weekEnd);
         $calendar = new Calendar($almanac, $this->settings);
         $timelogs = $this->candidateTimelogs($start, $end);
+        $employed = $this->employedDates($start, $end);
         $computed = [];
 
         for ($date = $start; $date->lte($end); $date = $date->addDay()) {
+            if (! isset($employed[$date->toDateString()])) {
+                continue;
+            }
+
             $this->persist($calendar, $resolutions, $almanac, $timelogs, $date, $computed);
         }
+    }
+
+    /**
+     * The dates of the range the employee was employed on, as a set keyed
+     * `'Y-m-d'` (Workday rule 1, decision 82).
+     *
+     * "Employed" is *any deployment covering the date*, which
+     * `05-calendar.md` rule 3 already establishes is the same set as
+     * "deployed on the date" — a movement always nests inside its
+     * placement, so overlapping rows never widen it. `Resolver`'s docblock
+     * assigns this question here in as many words and the orchestrator was
+     * not asking it: a recompute for a date before hiring, after removal,
+     * or in a gap between placements wrote a workday, and every one of them
+     * came out `absent`, because the calendar has no roster to read and
+     * decision 63 makes an unrostered day `off`... which is then not the
+     * point. The point is that the row should not exist at all — an
+     * absence recorded against somebody who did not work here is a figure
+     * on a DTR with no employment behind it.
+     *
+     * One query for the range, then a set: a month costs the same as a day.
+     *
+     * @return array<string, true>
+     */
+    private function employedDates(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $spans = Deployment::query()
+            ->where('employee_id', $this->employee->id)
+            ->where('starts', '<=', $to->toDateString())
+            ->where(fn (Builder $ended) => $ended->whereNull('ends')->orWhere('ends', '>=', $from->toDateString()))
+            ->get(['starts', 'ends']);
+
+        $dates = [];
+
+        for ($date = $from; $date->lte($to); $date = $date->addDay()) {
+            $day = $date->toDateString();
+
+            foreach ($spans as $span) {
+                $ends = $span->ends?->toDateString();
+
+                if ($span->starts->toDateString() <= $day && ($ends === null || $ends >= $day)) {
+                    $dates[$day] = true;
+
+                    break;
+                }
+            }
+        }
+
+        return $dates;
     }
 
     /**

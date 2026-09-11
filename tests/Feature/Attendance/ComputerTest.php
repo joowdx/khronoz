@@ -50,9 +50,24 @@ class ComputerTest extends TestCase
         $this->withTenant($this->agency);
     }
 
+    /**
+     * Workday rule 1 counts only days in the employment range (decision 82),
+     * so every fixture here places its employee. Open-ended from 1 January
+     * 2026: these tests are about the pipeline, not about hiring dates.
+     */
     private function employee(): Employee
     {
-        return Employee::factory()->create(['agency_id' => $this->agency->id]);
+        $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
+
+        Deployment::factory()->create([
+            'agency_id' => $this->agency->id,
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $this->agency->id])->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-01-01',
+            'ends' => null,
+        ]);
+
+        return $employee;
     }
 
     /**
@@ -562,6 +577,96 @@ class ComputerTest extends TestCase
     }
 
     /**
+     * Decision 82: Workday rule 1 is "one row per employee per calendar day
+     * **in their employment range**", and the orchestrator was writing one
+     * for every date it was handed. `Resolver`'s docblock assigns this
+     * question here in as many words — "no roster" and "not employed" are
+     * different outcomes — and nothing was asking it, so a recompute
+     * spanning a hiring date wrote absences against days the person did not
+     * work here.
+     */
+    public function test_dates_outside_the_employment_range_get_no_workday(): void
+    {
+        $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
+        Deployment::factory()->create([
+            'agency_id' => $this->agency->id,
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $this->agency->id])->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-09-09',
+            'ends' => '2026-09-10',
+        ]);
+        $this->standardWeek($employee);
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertSame(
+            ['2026-09-09', '2026-09-10'],
+            Workday::query()
+                ->where('employee_id', $employee->id)
+                ->orderBy('date')
+                ->pluck('date')
+                ->map(fn ($date): string => $date->toDateString())
+                ->all(),
+        );
+    }
+
+    /**
+     * And no ledger either. `firstOrCreate` runs per date inside `persist`,
+     * so skipping the date skips the month it would have opened — a person
+     * hired in October has no September DTR to lock.
+     */
+    public function test_a_month_entirely_outside_employment_opens_no_ledger(): void
+    {
+        $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
+        Deployment::factory()->create([
+            'agency_id' => $this->agency->id,
+            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $this->agency->id])->id,
+            'employee_id' => $employee->id,
+            'starts' => '2026-10-01',
+            'ends' => null,
+        ]);
+        $this->standardWeek($employee);
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertSame(0, Ledger::query()->where('employee_id', $employee->id)->count());
+    }
+
+    /**
+     * A gap between placements is outside employment too — the range is the
+     * union of the deployments, not the span from the first to the last.
+     */
+    public function test_a_gap_between_placements_gets_no_workday(): void
+    {
+        $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
+        $workgroup = Workgroup::factory()->create(['agency_id' => $this->agency->id]);
+
+        foreach ([['2026-09-07', '2026-09-08'], ['2026-09-11', null]] as [$starts, $ends]) {
+            Deployment::factory()->create([
+                'agency_id' => $this->agency->id,
+                'workgroup_id' => $workgroup->id,
+                'employee_id' => $employee->id,
+                'starts' => $starts,
+                'ends' => $ends,
+            ]);
+        }
+
+        $this->standardWeek($employee);
+
+        $this->compute($employee, '2026-09-07', '2026-09-11');
+
+        $this->assertSame(
+            ['2026-09-07', '2026-09-08', '2026-09-11'],
+            Workday::query()
+                ->where('employee_id', $employee->id)
+                ->orderBy('date')
+                ->pluck('date')
+                ->map(fn ($date): string => $date->toDateString())
+                ->all(),
+        );
+    }
+
+    /**
      * Decision 78, end to end. Nine hours of duty on a rest day, and before
      * this the whole day recorded `worked 0 credited 0 excess 0` with no
      * punch rows: `Matcher::match()` returned nothing when the expectation
@@ -703,13 +808,6 @@ class ComputerTest extends TestCase
     public function test_a_suspended_day_between_the_absence_and_the_holiday_does_not_launder_it(): void
     {
         ['employee' => $employee] = $this->standardWeek();
-        Deployment::factory()->create([
-            'agency_id' => $this->agency->id,
-            'workgroup_id' => Workgroup::factory()->create(['agency_id' => $this->agency->id])->id,
-            'employee_id' => $employee->id,
-            'starts' => '2026-01-01',
-            'ends' => '2026-12-31',
-        ]);
         Holiday::factory()->create([
             'agency_id' => $this->agency->id,
             'date' => '2026-09-10',
