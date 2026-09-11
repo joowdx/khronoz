@@ -199,12 +199,31 @@ a corrupted range grants a workgroup records it must not see. Every write must b
 (`WHERE ... AND ends IS NULL`, or an expected-value predicate) rather than a read followed by an
 update — no constraint here would refuse a stale rewrite.
 
-Owed to Milestone 6, and unbuildable before it: a trigger refusing **any write** — insert, re-date
-or delete — to a deployment overlapping a locked or attested ledger month. The hazard has no
-foreign key and cannot have one, since decision 30's visibility predicate reads these ranges by
-*overlap* and attestations sit on ledgers carrying no `deployment_id`. Until `ledgers` and
-`attestations` exist, deletion is unconditionally safe; once they do, delete-as-correction
-(decision 35) is the write that needs the guard most.
+```sql
+-- trigger deployments_frozen_month, BEFORE INSERT OR UPDATE OR DELETE FOR EACH ROW (decision 55):
+--   raise P0001 if daterange(starts, ends, '[]') overlaps the month of any ledger of this
+--   employee with locked_at IS NOT NULL. On UPDATE and DELETE the OLD range is checked too.
+```
+
+`deployments_frozen_month` is decision 55, owed by decision 35 and unbuildable until `ledgers`
+existed. It refuses **any write** — insert, re-date or delete — to a deployment overlapping a
+locked ledger month, because decision 30's visibility predicate reads these ranges by *overlap*,
+so moving one retroactively changes who could see, attest or correct a month that may already be
+signed. Delete-as-correction (decision 35) is the write that needs it most, and until this
+milestone deletion was unconditionally safe because nothing read a range.
+
+Three things about its shape are not incidental. It **cannot be a foreign key**, for two
+independent reasons this file has already fixed permanently: the relationship is an overlap rather
+than a reference, and `attestations` hang off `ledgers`, which carry no `deployment_id` by
+decision 30 and must not acquire one — the self-FK above stays the only incoming one. It reads
+**`OLD`'s range as well as `NEW`'s** on `UPDATE` and `DELETE`, because a re-date moves the range
+and both the vacated and the occupied span must be free; `NEW` alone would let a row be dragged
+out of a frozen month and change that month's visibility set anyway. And testing `locked_at IS NOT
+NULL` alone covers "locked **or** attested", which looks like a gap and is not: `attestations_locked`
+refuses an attestation on an unlocked ledger and `ledgers_unlock_clean` refuses unlocking an
+attested one, so attested is a strict subset of locked and a second clause would have no reachable
+violation. Note the `NEW`/`OLD` split is also why the function branches on `TG_OP` — `NEW` is
+unassigned in an `AFTER`/`BEFORE DELETE` trigger and touching it raises rather than yielding null.
 
 ### users
 
@@ -563,11 +582,22 @@ FOREIGN KEY (exemption_id, employee_id)     REFERENCES exemptions (id, employee_
 UNIQUE (employee_id, date)
 UNIQUE (id, employee_id)                                          -- target for the punch FK
 CHECK (status IN ('present', 'absent', 'off', 'holiday', 'exempt', 'suspended', 'remote'))
-CHECK (worked >= 0 AND tardy >= 0 AND undertime >= 0 AND excess >= 0 AND night >= 0)
+CHECK (premium IS NULL OR premium IN ('rest', 'special', 'regular'))   -- decision 51; null is an ordinary day
+CHECK (worked >= 0 AND credited >= 0 AND tardy >= 0 AND undertime >= 0
+       AND excess >= 0 AND night >= 0 AND night_excess >= 0)
+CHECK (credited = 0 OR premium IS NOT NULL)                            -- credited minutes need a class to be credited at
 CHECK (shift IS NULL OR jsonb_typeof(shift) = 'object')
 ```
 
 `STORED` is spelled out because Postgres 18 defaults generated columns to `VIRTUAL`, and virtual columns cannot be indexed or referenced by a foreign key.
+
+`premium` and `credited` are decision 51's answer to holiday and rest-day work, and
+`night_excess` is decision 53's split of the night total. `workdays_credited_needs_premium`
+is the only cross-column check of the three and it holds in one direction only, deliberately:
+a premium day on which nobody worked is ordinary and carries `credited = 0`, so the converse
+would refuse the common case. Under `settings.premium_hours = false` — every civil-service
+agency — `credited` is 0 on every row and `premium` is still classified, because the class is
+cheap, frozen, and the thing a regime change would otherwise be unable to reconstruct.
 
 ### punches
 
@@ -600,6 +630,7 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 | Can a schedule be half-built? | deferred constraint trigger `turns_complete` |
 | Can a workgroup be its own ancestor? | trigger `workgroups_acyclic` |
 | Can a month be locked while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
+| Can a deployment be created, re-dated or deleted under a month already locked or signed? | trigger `deployments_frozen_month`, reading `OLD` as well as `NEW` |
 | Can someone certify moving numbers, or move certified numbers? | trigger `attestations_locked`, trigger `ledgers_unlock_clean` |
 | Can a signer be from another agency, or sign a role twice? | paired FK on `(user_id, agency_id)`, `UNIQUE (ledger_id, role)` |
 | Can anyone alter or delete a timelog the device recorded, or claim it for another person? | the app role has no `DELETE`, `UPDATE` only on `voided_at`, `reason` and `voided_by`; resolution columns and `user_id` are outside the grant |

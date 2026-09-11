@@ -48,7 +48,7 @@ Consequences: required pre-shift or post-shift activity, employer-controlled sho
 - The 60-minute meal period survives; rest days, holiday pay, rest day pay and leaves are unimpaired.
 - The employer notifies the DOLE Regional Office having jurisdiction over the workplace.
 
-**The largest design consequence in this file.** The overtime threshold is not a constant — 8 by default, 12 under a compliant CWW — **and it is two numbers, not one**: a daily threshold and a weekly ceiling of 48. A single `overtime_after` setting cannot express it. CSC's compressed week has no premium exemption either, so the daily number varies *inside* one agency as much as between agencies: it belongs to the **shift**, and the setting only seeds a new one (decision 34). The weekly ceiling has no home at all yet — `../design/06-attendance.md`, "Open before Milestone 6" item 2.
+**The largest design consequence in this file.** The overtime threshold is not a constant — 8 by default, 12 under a compliant CWW — **and it is two numbers, not one**: a daily threshold and a weekly ceiling of 48. A single `overtime_after` setting cannot express it. CSC's compressed week has no premium exemption either, so the daily number varies *inside* one agency as much as between agencies: it belongs to the **shift**, and the setting only seeds a new one (decision 34). The weekly ceiling is `App\Attendance\Week`, derived at read time over the ISO week and computed as a maximum rather than a sum — `../design/06-attendance.md` daily rule 11, decision 52.
 
 ### Telecommuting — RA 11165, IRR DO 237, s. 2022
 
@@ -179,6 +179,8 @@ Each difference is a key in `agencies.settings` with the code default shown. See
 | `overtime_after` | the prescribed shift length, 8 by default | 8, or **12** under a compliant CWW | M6 |
 | `overtime_after_weekly` | none | **48** | M6 |
 | `night_from` | `18:00` | `22:00` | M6, frozen into the workday snapshot — decision 33 |
+| `premium_hours` | `false` | **`true`** | M6, decision 51 — Arts. 93–94 premium regular hours; CSC has no such concept |
+| `missing_side` | `void` | `void` | M6, decision 56 — daily rule 4's policy for a slot punched on one side only. Listed here for the register, **not** a regime divergence: both columns are the same value and the choice is the agency's |
 | `retention_years` | **5** (or 1 yr post-COA audit) | **3** | M8 |
 
 **`overtime_after` is a fallback, not the authority.** A flat agency-level 8 is wrong the moment a shift is longer than eight hours by design: under Res. 2600838 a CSC agency on a compressed week works a 10-hour day, and a hospital shift runs 12, and JC 2 s. 2015 §8.2.2 starts overtime after the *prescribed* hours rather than after eight. An engine reading only the agency setting would manufacture two hours of overtime on every ordinary CWW day. The prescribed length lives in the resolved shift, which `06-attendance.md` already freezes into the workday snapshot, so the setting is the default a shift inherits and the snapshot is what the deriver reads. Raised by the third-lineage review.
