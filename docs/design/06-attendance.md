@@ -251,7 +251,7 @@ $ledger->view(Period::First, Work::Overtime);
 $ledger->view(Period::Full);
 ```
 
-3. Locking freezes the month against recomputation. The recompute job checks `workday.ledger.locked_at` before touching a row. The lock itself waits for pending outs (above).
+3. Locking freezes the month against recomputation, and the **database** enforces it: `workdays_ledger_open` refuses any insert, update or delete of a workday whose ledger has `locked_at` set, raising `P0001` (decision 70). The recompute job still checks `workday.ledger.locked_at` first, but as the courteous early exit that gives a good message — not as the thing that makes the rule true, which is what an `if` in one job would have been for the paths nobody has written yet. Punches need no guard of their own: `punches.workday_id` cascades from a workday that can no longer be deleted. Unlocking clears `locked_at` and recomputation then proceeds, which is the paper trail `ledgers_unlock_clean` exists to force. The lock itself waits for pending outs (above).
 
 ## Attestation
 
