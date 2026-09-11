@@ -554,12 +554,23 @@ FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
 UNIQUE (employee_id, month)
 UNIQUE (id, employee_id, month)                                   -- target for the workday FK
 CHECK (month = make_date(extract(year from month)::int, extract(month from month)::int, 1))
--- trigger ledgers_lock_complete, BEFORE UPDATE OF locked_at, when NEW.locked_at IS NOT NULL:
+-- trigger ledgers_lock_complete, BEFORE INSERT OR UPDATE OF locked_at, when NEW.locked_at IS NOT NULL:
 --   raise if EXISTS (punch of a workday of this ledger with expected_at > NEW.locked_at)
 --   a month whose last shift ends past midnight cannot be locked before that out is due
+--   INSERT is covered as well as UPDATE: the app role may insert here, and a row created
+--   already locked would never fire an UPDATE and so would never be checked at all
 -- trigger ledgers_unlock_clean, BEFORE UPDATE OF locked_at, when NEW.locked_at IS NULL:
 --   raise if EXISTS (attestation of this ledger); remove the attestations first, on purpose
 ```
+
+`ledgers_lock_complete` covers `INSERT` as well as `UPDATE OF locked_at`, which an earlier
+version of this file did not. The app role holds `INSERT` on this table, so a row written with
+`locked_at` already set never fires an `UPDATE` and would never be checked — and a month locked
+at creation then accumulates workdays whose outs are still pending, which is exactly the state
+the trigger exists to forbid. On a genuine `firstOrCreate` the added check is free: the ledger
+has no workdays yet, so the `EXISTS` is empty. `ledgers_unlock_clean` needs no `INSERT` limb for
+the mirror reason — a ledger cannot be created with an attestation, since `attestations`
+references it and `attestations_locked` refuses an unlocked parent.
 
 ### attestations
 
