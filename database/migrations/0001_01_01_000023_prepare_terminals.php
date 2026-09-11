@@ -36,6 +36,29 @@ return new class extends Migration
         // columns stay null, the timelog is *unresolved and still visible*,
         // and `timelogs_resolved_pair` holds the two columns null together.
         //
+        // FOR SHARE is not decoration, and without it this resolver loses a
+        // race that costs someone their pay. Demonstrated with two sessions:
+        // A opens a transaction and ends an enrollment on 31 January — its
+        // AFTER trigger scans the timelogs that exist *at that moment* and
+        // finds nothing — while B, under READ COMMITTED, inserts a punch dated
+        // 1 February and resolves it against the pre-A snapshot, in which the
+        // enrollment is still open. B commits, then A commits, and a February
+        // punch is attributed through an enrollment that ended in January.
+        // Neither transaction ever sees the other, and the paired FK waves it
+        // through because it does not constrain the date.
+        //
+        // The share lock closes both orderings with one mechanism. B now
+        // blocks on A's uncommitted row and, when A commits, READ COMMITTED
+        // re-evaluates the predicate against the *new* version — so the
+        // enrollment no longer covers 1 February and the punch correctly stays
+        // unresolved. In the reverse ordering B holds the share lock first, so
+        // A's UPDATE waits until B's row is visible and A's own re-resolution
+        // then sees it.
+        //
+        // The cost is that an import blocks while an enrollment is being
+        // edited. Enrollment edits are rare and short; a mis-attributed punch
+        // is neither.
+        //
         // SECURITY DEFINER, so it keeps writing these columns after commit 5
         // revokes the app role's UPDATE on the table. That is the whole reason
         // resolution can be the database's job rather than the app's.
@@ -53,7 +76,8 @@ return new class extends Migration
                   FROM public.enrollments
                  WHERE enrollments.terminal_id = NEW.terminal_id
                    AND enrollments.uid = NEW.uid
-                   AND daterange(enrollments.starts, enrollments.ends, '[]') @> NEW.time::date;
+                   AND daterange(enrollments.starts, enrollments.ends, '[]') @> NEW.time::date
+                   FOR SHARE;
 
                 RETURN NEW;
             END $$;

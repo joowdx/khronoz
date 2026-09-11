@@ -376,6 +376,41 @@ class TimelogResolutionTest extends TestCase
     }
 
     /**
+     * `timelogs_resolve` must take a share lock on the enrollment it reads.
+     *
+     * A catalog assertion, because the behaviour it guards needs two committed
+     * sessions and this suite runs inside a single transaction on a single
+     * connection — a second session cannot see fixtures the first has not
+     * committed. The proof is a two-process harness, kept in the scratchpad as
+     * `race_{setup,a,b}.php`, and it is worth restating what it showed.
+     *
+     * Without `FOR SHARE`: session A opens a transaction and ends an
+     * enrollment on 31 January — its AFTER trigger scans the timelogs existing
+     * *at that moment* and finds none — while session B, under READ COMMITTED,
+     * inserts a punch dated 1 February and resolves it against the pre-A
+     * snapshot in which the enrollment is still open. B commits, A commits,
+     * and a February punch is attributed through an enrollment that ended in
+     * January. Neither transaction sees the other, and the paired FK accepts
+     * it because it does not constrain the date.
+     *
+     * With it: B's insert blocked for exactly as long as A held its
+     * transaction open (measured: 3.0s against a 4s hold), then READ COMMITTED
+     * re-evaluated the predicate against the committed row and left the punch
+     * unresolved.
+     *
+     * Found by an adversarial review on 2026-09-11, which reported it from
+     * static tracing; it was reproduced before being believed.
+     */
+    public function test_the_resolver_locks_the_enrollment_it_reads(): void
+    {
+        $body = DB::selectOne(
+            "select pg_get_functiondef(oid) as definition from pg_proc where proname = 'timelogs_resolve'"
+        )->definition;
+
+        $this->assertStringContainsString('FOR SHARE', $body);
+    }
+
+    /**
      * Both resolvers must carry an explicit `search_path`.
      *
      * A catalog assertion, for the reason the partial index on
