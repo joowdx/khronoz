@@ -359,6 +359,87 @@ export interface Overtime {
 }
 
 /**
+ * Matches `PunchResource`. One expected slot side of a workday, and the
+ * timelog that filled it — or null.
+ */
+export interface Punch {
+    id: string;
+    slot: number;
+    kind: Choice;
+    /** `YYYY-MM-DD HH:MM:SS`. */
+    expected_at: string;
+    /** Null means no tap filled this side. Never engine-invented (decision 64). */
+    actual_at: string | null;
+    /** Minutes from `expected_at`; negative is early. Null with `actual_at`. */
+    deviation: number | null;
+    timelog_id: string | null;
+}
+
+/**
+ * Matches `WorkdayResource`. One employee-day: the DTR line.
+ *
+ * `shift_name` is the frozen snapshot, never the live `shifts` row (Workday
+ * rule 2). Minute figures are integers; `date` is `YYYY-MM-DD` and is never
+ * reparsed (`lib/dates.ts`).
+ */
+export interface Workday {
+    id: string;
+    employee_id: string;
+    employee?: Employee | null;
+    /** `YYYY-MM-DD`. */
+    date: string;
+    status: Choice;
+    /** Null on an ordinary day (decision 63 — and a roster gap is ordinary). */
+    premium: Choice | null;
+    worked: number;
+    credited: number;
+    tardy: number;
+    undertime: number;
+    excess: number;
+    night: number;
+    night_excess: number;
+    punches?: Punch[];
+    /** Null when no shift was rostered. The frozen name, not the live one. */
+    shift_name: string | null;
+    computed_at: string;
+}
+
+/**
+ * Matches `LedgerResource`. One employee-month: the DTR page with a lock on
+ * it. Totals are not stored; the index adds aggregates of its own, and the
+ * DTR page sends a `LedgerView`.
+ */
+export interface Ledger {
+    id: string;
+    employee_id: string;
+    employee?: Employee | null;
+    /** `YYYY-MM-DD`, first of the month. */
+    month: string;
+    /** `YYYY-MM-DD HH:MM:SS` when frozen; null while open. */
+    locked_at: string | null;
+}
+
+/**
+ * One ledger read: the workdays of a period, their minute totals, the monthly
+ * occurrence counts, and the compensable overtime. Produced by `Ledger::view()`
+ * and never stored.
+ */
+export interface LedgerView {
+    workdays: Workday[];
+    worked: number;
+    credited: number;
+    tardy: number;
+    undertime: number;
+    excess: number;
+    night: number;
+    night_excess: number;
+    overtime: number;
+    tardy_occurrences: number;
+    undertime_occurrences: number;
+    absences: number;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.

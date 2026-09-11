@@ -6,6 +6,7 @@ use App\Http\Controllers\EmployeeDeploymentController;
 use App\Http\Controllers\ExemptionController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\TerminalSyncController;
 use App\Http\Controllers\TimelogController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
+use App\Http\Controllers\WorkdayController;
 use App\Http\Controllers\WorkgroupController;
 use Illuminate\Support\Facades\Route;
 
@@ -83,6 +85,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // here and its UPDATE is revoked to (voided_at, reason) — decision 41.
         Route::get('timelogs', [TimelogController::class, 'index'])->name('timelogs.index');
         Route::patch('timelogs/{timelog}/void', [TimelogController::class, 'void'])->name('timelogs.void');
+
+        // What the engine derived, and whose month is done. Read-only apart
+        // from lock/unlock; the database's triggers are the rule (decision 70).
+        Route::get('workdays', [WorkdayController::class, 'index'])->name('workdays.index');
+        Route::get('ledgers', [LedgerController::class, 'index'])->name('ledgers.index');
+        Route::get('ledgers/{ledger}', [LedgerController::class, 'show'])->name('ledgers.show');
+        Route::patch('ledgers/{ledger}/lock', [LedgerController::class, 'lock'])->name('ledgers.lock');
+        Route::patch('ledgers/{ledger}/unlock', [LedgerController::class, 'unlock'])->name('ledgers.unlock');
 
         // Who a terminal can identify, over time — and in effect the
         // terminal's own page: TerminalController has no `show` because a

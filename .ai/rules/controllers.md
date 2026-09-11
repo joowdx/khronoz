@@ -19,3 +19,6 @@ Postgres marks the whole surrounding transaction aborted once a statement errors
 `WorkgroupController::destroy` has done this since M3; `TerminalController::destroy` and both write actions on `TerminalEnrollmentController` needed the same fix after failing exactly this way. It applies to every refusal this app translates: 23001 (RESTRICT), 23514 (CHECK), 23P01 (exclusion).
 
 The same mechanic is why `TestCase::assertDatabaseRefuses` runs its closure inside `DB::transaction` — a nested one compiles to a SAVEPOINT, so the rollback undoes only the failed statement.
+
+## Ledger index sends aggregates, never a view
+GET /ledgers lists withCount('workdays') and withSum of worked, tardy and undertime. Do not call Ledger::view() per row and do not send overtime on the index — overtime is a figure of the DTR page, computed once on show.
