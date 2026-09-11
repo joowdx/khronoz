@@ -3,6 +3,7 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
+use App\Http\Requests\EndEnrollmentRequest;
 use App\Models\Agency;
 use App\Models\Employee;
 use App\Models\Enrollment;
@@ -195,7 +196,7 @@ class TerminalEnrollmentControllerTest extends TestCase
         $terminal = $this->terminal($agency);
         $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-01-01']);
 
-        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), ['ends' => '2026-09-30'])
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), ['ends' => '2026-09-30', 'expects' => ''])
             ->assertSessionHas('success');
 
         $this->assertSame('2026-09-30', $enrollment->fresh()->ends->toDateString());
@@ -209,8 +210,8 @@ class TerminalEnrollmentControllerTest extends TestCase
         $terminal = $this->terminal($agency);
         $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-06-01']);
 
-        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), ['ends' => '2026-01-01'])
-            ->assertSessionHas('error');
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), ['ends' => '2026-01-01', 'expects' => ''])
+            ->assertSessionHasErrors('ends');
 
         $this->assertNull($enrollment->fresh()->ends);
     }
@@ -231,9 +232,115 @@ class TerminalEnrollmentControllerTest extends TestCase
 
         $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), [
             'ends' => $punch->time->copy()->subDay()->toDateString(),
+            'expects' => '',
         ])->assertSessionHas('success');
 
         $this->assertNull($punch->fresh()->employee_id);
+    }
+
+    /**
+     * A UID reissued after the first holder left, then the first enrollment's
+     * end date nudged forward over the successor's range.
+     *
+     * `enrollments_uid_one_person` refuses it with **23P01**, and `update()`
+     * caught only 23514 — so this ordinary correction returned a **500**.
+     * Both refusals are now words.
+     */
+    public function test_ending_an_enrollment_onto_its_successor_is_refused_with_a_message(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $first = Enrollment::factory()->on($terminal)
+            ->create(['uid' => '0042', 'starts' => '2026-01-01', 'ends' => '2026-09-05']);
+        Enrollment::factory()->on($terminal)
+            ->create(['uid' => '0042', 'starts' => '2026-09-06']);
+
+        $this->patch(route('terminals.enrollments.update', [$terminal, $first]), [
+            'ends' => '2026-09-30',
+            'expects' => '2026-09-05',
+        ])->assertSessionHas('error');
+
+        $this->assertSame('2026-09-05', $first->fresh()->ends->toDateString());
+    }
+
+    /**
+     * The stale-form hole, closed the way decision 30 closed it for
+     * deployments. An enrollment's date range is what attributes punches to a
+     * person, so silently moving an end date already on the record
+     * reattributes pay.
+     */
+    public function test_a_stale_form_cannot_move_an_end_date_already_recorded(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-01-01']);
+
+        // The page is rendered while the enrollment is open, so it carries no
+        // expected end. Somebody else ends it before this form is submitted.
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), [
+            'ends' => '2026-09-10',
+            'expects' => '',
+        ])->assertSessionHas('success');
+
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), [
+            'ends' => '2026-09-05',
+            'expects' => '',
+        ])->assertSessionHasErrors('ends');
+
+        $this->assertSame('2026-09-10', $enrollment->fresh()->ends->toDateString());
+    }
+
+    /** The predicate is required, not optional — an omitted `expects` is a 422. */
+    public function test_ending_without_the_expected_end_date_is_refused(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-01-01']);
+
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), ['ends' => '2026-09-30'])
+            ->assertSessionHasErrors('expects');
+
+        $this->assertNull($enrollment->fresh()->ends);
+    }
+
+    /**
+     * The flash that reports a lost race, which validation can no longer
+     * reach: `expects` is checked against the row before the write, so the
+     * only way to the controller's own zero-rows branch is a change landing
+     * *between* that check and the UPDATE.
+     *
+     * Driven by binding a request that skips `after()` — the device
+     * EmployeeDeploymentControllerTest established for the same predicate —
+     * because a genuine interleaving cannot be produced from a single test
+     * process. Without this, the branch would be unreachable code that looks
+     * covered.
+     */
+    public function test_a_change_landing_after_validation_reports_a_lost_race(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageTerminals);
+        $terminal = $this->terminal($agency);
+        $enrollment = Enrollment::factory()->on($terminal)->create(['starts' => '2026-01-01']);
+
+        $this->app->bind(EndEnrollmentRequest::class, fn () => new class extends EndEnrollmentRequest
+        {
+            public function after(): array
+            {
+                return [];
+            }
+        });
+
+        // `expects` names a value the row does not hold, standing in for a
+        // change committed after validation passed.
+        $this->patch(route('terminals.enrollments.update', [$terminal, $enrollment]), [
+            'ends' => '2026-09-30',
+            'expects' => '2026-01-31',
+        ])->assertSessionHas('error');
+
+        $this->assertNull($enrollment->fresh()->ends, 'the row must be untouched');
     }
 
     /** An enrollment of another terminal is a 404, not something this route can end. */

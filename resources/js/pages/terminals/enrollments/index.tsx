@@ -221,6 +221,20 @@ function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enr
                     >
                         {({ errors, processing }) => (
                             <>
+                                {/*
+                                  `expects` is the row's `ends` as this page
+                                  saw it — empty for an open enrollment. The
+                                  controller's UPDATE carries
+                                  `ends IS NOT DISTINCT FROM :expects`, so a
+                                  form opened before somebody else closed this
+                                  enrollment refuses rather than silently
+                                  moving an end date already on the record.
+                                  An enrollment's range is what attributes
+                                  punches to a person, so that rewrite
+                                  reattributes pay.
+                                */}
+                                <input type="hidden" name="expects" value={enrollment.ends ?? ''} />
+
                                 <Field label="Last day" htmlFor="ends" error={errors.ends}>
                                     {({ id, invalid, describedBy }) => (
                                         <Input

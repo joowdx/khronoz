@@ -84,20 +84,66 @@ class TerminalEnrollmentController extends Controller
         return back()->with('success', 'Enrolled.');
     }
 
-    /** End an enrollment: the person stopped using this device. */
+    /**
+     * End an enrollment: the person stopped using this device.
+     *
+     * A conditional UPDATE rather than `$enrollment->update()`, for the
+     * reason EmployeeDeploymentController::destroy is one. Re-dating an
+     * enrollment whose successor does not overlap violates no constraint, so
+     * the predicate is the only guard against a stale form, and a
+     * read-then-write leaves exactly the window it closes.
+     * `ends IS NOT DISTINCT FROM :expects` and not `=`, because the expected
+     * value is normally null and `ends = NULL` is never true.
+     *
+     * Zero affected rows means "not the row you were looking at any more" —
+     * somebody else ended or corrected it — which is reported rather than
+     * retried, because the operator needs to see the current state before
+     * choosing a date again.
+     *
+     * **23P01 is caught, not only 23514.** Extending an end date forward over
+     * the range of whoever holds that device user id next is an exclusion
+     * violation, not a CHECK violation, and rethrowing it returned a 500 on
+     * an ordinary correction. Both refusals are now translated by the same
+     * `collision()` the enrol path uses.
+     */
     public function update(EndEnrollmentRequest $request, Terminal $terminal, Enrollment $enrollment): RedirectResponse
     {
         try {
-            DB::transaction(fn () => $enrollment->update($request->validated()));
+            $closed = DB::transaction(fn () => $terminal->enrollments()
+                ->whereKey($enrollment->id)
+                ->whereRaw('ends IS NOT DISTINCT FROM ?', [$request->date('expects')?->toDateString()])
+                ->update(['ends' => $request->validated('ends')]));
         } catch (QueryException $e) {
-            if ($e->getCode() !== '23514') {
-                throw $e;
-            }
+            return match ($e->getCode()) {
+                '23514' => back()->with('error', 'An enrollment cannot end before it starts.'),
+                '23P01' => back()->with('error', $this->overlap($e, $terminal, $enrollment)),
+                default => throw $e,
+            };
+        }
 
-            return back()->with('error', 'An enrollment cannot end before it starts.');
+        if ($closed === 0) {
+            return back()->with('error', 'That enrollment changed while you were looking at it. Reload and try again.');
         }
 
         return back()->with('success', 'Enrollment ended.');
+    }
+
+    /**
+     * A 23P01 on an *end* date, in words.
+     *
+     * Distinct from `collision()` because the operator's mistake is
+     * different: on enrol they chose a device user id that was taken, here
+     * they chose an end date that reaches into the range of whoever holds
+     * that same id next. Naming the successor's dates is not possible without
+     * another query, so the message names the act instead.
+     */
+    private function overlap(QueryException $e, Terminal $terminal, Enrollment $enrollment): string
+    {
+        if (str_contains($e->getMessage(), 'enrollments_uid_one_person')) {
+            return "That end date reaches into a later enrollment for device user id {$enrollment->uid} on {$terminal->name}. End it no later than the day before that one begins.";
+        }
+
+        return 'That end date reaches into a later enrollment for the same person on this terminal.';
     }
 
     /**
