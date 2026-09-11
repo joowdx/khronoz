@@ -38,3 +38,19 @@ In a controller this surfaces as a 500 and, in a test, as the unhelpful "Not a v
 It has bitten three times in one milestone, each on the row the screen most exists to show: `TerminalResource::workgroup` (an agency-wide terminal, the commonest row on the index), `TimelogResource::terminal`, and `TimelogResource::employee` — where null means *unresolved*, which is exactly what the timelogs screen's main filter is built to find.
 
 Rule of thumb: if the migration writes `->nullable()` on the foreign key, the resource needs the closure.
+
+## Enum labels come from the enum, never a map in TypeScript
+Never restate an enum's display words in a TS lookup map. The cases are held to
+the database CHECK by EnumCheckContractTest; a third copy in the front end is
+held to neither and drifts silently — offering a value the CHECK refuses, or
+missing one it allows.
+
+Ship `{value, label}` from PHP instead, the shape UserResource's
+permission_groups and UserController::accesses() already use:
+- Resource: `'type' => ['value' => $this->type->value, 'label' => $this->type->label()]`
+- Controller: a private `types()` mapping `Enum::cases()` for the picker's options.
+The page renders what it is given and knows no vocabulary of its own.
+
+Cost of getting this wrong, twice in one session: `resources/js/lib/calendar.ts`
+(now deleted) dropped `ExemptionType::Emergency` entirely, mislabelled Personal,
+and invented an `emergency` overtime mode the CHECK allows only `pay`/`cto`.
