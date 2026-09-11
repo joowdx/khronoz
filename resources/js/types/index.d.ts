@@ -318,6 +318,29 @@ export interface Exemption {
 }
 
 /**
+ * Matches `OvertimeResource`. Work authorised beyond the shift.
+ *
+ * `starts`/`ends` are full timestamps, not a date and two clock times: an
+ * authorisation routinely crosses midnight and 22:00–02:00 is one stretch of
+ * work. `date` is generated from `starts`, so an overnight stretch belongs to
+ * the day it began on — which is how a DTR reads it.
+ */
+export interface Overtime {
+    id: string;
+    employee_id: string;
+    employee?: Employee | null;
+    /** `starts::date`, generated. Grouping only; never written. */
+    date: string;
+    starts: string;
+    ends: string;
+    purpose: string;
+    /** `pay` or `cto` — the two the CHECK allows, and nothing else. */
+    mode: Choice;
+    reference: string | null;
+    overnight: boolean;
+}
+
+/**
  * Matches DeploymentResource. One placement of one employee in one workgroup over
  * a date range; `ends: null` is the open, current one. Carries no `employee`:
  * it only ever appears nested under the employee it belongs to.

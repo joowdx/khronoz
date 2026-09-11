@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Building2, CalendarDays, CalendarOff, CloudRainWind, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
+import { AlarmClock, Building2, CalendarDays, CalendarOff, CloudRainWind, FileDown, Fingerprint, LayoutGrid, Network, ScanLine, UserRoundCheck, UsersRound } from 'lucide-react';
 import { AgencySwitcher } from '@/components/agency-switcher';
 import { DayStrip } from '@/components/day-strip';
 import { NavMain, type NavGroup } from '@/components/nav-main';
@@ -12,6 +12,7 @@ import { index as agenciesIndex } from '@/routes/platform/agencies';
 import { index as terminalsIndex } from '@/routes/terminals';
 import { index as exemptionsIndex } from '@/routes/exemptions';
 import { index as holidaysIndex } from '@/routes/holidays';
+import { index as overtimesIndex } from '@/routes/overtimes';
 import { index as suspensionsIndex } from '@/routes/suspensions';
 import { index as syncsIndex } from '@/routes/syncs';
 import { index as timelogsIndex } from '@/routes/timelogs';
@@ -97,6 +98,7 @@ export function AppSidebar() {
                           { title: 'Holidays', href: holidaysIndex().url, icon: CalendarDays },
                           { title: 'Suspensions', href: suspensionsIndex().url, icon: CloudRainWind },
                           { title: 'Exemptions', href: exemptionsIndex().url, icon: CalendarOff },
+                          { title: 'Overtime', href: overtimesIndex().url, icon: AlarmClock },
                       ],
                   },
               ]
