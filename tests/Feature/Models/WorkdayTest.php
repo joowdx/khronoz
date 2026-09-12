@@ -25,11 +25,8 @@ class WorkdayTest extends TestCase
         return [
             'id' => (string) Str::ulid(),
             'agency_id' => $like->agency_id,
-            'ledger_id' => $like->ledger_id,
             'employee_id' => $like->employee_id,
-            // Same month as the factory default so the ledger FK holds, a
-            // different day so (employee_id, date) does not collide.
-            'date' => '2026-09-20',
+            'date' => '2026-08-20',
             'shift_id' => $like->shift_id,
             'shift' => $like->shift === null ? null : json_encode($like->shift),
             'exemption_id' => $like->exemption_id,
@@ -42,7 +39,7 @@ class WorkdayTest extends TestCase
             'excess' => 0,
             'night' => 0,
             'night_excess' => 0,
-            'computed_at' => '2026-09-15 18:00:00',
+            'computed_at' => '2026-08-15 18:00:00',
             'created_at' => now(),
             ...$overrides,
         ];
@@ -50,25 +47,23 @@ class WorkdayTest extends TestCase
 
     public function test_workday_needs_an_agency(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['agency_id' => null, 'shift_id' => null])
         ));
     }
 
-    public function test_ledger_is_required(): void
+    public function test_workdays_exist_without_a_ledger(): void
     {
-        $workday = Workday::factory()->create();
-
-        $this->assertDatabaseRefuses('23502', fn () => DB::table('workdays')->insert(
-            $this->workdayRow($workday, ['ledger_id' => null])
-        ));
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
+        $this->assertModelExists($workday);
+        $this->assertDatabaseCount('ledgers', 0);
     }
 
     public function test_employee_is_required(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['employee_id' => null])
@@ -77,7 +72,7 @@ class WorkdayTest extends TestCase
 
     public function test_date_is_required(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses(
             '23502',
@@ -88,7 +83,7 @@ class WorkdayTest extends TestCase
 
     public function test_status_is_required(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['status' => null])
@@ -97,7 +92,7 @@ class WorkdayTest extends TestCase
 
     public function test_computed_at_is_required(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23502', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['computed_at' => null])
@@ -116,7 +111,7 @@ class WorkdayTest extends TestCase
 
     public function test_one_employee_cannot_have_two_workdays_on_the_same_date(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses(
             '23505',
@@ -129,13 +124,12 @@ class WorkdayTest extends TestCase
 
     public function test_one_employee_may_have_workdays_on_different_dates(): void
     {
-        $first = Workday::factory()->create(['date' => '2026-09-15']);
+        $first = Workday::factory()->create(['date' => '2026-08-15']);
 
         $second = Workday::factory()->create([
             'agency_id' => $first->agency_id,
             'employee_id' => $first->employee_id,
-            'ledger_id' => $first->ledger_id,
-            'date' => '2026-09-16',
+            'date' => '2026-08-16',
         ]);
 
         $this->assertDatabaseHas('workdays', ['id' => $second->id]);
@@ -143,49 +137,46 @@ class WorkdayTest extends TestCase
 
     public function test_two_employees_may_have_a_workday_on_the_same_date(): void
     {
-        $first = Workday::factory()->create(['date' => '2026-09-15']);
+        $first = Workday::factory()->create(['date' => '2026-08-15']);
 
         $second = Workday::factory()->create([
             'agency_id' => $first->agency_id,
-            'date' => '2026-09-15',
+            'date' => '2026-08-15',
         ]);
 
         $this->assertDatabaseHas('workdays', ['id' => $second->id]);
         $this->assertNotSame($first->employee_id, $second->employee_id);
     }
 
-    public function test_employee_must_be_the_ledgers_employee(): void
+    public function test_employee_must_share_the_workdays_agency(): void
     {
-        $workday = Workday::factory()->create();
-        $other = Employee::factory()->create(['agency_id' => $workday->agency_id]);
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
+        $other = Employee::factory()->create();
 
         $this->assertDatabaseRefuses('23503', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['employee_id' => $other->id])
         ));
     }
 
-    public function test_the_workday_must_fall_in_the_ledgers_month(): void
+    public function test_workdays_outside_a_locked_range_remain_writable(): void
     {
-        $ledger = Ledger::factory()->create(['month' => '2026-09-01']);
+        $ledger = Ledger::factory()->create(['starts' => '2026-08-01', 'ends' => '2026-08-15']);
+        $workday = Workday::factory()->create(['agency_id' => $ledger->agency_id, 'employee_id' => $ledger->employee_id, 'date' => '2026-08-16']);
 
-        $this->assertDatabaseRefuses('23503', fn () => Workday::factory()->create([
-            'agency_id' => $ledger->agency_id,
-            'employee_id' => $ledger->employee_id,
-            'ledger_id' => $ledger->id,
-            'date' => '2026-10-01',
-        ]));
+        $workday->update(['status' => 'absent']);
+
+        $this->assertDatabaseHas('workdays', ['id' => $workday->id, 'status' => 'absent']);
     }
 
-    public function test_ledger_with_a_workday_cannot_be_deleted(): void
+    public function test_employee_with_a_workday_cannot_be_deleted(): void
     {
-        $workday = Workday::factory()->create();
-
-        $this->assertDatabaseRefuses('23001', fn () => DB::table('ledgers')->where('id', $workday->ledger_id)->delete());
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
+        $this->assertDatabaseRefuses('23001', fn () => DB::table('employees')->where('id', $workday->employee_id)->delete());
     }
 
     public function test_shift_must_share_the_workdays_agency(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
         $shift = Shift::factory()->create();
 
         $this->assertDatabaseRefuses('23503', fn () => DB::table('workdays')->insert(
@@ -195,14 +186,14 @@ class WorkdayTest extends TestCase
 
     public function test_shift_used_by_a_workday_cannot_be_deleted(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23001', fn () => DB::table('shifts')->where('id', $workday->shift_id)->delete());
     }
 
     public function test_exemption_must_belong_to_the_same_employee(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
         $exemption = Exemption::factory()->create(['agency_id' => $workday->agency_id]);
 
         $this->assertDatabaseRefuses('23503', fn () => DB::table('workdays')->insert(
@@ -212,7 +203,7 @@ class WorkdayTest extends TestCase
 
     public function test_exemption_stamped_on_a_workday_cannot_be_deleted(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
         $exemption = Exemption::factory()->create([
             'agency_id' => $workday->agency_id,
             'employee_id' => $workday->employee_id,
@@ -225,7 +216,7 @@ class WorkdayTest extends TestCase
 
     public function test_agency_must_exist(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23503', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['agency_id' => (string) Str::ulid(), 'shift_id' => null])
@@ -234,7 +225,7 @@ class WorkdayTest extends TestCase
 
     public function test_status_must_be_a_known_value(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23514', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['status' => 'late'])
@@ -243,7 +234,7 @@ class WorkdayTest extends TestCase
 
     public function test_premium_must_be_rest_special_regular_or_null(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23514', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['premium' => 'overtime'])
@@ -255,7 +246,7 @@ class WorkdayTest extends TestCase
 
     public function test_credited_minutes_require_a_premium(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23514', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['credited' => 480, 'premium' => null])
@@ -272,7 +263,7 @@ class WorkdayTest extends TestCase
 
     public function test_minute_columns_cannot_be_negative(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         foreach (['worked', 'credited', 'tardy', 'undertime', 'excess', 'night', 'night_excess'] as $column) {
             $this->assertDatabaseRefuses(
@@ -288,7 +279,7 @@ class WorkdayTest extends TestCase
 
     public function test_shift_snapshot_must_be_a_json_object(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertDatabaseRefuses('23514', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday, ['shift' => '[]'])
@@ -299,32 +290,38 @@ class WorkdayTest extends TestCase
         $this->assertDatabaseHas('workdays', ['id' => $id]);
     }
 
-    public function test_the_month_is_generated_from_the_date(): void
+    public function test_range_query_includes_both_boundary_dates(): void
     {
-        $workday = Workday::factory()->create(['date' => '2026-09-15']);
+        $first = Workday::factory()->create(['date' => '2026-08-15']);
+        $last = Workday::factory()->create(['agency_id' => $first->agency_id, 'employee_id' => $first->employee_id, 'date' => '2026-08-20']);
+        $this->withTenant($first->agency);
+        $range = Ledger::factory()->make(['agency_id' => $first->agency_id, 'employee_id' => $first->employee_id, 'starts' => '2026-08-15', 'ends' => '2026-08-20']);
 
-        $this->assertSame('2026-09-01', $workday->month->toDateString());
+        $this->assertSame([$first->id, $last->id], $range->workdays()->orderBy('date')->pluck('id')->all());
     }
 
-    public function test_the_generated_month_is_stored_and_not_virtual(): void
+    public function test_one_workday_can_appear_in_overlapping_ledger_ranges(): void
     {
-        $column = DB::selectOne("select attgenerated from pg_attribute where attrelid = 'workdays'::regclass and attname = 'month'");
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
+        $this->withTenant($workday->agency);
+        $first = Ledger::factory()->make(['agency_id' => $workday->agency_id, 'employee_id' => $workday->employee_id, 'starts' => '2026-08-01', 'ends' => '2026-08-15']);
+        $second = Ledger::factory()->make(['agency_id' => $workday->agency_id, 'employee_id' => $workday->employee_id, 'starts' => '2026-08-15', 'ends' => '2026-08-31']);
 
-        $this->assertSame('s', $column->attgenerated, "expected STORED ('s'), got ".var_export($column->attgenerated, true));
+        $this->assertSame($workday->id, $first->workdays()->sole()->id);
+        $this->assertSame($workday->id, $second->workdays()->sole()->id);
     }
 
-    public function test_the_month_cannot_be_written(): void
+    public function test_a_workday_cannot_be_moved_into_a_locked_range(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-20']);
+        Ledger::factory()->create(['agency_id' => $workday->agency_id, 'employee_id' => $workday->employee_id, 'starts' => '2026-08-01', 'ends' => '2026-08-15']);
 
-        $this->assertDatabaseRefuses('428C9', fn () => DB::table('workdays')->insert(
-            $this->workdayRow($workday, ['month' => '2026-09-01'])
-        ));
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update(['date' => '2026-08-15']));
     }
 
     public function test_the_shift_attribute_is_the_snapshot_not_the_related_model(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
         $this->assertIsArray($workday->shift);
         $this->assertSame('Standard', $workday->shift['shift']['name']);
@@ -333,7 +330,7 @@ class WorkdayTest extends TestCase
 
     public function test_the_factory_snapshot_matches_what_the_orchestrator_writes(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
         $this->withTenant($workday->agency);
 
         $canonical = Snapshot::of(
@@ -364,11 +361,9 @@ class WorkdayTest extends TestCase
 
     public function test_a_workday_cannot_be_inserted_on_a_locked_ledger(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
-        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
-            'locked_at' => '2026-09-11 12:00:00',
-        ]);
+        $ledger = $this->lockWorkday($workday);
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->insert(
             $this->workdayRow($workday)
@@ -377,11 +372,9 @@ class WorkdayTest extends TestCase
 
     public function test_a_workday_cannot_be_updated_on_a_locked_ledger(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
-        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
-            'locked_at' => '2026-09-11 12:00:00',
-        ]);
+        $ledger = $this->lockWorkday($workday);
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update([
             'status' => 'absent',
@@ -390,54 +383,32 @@ class WorkdayTest extends TestCase
 
     public function test_a_workday_cannot_be_deleted_on_a_locked_ledger(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
-        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
-            'locked_at' => '2026-09-11 12:00:00',
-        ]);
+        $ledger = $this->lockWorkday($workday);
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->delete());
     }
 
-    public function test_a_workday_cannot_be_re_dated_out_of_a_locked_ledger(): void
+    public function test_a_workday_cannot_be_re_dated_out_of_a_locked_range(): void
     {
-        $workday = Workday::factory()->create(['date' => '2026-09-30']);
+        $workday = Workday::factory()->create(['date' => '2026-08-30']);
+        $this->lockWorkday($workday);
 
-        $october = DB::table('ledgers')->insertGetId([
-            'id' => (string) Str::ulid(),
-            'agency_id' => $workday->agency_id,
-            'employee_id' => $workday->employee_id,
-            'month' => '2026-10-01',
-            'locked_at' => null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], 'id');
-
-        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
-            'locked_at' => '2026-10-05 12:00:00',
-        ]);
-
-        // September is locked, October is open. Without the OLD lookup the
-        // NEW check passes and the day leaves a signed month in silence.
-        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update([
-            'date' => '2026-10-01',
-            'ledger_id' => $october,
-        ]));
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update(['date' => '2026-09-01']));
     }
 
     public function test_workday_writes_succeed_once_the_ledger_is_unlocked(): void
     {
-        $workday = Workday::factory()->create();
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
 
-        DB::table('ledgers')->where('id', $workday->ledger_id)->update([
-            'locked_at' => '2026-09-11 12:00:00',
-        ]);
+        $ledger = $this->lockWorkday($workday);
 
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('workdays')->where('id', $workday->id)->update([
             'status' => 'absent',
         ]));
 
-        DB::table('ledgers')->where('id', $workday->ledger_id)->update(['locked_at' => null]);
+        DB::table('ledgers')->where('id', $ledger->id)->update(['unlocked_at' => now(), 'unlocked_by' => $ledger->locked_by]);
 
         DB::table('workdays')->where('id', $workday->id)->update(['status' => 'absent']);
         $this->assertDatabaseHas('workdays', ['id' => $workday->id, 'status' => 'absent']);
@@ -448,5 +419,10 @@ class WorkdayTest extends TestCase
 
         DB::table('workdays')->where('id', $id)->delete();
         $this->assertDatabaseMissing('workdays', ['id' => $id]);
+    }
+
+    private function lockWorkday(Workday $workday): Ledger
+    {
+        return Ledger::factory()->create(['agency_id' => $workday->agency_id, 'employee_id' => $workday->employee_id, 'starts' => '2026-08-01', 'ends' => '2026-08-31']);
     }
 }

@@ -31,7 +31,7 @@ use Tests\TestCase;
 
 /**
  * Orchestrate the attendance pipeline for one employee over a date
- * range and persist the workdays, punches and ledgers
+ * range and persist the workdays and punches
  * (06-attendance.md Workday rules 1–3, across midnight, Ledger 1 and 3).
  *
  * The three worked examples in that document are the acceptance
@@ -218,8 +218,8 @@ class ComputerTest extends TestCase
         $this->compute($employee, '2026-09-08', '2026-09-08');
 
         $workday = $this->workday($employee, '2026-09-08');
-        $this->assertSame('2026-09-01', $workday->month->toDateString());
-        $this->assertSame('2026-09-01', $workday->ledger->month->toDateString());
+        $this->assertSame('2026-09-08', $workday->date->toDateString());
+        $this->assertDatabaseCount('ledgers', 0);
         $this->assertSame(WorkdayStatus::Present, $workday->status);
         $this->assertSame(null, $workday->premium);
         $this->assertSame(240, $workday->worked);
@@ -284,7 +284,7 @@ class ComputerTest extends TestCase
         $this->assertSame(MissingSide::Assume->value, $workday->shift['settings']['missing_side']);
     }
 
-    public function test_the_night_shift_out_on_1_october_belongs_to_the_september_ledger(): void
+    public function test_the_night_shift_out_on_1_october_belongs_to_the_september_workday(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment, 'night' => $night, 'standard' => $standard] = $this->nightThenStandard();
         $in = $this->tap($enrollment, '2026-09-30 22:00:00');
@@ -293,8 +293,8 @@ class ComputerTest extends TestCase
         $this->compute($employee, '2026-09-30', '2026-10-01');
 
         $september = $this->workday($employee, '2026-09-30');
-        $this->assertSame('2026-09-01', $september->month->toDateString());
-        $this->assertSame('2026-09-01', $september->ledger->month->toDateString());
+        $this->assertSame('2026-09-30', $september->date->toDateString());
+        $this->assertDatabaseCount('ledgers', 0);
         $this->assertSame($night->id, $september->shift_id);
         $this->assertSame(WorkdayStatus::Present, $september->status);
         $this->assertSame(480, $september->worked);
@@ -310,7 +310,7 @@ class ComputerTest extends TestCase
         $this->assertPunch($punches[1], 1, PunchKind::Out, '2026-10-01 06:00:00', $out->id, '2026-10-01 06:00:00', 0);
 
         $october = $this->workday($employee, '2026-10-01');
-        $this->assertSame('2026-10-01', $october->month->toDateString());
+        $this->assertSame('2026-10-01', $october->date->toDateString());
         $this->assertSame($standard->id, $october->shift_id);
         $this->assertFalse($october->punches()->where('timelog_id', $out->id)->exists());
         $this->assertSame($september->id, Punch::query()->where('timelog_id', $out->id)->value('workday_id'));
@@ -325,7 +325,7 @@ class ComputerTest extends TestCase
         $this->compute($employee, '2026-09-30', '2026-10-02');
 
         $workday = $this->workday($employee, '2026-09-30');
-        $this->assertSame('2026-09-01', $workday->month->toDateString());
+        $this->assertSame('2026-09-30', $workday->date->toDateString());
         $this->assertSame($duty->id, $workday->shift_id);
         $this->assertSame(WorkdayStatus::Present, $workday->status);
         $this->assertSame(2880, $workday->worked);
@@ -352,7 +352,8 @@ class ComputerTest extends TestCase
         Ledger::factory()->locked()->create([
             'agency_id' => $this->agency->id,
             'employee_id' => $employee->id,
-            'month' => '2026-09-01',
+            'starts' => '2026-09-01',
+            'ends' => '2026-09-11',
         ]);
 
         $this->compute($employee, '2026-09-08', '2026-09-08');
@@ -850,14 +851,14 @@ class ComputerTest extends TestCase
         $this->assertFalse(Punch::query()->where('workday_id', $workday->id)->exists());
     }
 
-    public function test_an_orphaned_workday_in_a_locked_month_is_left_alone(): void
+    public function test_an_orphaned_workday_in_a_locked_range_is_left_alone(): void
     {
         ['employee' => $employee] = $this->standardWeek();
 
         $this->compute($employee, '2026-09-07', '2026-09-11');
 
         Deployment::query()->where('employee_id', $employee->id)->update(['ends' => '2026-09-09']);
-        Ledger::query()->where('employee_id', $employee->id)->update(['locked_at' => now()]);
+        Ledger::factory()->create(['agency_id' => $employee->agency_id, 'employee_id' => $employee->id, 'starts' => '2026-09-07', 'ends' => '2026-09-11']);
 
         $this->compute($employee, '2026-09-07', '2026-09-11');
 

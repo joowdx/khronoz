@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['agency_id', 'ledger_id', 'role', 'user_id', 'at'])]
+#[Fillable(['agency_id', 'ledger_id', 'role', 'sequence', 'user_id', 'name', 'at', 'withdrawn_by', 'withdrawn_at'])]
 class Attestation extends Model
 {
     /**
@@ -24,7 +24,9 @@ class Attestation extends Model
     protected function casts(): array
     {
         return [
+            'sequence' => 'integer',
             'at' => 'datetime',
+            'withdrawn_at' => 'datetime',
         ];
     }
 
@@ -36,5 +38,10 @@ class Attestation extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function withdrawer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'withdrawn_by');
     }
 }

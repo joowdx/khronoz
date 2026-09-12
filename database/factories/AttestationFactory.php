@@ -22,10 +22,14 @@ class AttestationFactory extends Factory
                 'agency_id' => $attributes['agency_id'],
             ])->id,
             'role' => 'timekeeper',
+            'sequence' => 1,
             'user_id' => fn (array $attributes) => User::factory()->create([
                 'agency_id' => $attributes['agency_id'],
             ])->id,
+            'name' => fake()->name(),
             'at' => '2026-09-11 12:00:00',
+            'withdrawn_by' => null,
+            'withdrawn_at' => null,
         ];
     }
 }

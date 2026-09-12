@@ -23,8 +23,8 @@ use Tests\TestCase;
  * Ledger::view() — the month read back (06-attendance.md Ledger rules 1–2,
  * daily rules 6, 9 and 11; 05-calendar.md rule 6; decisions 52 and 72).
  *
- * Everything here is derived at read time. A stored total would be a cache
- * of workdays that one recompute puts out of date.
+ * Live calculations run on unsaved range objects; locking freezes these
+ * results in a separate immutable revision.
  */
 class LedgerViewTest extends TestCase
 {
@@ -48,9 +48,10 @@ class LedgerViewTest extends TestCase
             $this->agency->refresh();
         }
 
-        return Ledger::factory()->create([
+        return Ledger::factory()->make([
             'agency_id' => $this->agency->id,
-            'month' => '2026-09-01',
+            'starts' => '2026-09-01',
+            'ends' => '2026-09-30',
         ]);
     }
 
@@ -62,7 +63,6 @@ class LedgerViewTest extends TestCase
         return Workday::factory()->create([
             'agency_id' => $ledger->agency_id,
             'employee_id' => $ledger->employee_id,
-            'ledger_id' => $ledger->id,
             'date' => $date,
             ...$attributes,
         ]);
@@ -591,10 +591,11 @@ class LedgerViewTest extends TestCase
     public function test_weekly_overtime_includes_workdays_from_a_neighbouring_ledger(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
-        $august = Ledger::factory()->create([
+        $august = Ledger::factory()->make([
             'agency_id' => $ledger->agency_id,
             'employee_id' => $ledger->employee_id,
-            'month' => '2026-08-01',
+            'starts' => '2026-08-01',
+            'ends' => '2026-08-31',
         ]);
         $this->workday($august, '2026-08-31', ['worked' => 720]);
         $this->workday($ledger, '2026-09-01', ['worked' => 720]);
@@ -610,10 +611,11 @@ class LedgerViewTest extends TestCase
     public function test_a_straddling_week_is_reported_only_by_the_month_containing_its_sunday(): void
     {
         $september = $this->ledger(['overtime_after_weekly' => 48]);
-        $october = Ledger::factory()->create([
+        $october = Ledger::factory()->make([
             'agency_id' => $september->agency_id,
             'employee_id' => $september->employee_id,
-            'month' => '2026-10-01',
+            'starts' => '2026-10-01',
+            'ends' => '2026-10-31',
         ]);
         $this->workday($september, '2026-09-28', ['worked' => 720]);
         $this->workday($september, '2026-09-29', ['worked' => 720]);
@@ -664,10 +666,11 @@ class LedgerViewTest extends TestCase
     public function test_unauthorised_daily_excess_is_not_added_through_the_weekly_component(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
-        $august = Ledger::factory()->create([
+        $august = Ledger::factory()->make([
             'agency_id' => $ledger->agency_id,
             'employee_id' => $ledger->employee_id,
-            'month' => '2026-08-01',
+            'starts' => '2026-08-01',
+            'ends' => '2026-08-31',
         ]);
         $this->workday($august, '2026-08-31', ['worked' => 720]);
         $this->workday($ledger, '2026-09-01', ['worked' => 720]);
@@ -681,10 +684,11 @@ class LedgerViewTest extends TestCase
     public function test_authorised_daily_excess_adds_to_weekly_only_not_week_overtime(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
-        $august = Ledger::factory()->create([
+        $august = Ledger::factory()->make([
             'agency_id' => $ledger->agency_id,
             'employee_id' => $ledger->employee_id,
-            'month' => '2026-08-01',
+            'starts' => '2026-08-01',
+            'ends' => '2026-08-31',
         ]);
         $this->workday($august, '2026-08-31', ['worked' => 720]);
         $this->workday($ledger, '2026-09-01', ['worked' => 720]);

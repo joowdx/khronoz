@@ -66,13 +66,11 @@ final class Computer
         Workday::query()
             ->where('employee_id', $this->employee->id)
             ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
-            ->whereIn(
-                'ledger_id',
-                Ledger::query()
-                    ->select('id')
-                    ->where('employee_id', $this->employee->id)
-                    ->whereNull('locked_at'),
-            )
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('ledgers')
+                ->whereColumn('ledgers.employee_id', 'workdays.employee_id')
+                ->whereColumn('ledgers.starts', '<=', 'workdays.date')
+                ->whereColumn('ledgers.ends', '>=', 'workdays.date')
+                ->whereNull('ledgers.unlocked_at'))
             ->when($employed !== [], fn (Builder $kept) => $kept->whereNotIn('date', array_keys($employed)))
             ->delete();
     }
@@ -123,12 +121,12 @@ final class Computer
         $day = $calendar->apply($resolutions, $date);
 
         DB::transaction(function () use ($almanac, $timelogs, $date, $day, &$computed): void {
-            $ledger = Ledger::firstOrCreate([
-                'employee_id' => $this->employee->id,
-                'month' => $date->startOfMonth()->toDateString(),
-            ]);
+            Employee::withTrashed()->whereKey($this->employee->id)->lockForUpdate()->firstOrFail();
 
-            if ($ledger->locked()) {
+            if (Ledger::query()->where('employee_id', $this->employee->id)
+                ->where('starts', '<=', $date->toDateString())
+                ->where('ends', '>=', $date->toDateString())
+                ->whereNull('unlocked_at')->exists()) {
                 return;
             }
 
@@ -155,7 +153,6 @@ final class Computer
                     'date' => $date->toDateString(),
                 ],
                 [
-                    'ledger_id' => $ledger->id,
                     'shift_id' => $day->shift?->id,
                     'shift' => Snapshot::of(
                         $day,

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -18,7 +19,7 @@ use Laravel\Scout\Searchable;
 
 #[Fillable([
     'agency_id', 'number', 'first_name', 'middle_name', 'last_name', 'suffix',
-    'sex', 'birthdate', 'email', 'mobile', 'position', 'tags', 'exempt',
+    'sex', 'birthdate', 'email', 'mobile', 'position', 'tags', 'exempt', 'cadence_id',
 ])]
 class Employee extends Model
 {
@@ -71,6 +72,11 @@ class Employee extends Model
     public function deployments(): HasMany
     {
         return $this->hasMany(Deployment::class);
+    }
+
+    public function cadence(): BelongsTo
+    {
+        return $this->belongsTo(Cadence::class);
     }
 
     public function currentDeployment(): HasOne

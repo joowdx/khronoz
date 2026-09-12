@@ -6,10 +6,8 @@ use App\Enums\MissingSide;
 use App\Enums\WorkdayStatus;
 use App\Models\Agency;
 use App\Models\Employee;
-use App\Models\Ledger;
 use App\Models\Shift;
 use App\Models\Workday;
-use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -25,11 +23,6 @@ class WorkdayFactory extends Factory
             'date' => '2026-09-15',
             'employee_id' => fn (array $attributes) => Employee::factory()->create([
                 'agency_id' => $attributes['agency_id'],
-            ])->id,
-            'ledger_id' => fn (array $attributes) => Ledger::factory()->create([
-                'agency_id' => $attributes['agency_id'],
-                'employee_id' => $attributes['employee_id'],
-                'month' => CarbonImmutable::parse($attributes['date'])->startOfMonth()->toDateString(),
             ])->id,
             'shift_id' => fn (array $attributes) => Shift::factory()->create([
                 'agency_id' => $attributes['agency_id'],

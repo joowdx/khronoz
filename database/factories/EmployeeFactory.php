@@ -17,6 +17,7 @@ class EmployeeFactory extends Factory
     {
         return [
             'agency_id' => Agency::factory(),
+            'cadence_id' => null,
             // The number remains unique across soft-deleted factory records.
             'number' => fake()->unique()->numerify('EMP#####'),
             'first_name' => fake()->firstName(),

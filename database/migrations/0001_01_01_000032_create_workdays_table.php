@@ -15,11 +15,8 @@ return new class extends Migration
         Schema::create('workdays', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('agency_id')->constrained('agencies')->restrictOnDelete()->restrictOnUpdate();
-            $table->ulid('ledger_id');
             $table->ulid('employee_id');
             $table->date('date');
-            // STORED supports the ledger foreign key and cannot disagree with `date`.
-            $table->date('month')->storedAs('make_date(extract(year from date)::int, extract(month from date)::int, 1)');
             $table->ulid('shift_id')->nullable();
             $table->jsonb('shift')->nullable();
             $table->ulid('exemption_id')->nullable();
@@ -41,12 +38,9 @@ return new class extends Migration
             // own workday.
             $table->unique(['id', 'employee_id']);
 
-            // No agency_id on this pair: (ledger_id, employee_id, month)
-            // already proves right-employee and right-month, which is
-            // stronger, and employees is reached through the ledger.
-            $table->foreign(['ledger_id', 'employee_id', 'month'])
-                ->references(['id', 'employee_id', 'month'])
-                ->on('ledgers')
+            $table->foreign(['employee_id', 'agency_id'])
+                ->references(['id', 'agency_id'])
+                ->on('employees')
                 ->restrictOnDelete()
                 ->restrictOnUpdate();
 

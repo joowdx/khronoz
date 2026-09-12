@@ -390,7 +390,8 @@ class RecomputeWorkdaysTest extends TestCase
         Ledger::factory()->locked()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'month' => '2026-09-01',
+            'starts' => '2026-09-01',
+            'ends' => '2026-09-11',
         ]);
 
         app(Tenant::class)->forget();

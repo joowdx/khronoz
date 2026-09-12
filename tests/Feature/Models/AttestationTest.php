@@ -22,7 +22,9 @@ class AttestationTest extends TestCase
             'agency_id' => $like->agency_id,
             'ledger_id' => $like->ledger_id,
             'role' => 'supervisor',
+            'sequence' => 2,
             'user_id' => $like->user_id,
+            'name' => $like->name,
             'at' => '2026-09-11 12:00:00',
             ...$overrides,
         ];
@@ -87,7 +89,7 @@ class AttestationTest extends TestCase
             fn () => DB::table('attestations')->insert($this->attestationRow($attestation, [
                 'role' => $attestation->role,
             ])),
-            'attestations_ledger_id_role_unique',
+            'attestations_active_role',
         );
     }
 
@@ -100,6 +102,7 @@ class AttestationTest extends TestCase
             'ledger_id' => $first->ledger_id,
             'user_id' => $first->user_id,
             'role' => 'supervisor',
+            'sequence' => 2,
         ]);
 
         $this->assertDatabaseHas('attestations', ['id' => $second->id]);
@@ -133,7 +136,7 @@ class AttestationTest extends TestCase
     {
         $attestation = Attestation::factory()->create();
 
-        $this->assertDatabaseRefuses('23001', fn () => DB::table('ledgers')->where('id', $attestation->ledger_id)->delete());
+        $this->assertDatabaseRefuses('P0001', fn () => DB::table('ledgers')->where('id', $attestation->ledger_id)->delete());
     }
 
     public function test_the_signer_must_belong_to_the_ledgers_agency(): void
@@ -163,11 +166,11 @@ class AttestationTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('users')->where('id', $attestation->user_id)->delete());
     }
 
-    public function test_role_must_be_a_short_lowercase_snake(): void
+    public function test_role_must_be_one_of_the_supported_attestation_roles(): void
     {
         $attestation = Attestation::factory()->create();
 
-        foreach (['Timekeeper', 'time-keeper', 'head1', '', str_repeat('a', 33)] as $role) {
+        foreach (['Timekeeper', 'time-keeper', 'head1', '', str_repeat('a', 33), 'custom_role'] as $role) {
             $this->assertDatabaseRefuses(
                 '23514',
                 fn () => DB::table('attestations')->insert($this->attestationRow($attestation, ['role' => $role])),
@@ -178,7 +181,7 @@ class AttestationTest extends TestCase
         $id = (string) Str::ulid();
         DB::table('attestations')->insert($this->attestationRow($attestation, [
             'id' => $id,
-            'role' => str_repeat('a', 32),
+            'role' => 'head',
         ]));
         $this->assertDatabaseHas('attestations', ['id' => $id]);
     }
@@ -186,6 +189,7 @@ class AttestationTest extends TestCase
     public function test_an_unlocked_ledger_cannot_be_attested(): void
     {
         $ledger = Ledger::factory()->create();
+        DB::table('ledgers')->where('id', $ledger->id)->update(['unlocked_at' => now(), 'unlocked_by' => $ledger->locked_by]);
 
         $this->assertDatabaseRefuses('P0001', fn () => Attestation::factory()->create([
             'agency_id' => $ledger->agency_id,
@@ -209,22 +213,30 @@ class AttestationTest extends TestCase
         ]));
     }
 
-    public function test_the_app_role_may_delete_a_signature(): void
+    public function test_the_app_role_cannot_delete_an_attestation(): void
     {
         $attestation = Attestation::factory()->create();
 
-        DB::table('attestations')->where('id', $attestation->id)->delete();
-
-        $this->assertDatabaseMissing('attestations', ['id' => $attestation->id]);
+        $this->assertDatabaseRefuses('42501', fn () => DB::table('attestations')->where('id', $attestation->id)->delete());
     }
 
-    public function test_the_granted_privileges_are_insert_select_and_delete(): void
+    public function test_the_app_role_can_withdraw_an_attestation_without_erasing_it(): void
+    {
+        $attestation = Attestation::factory()->create();
+
+        DB::table('attestations')->where('id', $attestation->id)->update(['withdrawn_at' => now(), 'withdrawn_by' => $attestation->user_id]);
+
+        $this->assertNotNull($attestation->fresh()->withdrawn_at);
+        $this->assertSame($attestation->name, $attestation->fresh()->name);
+    }
+
+    public function test_the_table_privileges_are_insert_and_select(): void
     {
         $table = DB::table('information_schema.table_privileges')
             ->where('grantee', 'chronoz')->where('table_name', 'attestations')
             ->orderBy('privilege_type')->pluck('privilege_type')->all();
 
-        $this->assertSame(['DELETE', 'INSERT', 'SELECT'], $table);
+        $this->assertSame(['INSERT', 'SELECT'], $table);
     }
 
     public function test_re_running_the_deploy_grants_does_not_restore_update(): void

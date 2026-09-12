@@ -15,6 +15,7 @@ use Carbon\CarbonImmutable;
 use Database\Factories\LedgerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,9 +23,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 
-#[Fillable(['agency_id', 'employee_id', 'month', 'locked_at'])]
+#[Fillable(['agency_id', 'employee_id', 'cadence_id', 'month', 'starts', 'ends', 'scope', 'revision', 'locked_at', 'locked_by', 'unlocked_at', 'unlocked_by', 'calculation', 'identity', 'policy', 'signers'])]
 class Ledger extends Model
 {
+    protected $attributes = ['scope' => 'all', 'locked_at' => null, 'unlocked_at' => null];
+
     /**
      * @use HasFactory<LedgerFactory>
      */
@@ -36,8 +39,16 @@ class Ledger extends Model
     protected function casts(): array
     {
         return [
-            'month' => 'date',
+            'starts' => 'immutable_date',
+            'ends' => 'immutable_date',
+            'scope' => Work::class,
+            'revision' => 'integer',
             'locked_at' => 'datetime',
+            'unlocked_at' => 'datetime',
+            'calculation' => 'array',
+            'identity' => 'array',
+            'policy' => 'array',
+            'signers' => 'array',
         ];
     }
 
@@ -48,7 +59,29 @@ class Ledger extends Model
 
     public function workdays(): HasMany
     {
-        return $this->hasMany(Workday::class);
+        return $this->hasMany(Workday::class, 'employee_id', 'employee_id')
+            ->whereBetween('date', [$this->starts->toDateString(), $this->ends->toDateString()]);
+    }
+
+    public function cadence(): BelongsTo
+    {
+        return $this->belongsTo(Cadence::class);
+    }
+
+    public function renditions(): HasMany
+    {
+        return $this->hasMany(Rendition::class);
+    }
+
+    protected function month(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->starts->startOfMonth(),
+            set: fn ($value) => [
+                'starts' => CarbonImmutable::parse($value)->startOfMonth()->toDateString(),
+                'ends' => CarbonImmutable::parse($value)->endOfMonth()->toDateString(),
+            ],
+        );
     }
 
     public function attestations(): HasMany
@@ -58,7 +91,12 @@ class Ledger extends Model
 
     public function locked(): bool
     {
-        return $this->locked_at !== null;
+        return $this->getRawOriginal('locked_at') !== null && $this->getRawOriginal('unlocked_at') === null;
+    }
+
+    public function rangeView(?Work $work = null): LedgerView
+    {
+        return $this->view(Period::Full, $work ?? $this->scope);
     }
 
     public function view(Period $period, ?Work $work = null): LedgerView
@@ -144,12 +182,12 @@ class Ledger extends Model
      */
     private function periodBounds(Period $period): array
     {
-        $month = CarbonImmutable::parse($this->month->toDateString());
+        $month = CarbonImmutable::parse($this->starts->toDateString())->startOfMonth();
 
         return match ($period) {
             Period::First => [$month, $month->setDay(15)],
             Period::Second => [$month->setDay(16), $month->endOfMonth()->startOfDay()],
-            Period::Full => [$month, $month->endOfMonth()->startOfDay()],
+            Period::Full => [$this->starts, $this->ends],
         };
     }
 

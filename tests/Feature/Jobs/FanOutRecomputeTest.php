@@ -6,10 +6,8 @@ use App\Jobs\FanOutRecompute;
 use App\Jobs\RecomputeWorkdays;
 use App\Models\Agency;
 use App\Models\Employee;
-use App\Models\Ledger;
 use App\Models\Workday;
 use App\Tenancy\Tenant;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -225,15 +223,9 @@ class FanOutRecomputeTest extends TestCase
 
     private function workday(Agency $agency, Employee $employee, string $date): Workday
     {
-        $ledger = Ledger::firstOrCreate([
-            'employee_id' => $employee->id,
-            'month' => CarbonImmutable::parse($date)->startOfMonth()->toDateString(),
-        ], ['agency_id' => $agency->id]);
-
         return Workday::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'ledger_id' => $ledger->id,
             'date' => $date,
         ]);
     }

@@ -4,6 +4,7 @@ namespace Tests\Feature\Models;
 
 use App\Models\Employee;
 use App\Models\Enrollment;
+use App\Models\Ledger;
 use App\Models\Punch;
 use App\Models\Timelog;
 use App\Models\User;
@@ -155,7 +156,6 @@ class PunchTest extends TestCase
         $otherDay = Workday::factory()->create([
             'agency_id' => $workday->agency_id,
             'employee_id' => $workday->employee_id,
-            'ledger_id' => $workday->ledger_id,
             'date' => '2026-09-16',
         ]);
 
@@ -362,7 +362,7 @@ class PunchTest extends TestCase
 
     public function test_a_punch_cannot_be_inserted_on_a_locked_ledger(): void
     {
-        $punch = Punch::factory()->create();
+        $punch = $this->punchForLock();
 
         $this->lock($punch);
 
@@ -373,7 +373,7 @@ class PunchTest extends TestCase
 
     public function test_a_punch_cannot_be_updated_on_a_locked_ledger(): void
     {
-        $punch = Punch::factory()->create();
+        $punch = $this->punchForLock();
 
         $this->lock($punch);
 
@@ -385,7 +385,7 @@ class PunchTest extends TestCase
 
     public function test_a_punch_cannot_be_deleted_on_a_locked_ledger(): void
     {
-        $punch = Punch::factory()->create();
+        $punch = $this->punchForLock();
 
         $this->lock($punch);
 
@@ -394,7 +394,7 @@ class PunchTest extends TestCase
 
     public function test_a_punch_cannot_be_moved_out_of_a_locked_ledger(): void
     {
-        $punch = Punch::factory()->create();
+        $punch = $this->punchForLock();
         $open = Workday::factory()->create([
             'agency_id' => $punch->agency_id,
             'employee_id' => $punch->employee_id,
@@ -410,14 +410,12 @@ class PunchTest extends TestCase
 
     public function test_punch_writes_succeed_once_the_ledger_is_unlocked(): void
     {
-        $punch = Punch::factory()->create();
+        $punch = $this->punchForLock();
 
-        $this->lock($punch);
+        $ledger = $this->lock($punch);
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->where('id', $punch->id)->delete());
 
-        DB::table('ledgers')
-            ->whereIn('id', DB::table('workdays')->select('ledger_id')->where('id', $punch->workday_id))
-            ->update(['locked_at' => null]);
+        DB::table('ledgers')->where('id', $ledger->id)->update(['unlocked_at' => now(), 'unlocked_by' => $ledger->locked_by]);
 
         DB::table('punches')->where('id', $punch->id)->delete();
         $this->assertDatabaseMissing('punches', ['id' => $punch->id]);
@@ -429,23 +427,26 @@ class PunchTest extends TestCase
 
     public function test_a_transit_does_not_hold_a_ledger_open(): void
     {
-        $punch = Punch::factory()->create();
+        $punch = $this->punchForLock();
         DB::table('punches')->where('id', $punch->id)->update([
             'expected_at' => null,
             'deviation' => null,
         ]);
 
-        DB::table('ledgers')
-            ->whereIn('id', DB::table('workdays')->select('ledger_id')->where('id', $punch->workday_id))
-            ->update(['locked_at' => '2026-09-01 12:00:00']);
+        $ledger = $this->lock($punch);
 
-        $this->assertDatabaseHas('ledgers', ['locked_at' => '2026-09-01 12:00:00']);
+        $this->assertTrue($ledger->locked());
     }
 
-    private function lock(Punch $punch): void
+    private function lock(Punch $punch): Ledger
     {
-        DB::table('ledgers')
-            ->whereIn('id', DB::table('workdays')->select('ledger_id')->where('id', $punch->workday_id))
-            ->update(['locked_at' => '2026-09-30 12:00:00']);
+        return Ledger::factory()->create(['agency_id' => $punch->agency_id, 'employee_id' => $punch->employee_id, 'starts' => '2026-08-01', 'ends' => '2026-08-31']);
+    }
+
+    private function punchForLock(): Punch
+    {
+        $workday = Workday::factory()->create(['date' => '2026-08-15']);
+
+        return Punch::factory()->create(['agency_id' => $workday->agency_id, 'employee_id' => $workday->employee_id, 'workday_id' => $workday->id]);
     }
 }

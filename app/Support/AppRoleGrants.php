@@ -56,7 +56,20 @@ class AppRoleGrants
         // A run record that can be deleted is a run that can be denied.
         static::narrow($db, 'syncs', ["REVOKE DELETE ON syncs FROM {$role}"]);
 
-        static::narrow($db, 'attestations', ["REVOKE UPDATE ON attestations FROM {$role}"]);
+        static::narrow($db, 'attestations', [
+            "REVOKE UPDATE, DELETE ON attestations FROM {$role}",
+            "GRANT UPDATE (withdrawn_by, withdrawn_at) ON attestations TO {$role}",
+        ]);
+
+        static::narrow($db, 'documents', ["REVOKE UPDATE, DELETE ON documents FROM {$role}"]);
+        static::narrow($db, 'locations', [
+            "REVOKE UPDATE, DELETE ON locations FROM {$role}",
+            "GRANT UPDATE (verified_at, \"primary\", retired_at, updated_at) ON locations TO {$role}",
+        ]);
+        static::narrow($db, 'renditions', [
+            "REVOKE UPDATE, DELETE ON renditions FROM {$role}",
+            "GRANT UPDATE (status, document_id, requested_at, generated_at, failed_at, superseded_at, error, updated_at) ON renditions TO {$role}",
+        ]);
     }
 
     /**

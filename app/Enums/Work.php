@@ -14,11 +14,14 @@ enum Work: string
     /** Excess ∩ Overtime authority (05-calendar.md rule 6). */
     case Overtime = 'overtime';
 
+    case All = 'all';
+
     public function label(): string
     {
         return match ($this) {
             self::Regular => 'Regular',
             self::Overtime => 'Overtime',
+            self::All => 'All work',
         };
     }
 }

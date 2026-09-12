@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'agency_id', 'ledger_id', 'employee_id', 'date', 'shift_id', 'shift',
+    'agency_id', 'employee_id', 'date', 'shift_id', 'shift',
     'exemption_id', 'status', 'premium', 'worked', 'credited', 'tardy',
     'undertime', 'excess', 'night', 'night_excess', 'computed_at',
 ])]
@@ -32,7 +32,6 @@ class Workday extends Model
     {
         return [
             'date' => 'date',
-            'month' => 'date',
             'shift' => 'array',
             'status' => WorkdayStatus::class,
             'premium' => Premium::class,
@@ -46,11 +45,6 @@ class Workday extends Model
             'computed_at' => 'datetime',
             'created_at' => 'datetime',
         ];
-    }
-
-    public function ledger(): BelongsTo
-    {
-        return $this->belongsTo(Ledger::class);
     }
 
     public function employee(): BelongsTo
