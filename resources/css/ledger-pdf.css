@@ -103,7 +103,6 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48 .identity-grid,
 .form48 .duty-panel,
 .form48 .totals-panel,
-.form48 .attestation-panel,
 .form48 .certification,
 .form48 .verification,
 .form48 .filter-note { border-radius: 0; }
@@ -124,8 +123,7 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48 .identity-primary > strong,
 .form48 .duty-panel strong,
 .form48 .time-note { color: #111827; }
-.form48 .filter-note,
-.form48 .attestation-record strong { color: #111827; }
+.form48 .filter-note { color: #111827; }
 .form48 .outside { background: repeating-linear-gradient(135deg, #f8fafc, #f8fafc 5px, #eff2f5 5px, #eff2f5 10px); color: #98a2b3; }
 .form48 .certification { border-left-color: #111827; background: #ffffff; }
 .form48 .attendance th,
@@ -134,20 +132,15 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48 .form-number,
 .form48 .document-kicker { color: #111827; }
 .certification { margin: 0.065in 0; border-left: 3px solid var(--accent); padding: 3px 7px; color: #344054; font-size: 6.2pt; line-height: 1.25; }
-.attestation-panel { margin-top: 0.06in; }
-.section-heading { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; color: var(--ink); font-size: 6.5pt; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; }
-.section-heading small { color: var(--muted); font-size: 5.5pt; font-weight: normal; letter-spacing: 0; text-transform: none; }
-.attestation-chain { display: grid; grid-template-columns: 1fr; gap: 3px; }
-.attestation-step { display: grid; grid-template-columns: 0.23in 1fr auto; align-items: center; min-height: 0.24in; border: 1px solid var(--line); border-radius: 3px; padding: 2px 5px 2px 3px; break-inside: avoid; }
-.attestation-sequence { display: flex; align-items: center; justify-content: center; width: 0.18in; height: 0.18in; border-radius: 50%; background: var(--accent); color: white; font-size: 6pt; font-weight: bold; }
-.attestation-person strong, .attestation-person span, .attestation-record strong, .attestation-record span { display: block; }
-.attestation-person { min-width: 0; padding: 0 5px; }
-.attestation-person strong { font-size: 6.5pt; line-height: 1.1; overflow-wrap: anywhere; }
-.attestation-person span { margin-top: 1px; color: var(--muted); font-size: 5.4pt; line-height: 1.05; }
-.attestation-record { padding-left: 5px; border-left: 1px solid var(--line); text-align: right; white-space: nowrap; }
-.attestation-record strong { color: var(--accent); font-size: 5.4pt; text-transform: uppercase; }
-.attestation-record span { margin-top: 1px; color: var(--muted); font-size: 5pt; }
-.attestation-empty { grid-column: 1 / -1; min-height: 0.28in; border: 1px dashed var(--line-dark); border-radius: 3px; padding: 6px 8px; color: var(--muted); font-size: 6pt; text-align: center; }
+.endorsements { display: grid; width: 68%; margin: 0.08in auto 0; gap: 0.055in; }
+.endorsement { min-height: 0.34in; break-inside: avoid; }
+.endorsement-meta { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; color: var(--muted); font-size: 5pt; line-height: 1.05; }
+.endorsement-meta time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.endorsement-role { font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; }
+.endorsement-name { border-bottom: 1px solid var(--line-dark); padding: 0 8px 2px; color: var(--ink); font-size: 7pt; font-weight: bold; line-height: 1.05; text-align: center; overflow-wrap: anywhere; }
+.endorsement-position { min-height: 0.12in; padding: 2px 8px 0; color: var(--muted); font-size: 5.3pt; line-height: 1.05; text-align: center; overflow-wrap: anywhere; }
+.form48 .endorsements { width: 64%; }
+.form48 .endorsement-name { border-bottom-color: #111827; }
 .verification { position: absolute; bottom: 0; left: 0; width: 100%; min-height: 0.7in; border-top: 1px solid var(--line-dark); padding-top: 0.06in; display: flex; align-items: center; gap: 0.09in; color: var(--muted); font-size: 5.2pt; }
 .verification img { flex: 0 0 auto; height: 0.58in; width: 0.58in; }
 .verification-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; line-height: 1.05; }
@@ -214,7 +207,8 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .plain-total strong { color: var(--ink); font-size: 8.2pt; }
 .plain-total-primary { background: #f4f0ff; }
 .plain-total-primary strong { color: var(--accent); font-size: 9pt; }
-.plain .attestation-panel { margin-top: 0.08in; }
-.plain .attestation-step { min-height: 0.25in; }
+.plain .endorsements { width: 70%; margin-top: 0.06in; gap: 0.025in; }
+.plain .endorsement { min-height: 0.27in; }
+.plain .endorsement-name { border-bottom-color: var(--accent); }
 .plain .certification { margin: 0.06in 0 0; border-left-color: var(--accent); background: #f8f6ff; }
 .plain .verification { border-top: 2px solid var(--accent); }

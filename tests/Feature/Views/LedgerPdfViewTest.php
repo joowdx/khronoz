@@ -97,7 +97,7 @@ class LedgerPdfViewTest extends TestCase
         $this->assertMatchesRegularExpression('/<strong>26<\\/strong>\\s*<span>Sat<\\/span>/', $html);
         $this->assertSame(2, substr_count($html, '<p class="certification">'));
         $this->assertSame(2, substr_count($html, 'class="verification-brand"'));
-        $this->assertSame(1, substr_count($html, 'class="attestation-panel"'));
+        $this->assertStringNotContainsString('class="endorsements"', $html);
         $this->assertStringNotContainsString('<img ', $html);
     }
 
@@ -111,7 +111,8 @@ class LedgerPdfViewTest extends TestCase
         ])->render();
 
         $this->assertSame(1, substr_count($html, 'class="page plain"'));
-        $this->assertStringContainsString('No attestations recorded.', $html);
+        $this->assertStringNotContainsString('No attestations recorded.', $html);
+        $this->assertStringNotContainsString('class="endorsements"', $html);
         $this->assertStringContainsString('<p class="certification">', $html);
     }
 
@@ -281,9 +282,9 @@ class LedgerPdfViewTest extends TestCase
         $this->assertMatchesRegularExpression('/<span>Deficit<\\/span>\\s*<strong>01:12<\\/strong>/', $html);
         $this->assertStringContainsString('<td class="plain-metric attention">00:07</td>', $html);
         $this->assertStringContainsString('<td class="plain-metric attention">01:05</td>', $html);
-        $this->assertStringContainsString('class="attestation-step"', $html);
+        $this->assertStringContainsString('class="endorsement"', $html);
         $this->assertStringContainsString('Administrative Officer II', $html);
-        $this->assertStringContainsString('Sep 2, 2026 09:00', $html);
+        $this->assertStringContainsString('Recorded Sep 2, 2026 09:00', $html);
         $this->assertStringContainsString('khronoz', $html);
 
         $plainHeadStart = strpos($html, '<thead>');
@@ -356,5 +357,41 @@ class LedgerPdfViewTest extends TestCase
 
         $this->assertStringContainsString('<div class="preview-footer">PREVIEW - NOT ATTESTED</div>', $preview);
         $this->assertStringNotContainsString('alt="Verify this ledger"', $preview);
+    }
+
+    public function test_recorded_signatories_render_as_formal_vertical_endorsement_lines(): void
+    {
+        config(['app.timezone' => 'Asia/Manila']);
+        $attestations = [
+            ['role' => 'employee', 'name' => 'Ana Example', 'position' => 'Administrative Officer II', 'at' => '2026-09-02T01:00:00Z'],
+            ['role' => 'supervisor', 'name' => 'Rafael Villanueva', 'position' => 'Division Chief', 'at' => '2026-09-02T02:00:00Z'],
+            ['role' => 'timekeeper', 'name' => 'Elena Ramos', 'position' => 'Administrative Aide VI', 'at' => '2026-09-02T03:00:00Z'],
+            ['role' => 'head', 'name' => 'Alejandro Mendoza', 'position' => 'City Mayor', 'at' => '2026-09-02T04:00:00Z'],
+        ];
+
+        $html = view('pdf.ledgers.attestations', compact('attestations'))->render();
+
+        $this->assertSame(1, substr_count($html, 'class="endorsements"'));
+        $this->assertSame(4, substr_count($html, 'class="endorsement"'));
+        $this->assertSame(4, substr_count($html, 'class="endorsement-name"'));
+        $this->assertSame(4, substr_count($html, 'class="endorsement-position"'));
+        $this->assertStringContainsString('Recorded Sep 2, 2026 09:00', $html);
+        $this->assertStringContainsString('Administrative Officer II', $html);
+        $this->assertStringContainsString('City Mayor', $html);
+        $this->assertLessThan(strpos($html, 'Rafael Villanueva'), strpos($html, 'Ana Example'));
+        $this->assertLessThan(strpos($html, 'Elena Ramos'), strpos($html, 'Rafael Villanueva'));
+        $this->assertLessThan(strpos($html, 'Alejandro Mendoza'), strpos($html, 'Elena Ramos'));
+        $this->assertLessThan(strpos($html, 'class="endorsement-position"'), strpos($html, 'class="endorsement-name"'));
+        $this->assertStringNotContainsString('attestation', strtolower($html));
+        $this->assertStringNotContainsString('signature', strtolower($html));
+        $this->assertStringNotContainsString('recorded</small>', strtolower($html));
+        $this->assertStringNotContainsString('class="attestation-step"', $html);
+        $this->assertStringNotContainsString('class="attestation-sequence"', $html);
+
+        $css = file_get_contents(resource_path('css/ledger-pdf.css'));
+        $this->assertNotFalse($css);
+        $this->assertStringContainsString('.endorsement-name { border-bottom: 1px solid var(--line-dark);', $css);
+
+        $this->assertSame('', trim(view('pdf.ledgers.attestations', ['attestations' => []])->render()));
     }
 }

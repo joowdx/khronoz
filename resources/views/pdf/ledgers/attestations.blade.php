@@ -1,27 +1,21 @@
-<section class="attestation-panel" aria-label="Application attestations">
-    <div class="section-heading">
-        <span>Attestation chain</span>
-        <small>{{ count($attestations) }} recorded</small>
-    </div>
-    <div class="attestation-chain">
-        @forelse ($attestations as $attestation)
+@if (count($attestations) > 0)
+    <section class="endorsements">
+        @foreach ($attestations as $attestation)
             @php
-                $role = str_replace('_', ' ', (string) ($attestation['role'] ?? 'Attestor'));
-                $position = $attestation['position'] ?? $attestation['designation'] ?? null;
+                $role = ucwords(str_replace('_', ' ', (string) ($attestation['role'] ?? '')));
+                $position = $attestation['position'] ?? $attestation['designation'] ?? '';
+                $recordedAt = empty($attestation['at'])
+                    ? null
+                    : \Carbon\CarbonImmutable::parse($attestation['at'])->setTimezone(config('app.timezone'))->format('M j, Y H:i');
             @endphp
-            <div class="attestation-step">
-                <span class="attestation-sequence">{{ $attestation['sequence'] ?? $loop->iteration }}</span>
-                <div class="attestation-person">
-                    <strong>{{ $attestation['name'] ?? '' }}</strong>
-                    <span>{{ $position ?: ucfirst($role) }}</span>
+            <div class="endorsement">
+                <div class="endorsement-meta">
+                    <span class="endorsement-role">{{ $role }}</span>
+                    @if ($recordedAt)<time datetime="{{ $attestation['at'] }}">Recorded {{ $recordedAt }}</time>@endif
                 </div>
-                <div class="attestation-record">
-                    <strong>{{ ucfirst($role) }}</strong>
-                    <span>{{ empty($attestation['at']) ? 'Not recorded' : \Carbon\CarbonImmutable::parse($attestation['at'])->setTimezone(config('app.timezone'))->format('M j, Y H:i') }}</span>
-                </div>
+                <div class="endorsement-name">{{ $attestation['name'] ?? '' }}</div>
+                <div class="endorsement-position">{{ $position }}</div>
             </div>
-        @empty
-            <div class="attestation-empty">No attestations recorded.</div>
-        @endforelse
-    </div>
-</section>
+        @endforeach
+    </section>
+@endif
