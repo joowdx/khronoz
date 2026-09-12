@@ -32,6 +32,9 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
+            'pending_email' => null,
+            'pending_email_token' => null,
+            'pending_email_expires_at' => null,
             // Resources read this attribute, so factory defaults set it explicitly.
             'invited_at' => null,
             'password' => static::$password ??= Hash::make('password'),

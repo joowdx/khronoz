@@ -64,6 +64,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified', 'legal'])->group(function () {
+    require __DIR__.'/settings.php';
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::resource('users', UserController::class)->except(['show']);

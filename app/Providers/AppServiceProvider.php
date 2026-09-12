@@ -108,6 +108,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::before(fn (User $user) => $user->isPlatform() ? true : null);
         Gate::define('accept-legal', fn (User $user): bool => true);
+        Gate::define('manage-account', fn (User $user): bool => true);
 
         foreach (Permission::cases() as $permission) {
             Gate::define($permission->value, fn (User $user) => $user->allows($permission));

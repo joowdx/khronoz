@@ -20,3 +20,6 @@ Copying a default into an agency must REMAP: `turns (shift_id, agency_id)` and `
 
 ## Account acknowledgments follow the owning user
 RecordAcceptance validates the exact displayed legal versions/hashes and writes both acknowledgments atomically under a user-row lock. Use Tenant::within($user->agency, ...) for acceptance reads/writes, restoring any entered agency; never let a platform agency switch attribute acceptance to the entered tenant. Invitation creation does not accept for the invitee.
+
+## Account settings act on the authenticated owner
+Self-service account changes never accept a target user, agency, employee link, or permissions from input. Pending email stays separate from the verified login address until a signed, expiring, one-use link is confirmed; password changes cancel pending email and revoke other sessions. Credential changes require a five-minute reauthentication window. Preserve an entered platform agency while operating on the owning account.

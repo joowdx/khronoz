@@ -16,6 +16,9 @@ return new class extends Migration
             $table->string('name');
             $table->string('email');
             $table->timestamp('email_verified_at')->nullable();
+            $table->string('pending_email')->nullable();
+            $table->string('pending_email_token', 64)->nullable();
+            $table->timestamp('pending_email_expires_at')->nullable();
             $table->string('password');
             $table->jsonb('permissions')->default(DB::raw("'[]'::jsonb"));
             $table->timestamp('invited_at')->nullable();

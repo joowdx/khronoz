@@ -19,6 +19,10 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
         $isLocal = $this->app->environment('local');
 
         Telescope::filter(function (IncomingEntry $entry) use ($isLocal) {
+            if (request()->is('settings/*', 'confirm-password', '*password*', 'auth/*', 'two-factor-challenge', 'passkeys/*')) {
+                return false;
+            }
+
             return $isLocal ||
                    $entry->isReportableException() ||
                    $entry->isFailedRequest() ||
@@ -30,11 +34,7 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
 
     protected function hideSensitiveRequestDetails(): void
     {
-        if ($this->app->environment('local')) {
-            return;
-        }
-
-        Telescope::hideRequestParameters(['_token']);
+        Telescope::hideRequestParameters(['_token', 'password', 'password_confirmation', 'current_password', 'token', 'code', 'recovery_code', 'credential']);
 
         Telescope::hideRequestHeaders([
             'cookie',

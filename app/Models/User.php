@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['agency_id', 'employee_id', 'name', 'email', 'password', 'permissions', 'invited_at'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'pending_email', 'pending_email_token', 'pending_email_expires_at'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /**
@@ -35,6 +35,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'pending_email_expires_at' => 'datetime',
             'invited_at' => 'datetime',
             'password' => 'hashed',
             'permissions' => AsEnumCollection::of(Permission::class),

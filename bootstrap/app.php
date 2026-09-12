@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureAgency;
 use App\Http\Middleware\EnsureLegalAcceptance;
 use App\Http\Middleware\EnsurePlatform;
+use App\Http\Middleware\EnsureRecentAuthentication;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTenant;
 use Illuminate\Foundation\Application;
@@ -10,6 +11,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -21,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
+            AuthenticateSession::class,
             SetTenant::class,
             HandleInertiaRequests::class,
         ]);
@@ -31,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'agency' => EnsureAgency::class,
             'legal' => EnsureLegalAcceptance::class,
+            'confirmed' => EnsureRecentAuthentication::class,
             'platform' => EnsurePlatform::class,
         ]);
 
@@ -40,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash(['password', 'password_confirmation', 'current_password', 'code', 'recovery_code', 'credential', 'token']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

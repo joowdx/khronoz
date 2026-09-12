@@ -1,5 +1,6 @@
 import { Form, Link, usePage } from '@inertiajs/react';
-import { ChevronDown, LogOut, Sun } from 'lucide-react';
+import { ChevronDown, LogOut, Sun, Settings } from 'lucide-react';
+import { edit as profile } from '@/routes/settings/profile';
 import { useId } from 'react';
 import { show as legalDocument } from '@/routes/legal';
 import { destroy } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
@@ -63,6 +64,12 @@ export function UserMenu() {
                         <span className="text-muted-foreground block truncate text-xs leading-4">{user.email}</span>
                     </span>
                 </div>
+                <DropdownMenuItem asChild>
+                    <Link href={profile()}>
+                        <Settings aria-hidden strokeWidth={1.5} />
+                        Account settings
+                    </Link>
+                </DropdownMenuItem>
                 <div className="px-[9px] pt-1.5 pb-2">
                     <span
                         id={appearanceLabelId}
