@@ -10,6 +10,11 @@
     $duration = static function (int $minutes, bool $blankZero = false): string {
         return $blankZero && $minutes === 0 ? '' : sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
     };
+    $holidayType = static function (array $holiday): string {
+        $label = $holiday['type']['label'] ?? $holiday['type']['value'] ?? $holiday['type'] ?? 'Holiday';
+
+        return str_contains(strtolower($label), 'holiday') ? $label : $label.' holiday';
+    };
     $duty = static function ($days, bool $weekend): string {
         $coveredDays = collect($days)->filter(fn (array $day): bool => \Carbon\CarbonImmutable::parse($day['date'])->isWeekend() === $weekend);
         $patterns = $coveredDays
@@ -45,11 +50,13 @@
         <div class="form48-employee-name">{{ $snapshot['employee']['name'] ?? '' }}</div>
         <div class="form48-employee-caption">Employee</div>
 
-        <div class="form48-identity-line">
-            <div>
-                <span>Employee no.</span>
-                <strong>{{ $snapshot['employee']['number'] ?? '-' }}</strong>
-            </div>
+        <div @class(['form48-identity-line', 'without-number' => empty($snapshot['employee']['number'])])>
+            @if (! empty($snapshot['employee']['number']))
+                <div>
+                    <span>Employee no.</span>
+                    <strong>{{ $snapshot['employee']['number'] }}</strong>
+                </div>
+            @endif
             <div>
                 <span>Position</span>
                 <strong>{{ $snapshot['employee']['position'] ?? 'Not specified' }}</strong>
@@ -72,13 +79,13 @@
                 <div><span>Weekdays</span><strong>{{ $duty($workdays->values(), false) }}</strong></div>
                 <div><span>Weekends</span><strong>{{ $duty($workdays->values(), true) }}</strong></div>
             </div>
-            <div class="form48-time-key">24-hour time<br><strong>(+1d)</strong> next day</div>
         </div>
     </header>
     @if (! empty($snapshot['filters']))<div class="filter-note"><strong>Detail filter:</strong> {{ collect($snapshot['filters'])->pluck('label')->join(', ') }}. Totals remain for the complete selected range.</div>@endif
     <table class="attendance form48-table">
         <colgroup>
             <col class="day-col">
+            <col class="numeric-col">
             <col class="numeric-col">
             <col class="numeric-col">
             <col class="numeric-col">
@@ -96,6 +103,7 @@
                 <th colspan="2">PM</th>
                 <th colspan="3">DEFICIT</th>
                 <th rowspan="2" class="hours-col"><span>HOURS</span><span>WORKED</span></th>
+                <th rowspan="2" class="hours-col"><span>OVERTIME</span><span>HOURS</span></th>
                 <th rowspan="2" class="remarks-col"><span>REMARKS</span><span>ADJUSTMENTS</span></th>
             </tr>
             <tr>
@@ -109,10 +117,25 @@
             </tr>
         </thead>
         <tbody>
-        @for ($day = 1; $day <= $month->daysInMonth; $day++)
+        @for ($day = 1; $day <= 31; $day++)
             @php
-                $date = $month->day($day); $outside = $date->lessThan($starts) || $date->greaterThan($ends); $workday = $workdays->get($date->format('Y-m-d'), []);
+                $dateExists = $day <= $month->daysInMonth;
+                $date = $dateExists ? $month->day($day) : null;
+                $outside = ! $dateExists || $date->lessThan($starts) || $date->greaterThan($ends);
+                $workday = $dateExists ? $workdays->get($date->format('Y-m-d'), []) : [];
                 $punches = collect($workday['punches'] ?? [])->sortBy(fn (array $punch): string => sprintf('%04d-%s', $punch['slot'] ?? 0, $punch['kind']['value'] ?? ''));
+                $holidays = collect($workday['holidays'] ?? []);
+                $isHoliday = ! $outside && $holidays->isNotEmpty();
+                $isWeekend = ! $outside && $date->isWeekend();
+                $calendarLabel = collect([$isWeekend ? $date->format('l') : null])
+                    ->merge($holidays->pluck('name'))
+                    ->filter()
+                    ->unique()
+                    ->join(' • ');
+                $mergeCalendarPunches = $calendarLabel !== ''
+                    && $punches->isEmpty()
+                    && collect(['worked', 'credited', 'tardy', 'undertime', 'excess', 'night', 'night_excess'])
+                        ->every(fn (string $metric): bool => (int) ($workday[$metric] ?? 0) === 0);
                 $slots = $punches->pluck('slot')->unique()->values(); $cells = collect([null, null, null, null]); $annotated = collect();
                 $column = static function (array $punch): int {
                     $kind = $punch['kind']['value'] ?? ''; $stamp = $punch['actual_at'] ?? $punch['expected_at'] ?? null;
@@ -122,6 +145,7 @@
                 $dayTardiness = (int) ($workday['tardy'] ?? 0);
                 $dayUndertime = (int) ($workday['undertime'] ?? 0);
                 $dayDeficit = $dayTardiness + $dayUndertime;
+                $dayOvertime = $dateExists ? (int) ($snapshot['totals']['overtimeByDate'][$date->format('Y-m-d')] ?? $workday['overtime'] ?? 0) : 0;
                 if ($slots->count() <= 2) {
                     $natural = $punches->mapWithKeys(fn (array $punch): array => [$column($punch) => $punch]);
                     if ($natural->count() === $punches->count()) { foreach ($natural as $index => $punch) { $cells->put($index, $punch); } }
@@ -132,8 +156,12 @@
                     $annotated = $punches->reject(fn (array $punch): bool => $punch === $first || $punch === $last);
                 }
                 $notes = collect();
-                if (! empty($workday['status']['label']) && ($workday['status']['value'] ?? null) !== 'present') { $notes->push($workday['status']['label']); }
-                if (! empty($workday['premium'])) { $notes->push($workday['premium']['label'] ?? $workday['premium']['value']); }
+                if ($isHoliday) {
+                    foreach ($holidays as $holiday) { $notes->push($holidayType($holiday)); }
+                } elseif (! $isWeekend) {
+                    if (! empty($workday['status']['label']) && ($workday['status']['value'] ?? null) !== 'present') { $notes->push($workday['status']['label']); }
+                    if (! empty($workday['premium'])) { $notes->push($workday['premium']['label'] ?? $workday['premium']['value']); }
+                }
                 if (($workday['credited'] ?? 0) > 0) { $notes->push('Credited '.$duration((int) $workday['credited'])); }
                 if (($workday['excess'] ?? 0) > 0) { $notes->push('Excess '.$duration((int) $workday['excess'])); }
                 if (($workday['night'] ?? 0) > 0) { $notes->push('Night '.$duration((int) $workday['night'])); }
@@ -141,12 +169,19 @@
                 if (! empty($workday['exemption'])) { $notes->push(($workday['exemption']['type']['label'] ?? $workday['exemption']['type']['value'] ?? 'Exempt').(empty($workday['exemption']['reference']) ? '' : ' '.$workday['exemption']['reference'])); }
                 $notes = $notes->unique()->values();
             @endphp
-            <tr @class(['outside' => $outside])><td class="day-cell">{{ $day }}</td>
-                @if ($outside)<td colspan="9" class="outside-scope"></td>
+            <tr @class(['outside' => $outside, 'holiday' => $isHoliday, 'weekend' => $isWeekend])><td class="day-cell">{{ $dateExists ? $day : '--' }}</td>
+                @if ($outside)<td colspan="10" class="outside-scope"></td>
+                @elseif ($mergeCalendarPunches)
+                    <td colspan="4" class="calendar-label">{{ $calendarLabel }}</td>
+                    <td class="metric-cell">{{ $duration($dayTardiness, true) }}</td><td class="metric-cell">{{ $duration($dayUndertime, true) }}</td><td class="metric-cell">{{ $duration($dayDeficit, true) }}</td>
+                    <td class="metric-cell">{{ $duration((int) ($workday['worked'] ?? 0), true) }}</td>
+                    <td class="metric-cell">{{ $duration($dayOvertime, true) }}</td>
+                    <td class="annotations">{{ $notes->join(' / ') }}</td>
                 @else
                     @foreach ($cells as $punch)<td class="time-cell">@if ($punch !== null && ($punch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $punch['actual_at'], 'workDate' => $date->format('Y-m-d')])@elseif ($punch !== null && ($punch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($punch['expected_at'])->greaterThan($asOf))<span class="pending">Pending</span>@elseif ($punch !== null)<span class="missing">Missing</span>@endif</td>@endforeach
                     <td class="metric-cell">{{ $duration($dayTardiness, true) }}</td><td class="metric-cell">{{ $duration($dayUndertime, true) }}</td><td class="metric-cell">{{ $duration($dayDeficit, true) }}</td>
                     <td class="metric-cell">{{ $duration((int) ($workday['worked'] ?? 0), true) }}</td>
+                    <td class="metric-cell">{{ $duration($dayOvertime, true) }}</td>
                     <td class="annotations">{{ $notes->join(' / ') }}@foreach ($annotated as $extraPunch)<span class="extra-slot">{{ $loop->first && $notes->isNotEmpty() ? ' / ' : '' }}S{{ $extraPunch['slot'] ?? '' }} {{ strtoupper($extraPunch['kind']['value'] ?? '') }} @if (($extraPunch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $extraPunch['actual_at'], 'workDate' => $date->format('Y-m-d')])@elseif (($extraPunch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($extraPunch['expected_at'])->greaterThan($asOf))pending @else missing @endif</span>@endforeach</td>
                 @endif
             </tr>
@@ -155,7 +190,7 @@
     </table>
     @php $periodDeficit = (int) ($snapshot['totals']['tardy'] ?? 0) + (int) ($snapshot['totals']['undertime'] ?? 0); @endphp
     <table class="form48-summary" aria-label="Period totals">
-        <thead><tr>@foreach (['Worked', 'Credited', 'Tardy', 'Undertime', 'Deficit', 'Overtime', 'Night'] as $label)<th>{{ $label }}</th>@endforeach</tr></thead>
+        <thead><tr>@foreach ([['Hours', 'Worked'], ['Credited', 'Hours'], ['Total', 'Tardiness'], ['Total', 'Undertime'], ['Net', 'Deficit'], ['Approved', 'Overtime'], ['Night', 'Hours']] as $label)<th><span>{{ $label[0] }}</span><span>{{ $label[1] }}</span></th>@endforeach</tr></thead>
         <tbody><tr>@foreach ([$snapshot['totals']['worked'] ?? 0, $snapshot['totals']['credited'] ?? 0, $snapshot['totals']['tardy'] ?? 0, $snapshot['totals']['undertime'] ?? 0, $periodDeficit, $snapshot['totals']['overtime'] ?? 0, $snapshot['totals']['night'] ?? 0] as $minutes)<td>{{ $duration((int) $minutes) }}</td>@endforeach</tr></tbody>
     </table>
     <p class="form48-certification">I certify on my honor that the above is a true and correct report of the hours of work performed, record of which was made daily at the time of arrival and departure from office.</p>

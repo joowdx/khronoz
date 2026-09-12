@@ -160,7 +160,9 @@ Rules:
 
 ## CSC Form 48
 
-The form is one optional renderer of the ledger view, not the storage and not an employment-status rule. Khronoz uses Clockwork's traditional one-sided Form 48 layout as the visual reference while retaining its expanded columns: day; AM in and out; PM in and out; tardiness, undertime, and total deficit; hours worked; and remarks or adjustments. Day and time figures are tabular, day values align right, and the four punch, three deficit, and hours-worked columns share a consistent numeric rhythm.
+The form is one optional renderer of the ledger view, not the storage and not an employment-status rule. Khronoz uses Clockwork's traditional one-sided Form 48 layout as the visual reference while retaining its expanded columns: day; AM in and out; PM in and out; tardiness, undertime, and total deficit; hours worked; overtime hours; and remarks or adjustments. Day and time figures are tabular, day values align right, and the four punch, three deficit, hours-worked, and overtime columns share a consistent numeric rhythm. Every month prints 31 body rows; impossible dates use the same excluded-range treatment and show `--` in the day column. The employee-number line is omitted when the frozen identity has no number.
+
+An unscheduled Saturday, Sunday, or holiday merges only the four AM and PM punch cells and prints its calendar labels there. Weekend and multiple holiday labels are combined in order with a bullet separator, such as `Sunday • New Year's Day • Local Foundation Day`. Deficit, hours worked, overtime, day, and remarks remain separate. Holidays state their frozen classification in remarks, such as regular, special non-working, special working, or local holiday. A scheduled weekend or holiday remains cell-by-cell so no expected, missing, or actual punch is concealed. Weekend rows use a light solid grey fill across the complete row, holiday rows add a stripe, and a date that is both receives both treatments. Excluded-range or impossible-date rows use a distinct stipple. Weekly-only overtime is printed on the Sunday that owns the weekly calculation.
 
 | Slots in the shift | Printed as |
 |---|---|

@@ -12,9 +12,8 @@
     --footer-brand: #172033;
 }
 body { margin: 0; color: var(--ink); background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; font-variant-numeric: tabular-nums; }
-.page { display: flow-root; position: relative; break-after: page; overflow: hidden; }
-.page:last-child { break-after: auto; }
-.page + .page { break-before: page; page-break-before: always; }
+.page { display: flow-root; position: relative; break-after: page; page-break-after: always; overflow: hidden; }
+.page:last-child { break-after: auto; page-break-after: auto; }
 .form48 { height: 13.1in; padding-bottom: 0.91in; }
 .plain { height: 10.65in; padding-bottom: 0.79in; }
 .form48 {
@@ -56,26 +55,27 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48 .attendance th,
 .form48 .attendance td { border: 0.5pt solid #111; }
 .form48 .attendance th { background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 6pt; letter-spacing: 0.02em; }
-.form48 .attendance thead tr:first-child th { height: 0.23in; border-bottom-width: 0.75pt; }
-.form48 .attendance thead tr:last-child th { height: 0.21in; }
+.form48 .attendance thead tr:first-child th { height: 0.25in; border-bottom-width: 0.75pt; }
+.form48 .attendance thead tr:last-child th { height: 0.23in; }
 .attendance th, .attendance td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: center; overflow-wrap: anywhere; }
 .attendance th:last-child, .attendance td:last-child { border-right: 0; }
 .attendance tbody tr:last-child td { border-bottom: 0; }
 .attendance th { background: var(--surface-strong); color: #344054; padding: 3px 2px; font-size: 6.1pt; font-weight: bold; letter-spacing: 0.035em; line-height: 1.1; text-transform: uppercase; vertical-align: middle; }
 .attendance th small { color: var(--muted); font-size: 5.2pt; font-weight: normal; }
-.form48-table tbody tr { height: 0.192in; }
+.form48-table tbody tr { height: 0.2in; }
 .form48-table td { padding: 1px 3px; font-size: 7.2pt; line-height: 1.05; }
-.form48-table .day, .form48-table .day-cell { width: 0.65in; padding-right: 13px; text-align: right; vertical-align: middle; }
+.form48-table .day, .form48-table .day-cell { width: 0.48in; padding-right: 11px; text-align: right; vertical-align: middle; }
 .form48-table .day-cell { background: #fff; font-weight: bold; }
 .form48 .form48-table .day-cell { background: #ffffff; }
-.form48-table col.day-col { width: 0.65in; }
-.form48-table col.numeric-col { width: 0.65in; }
-.form48-table col.remarks-col { width: 1.85in; }
+.form48-table col.day-col { width: 0.48in; }
+.form48-table col.numeric-col { width: 0.58in; }
+.form48-table col.remarks-col { width: 2in; }
 .form48-table .hours-col span { display: block; line-height: 1.02; }
 .form48-table .remarks-col span { display: block; line-height: 1.02; }
 .form48-table .time-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .form48-table .metric-cell { color: #111; font-size: 6.8pt; font-variant-numeric: tabular-nums; font-weight: bold; }
 .form48-table .annotations { padding: 1px 4px; text-align: left; font-size: 5.6pt; line-height: 1.05; }
+.form48-table .calendar-label { padding: 1px 7px; font-size: 6.5pt; font-weight: bold; letter-spacing: 0.025em; text-align: left; }
 .extra-slot { display: inline; }
 .missing { color: var(--warning); font-size: 5.4pt; font-weight: bold; text-transform: uppercase; }
 .pending { color: var(--muted); font-size: 5.4pt; font-style: italic; text-transform: uppercase; }
@@ -96,6 +96,7 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48-employee-name { width: 72%; margin: 0.11in auto 0; border-bottom: 0.75pt solid #111; padding: 0 10px 2px; font-size: 10.5pt; font-weight: bold; line-height: 1.1; text-align: center; text-transform: uppercase; overflow-wrap: anywhere; }
 .form48-employee-caption { margin-top: 2px; font-size: 5.8pt; text-align: center; }
 .form48-identity-line { display: grid; width: 94%; margin: 0.075in auto 0; grid-template-columns: 0.65fr 0.95fr 1.4fr; gap: 0.12in; }
+.form48-identity-line.without-number { grid-template-columns: 0.9fr 1.4fr; }
 .form48-identity-line > div { min-width: 0; border-bottom: 0.5pt solid #111; padding: 0 2px 3px; }
 .form48-identity-line span { display: block; margin-bottom: 2px; font-size: 5.2pt; letter-spacing: 0.045em; text-transform: uppercase; }
 .form48-identity-line strong { display: block; font-size: 6.7pt; line-height: 1.1; overflow-wrap: anywhere; }
@@ -103,39 +104,42 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48-period-line > span { padding-bottom: 3px; white-space: nowrap; }
 .form48-period-line > strong { flex: 1; border-bottom: 0.5pt solid #111; padding: 0 8px 3px; font-size: 8pt; text-align: center; }
 .form48-period-line > em { padding-bottom: 3px; font-size: 5.4pt; font-style: normal; white-space: nowrap; }
-.form48-duty-lines { display: grid; width: 94%; margin: 0.075in auto 0; grid-template-columns: 1.12in 1fr 0.78in; align-items: stretch; gap: 0.08in; }
+.form48-duty-lines { display: grid; width: 94%; margin: 0.075in auto 0; grid-template-columns: 1.12in 1fr; align-items: stretch; gap: 0.08in; }
 .form48-duty-label { display: flex; align-items: center; font-size: 6.2pt; line-height: 1.2; }
 .form48-duty-values { display: grid; gap: 3px; }
 .form48-duty-values > div { display: grid; grid-template-columns: 0.58in 1fr; align-items: end; gap: 5px; }
 .form48-duty-values span { padding-bottom: 2px; font-size: 5.6pt; }
 .form48-duty-values strong { min-width: 0; border-bottom: 0.5pt solid #111; padding: 0 4px 2px; font-size: 6pt; line-height: 1.05; overflow-wrap: anywhere; }
-.form48-time-key { display: flex; align-items: center; justify-content: center; border-bottom: 0.5pt solid #111; font-size: 5pt; line-height: 1.12; text-align: center; text-transform: uppercase; }
-.form48-time-key strong { font-variant-numeric: tabular-nums; }
 .form48-summary { margin-top: 0.065in; border: 0.75pt solid #111; border-collapse: collapse; }
 .form48-summary th,
 .form48-summary td { width: 14.285%; border-left: 0.5pt solid #111; text-align: center; }
 .form48-summary th:first-child,
 .form48-summary td:first-child { border-left: 0; }
 .form48-summary th { padding: 3px 2px 1px; font-size: 5.2pt; font-weight: normal; letter-spacing: 0.04em; text-transform: uppercase; }
+.form48-summary th span { display: block; line-height: 1.05; }
 .form48-summary td { padding: 1px 2px 3px; font-size: 7.2pt; font-variant-numeric: tabular-nums; font-weight: bold; }
 .form48-certification { width: 94%; margin: 0.075in auto 0; color: #111; font-size: 6.4pt; font-style: italic; line-height: 1.25; text-align: justify; }
 .form48 .filter-note { border-radius: 0; color: #111827; }
-.form48 .outside { background: repeating-linear-gradient(135deg, #f8fafc, #f8fafc 5px, #eff2f5 5px, #eff2f5 10px); color: #98a2b3; }
+.form48 .attendance tbody tr.weekend td { background-color: #f0f2f4; }
+.form48 .attendance tbody tr.holiday td { background-image: repeating-linear-gradient(135deg, transparent 0, transparent 5px, rgba(180, 188, 198, 0.3) 5px, rgba(180, 188, 198, 0.3) 9px); }
+.form48 .attendance tbody tr.holiday:not(.weekend) td { background-color: #fff; }
+.form48 .attendance tbody tr.outside td { background-color: #f7f8fa; background-image: radial-gradient(#c7cdd5 0.45px, transparent 0.55px); background-size: 4px 4px; color: #7d8795; }
+.form48 .attendance tbody tr.outside .day-cell { background-color: transparent; }
 .form48 .attendance th,
 .form48 .attendance td,
 .form48 .verification img,
 .form48 .form48-number { color: #111827; }
 .certification { margin: 0.065in 0; border-left: 3px solid var(--accent); padding: 3px 7px; color: #344054; font-size: 6.2pt; line-height: 1.25; }
-.endorsements { display: grid; width: 68%; margin: 0.08in auto 0; gap: 0.055in; }
-.endorsement { min-height: 0.33in; break-inside: avoid; text-align: center; }
+.endorsements { display: flex; width: 68%; margin: 0.1in auto 0; flex-direction: column; justify-content: space-between; }
+.endorsement { display: flex; min-height: 0.52in; break-inside: avoid; flex-direction: column; justify-content: flex-end; padding-top: 0.19in; text-align: center; }
 .endorsement-meta { display: flex; align-items: baseline; justify-content: center; margin-top: 1px; color: var(--muted); font-size: 4.6pt; line-height: 1.05; }
 .endorsement-meta time::before { content: " · "; }
 .endorsement-meta time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .endorsement-role { font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; }
 .endorsement-name { border-bottom: 1px solid var(--line-dark); padding: 0 8px 2px; color: var(--ink); font-size: 7.4pt; font-weight: bold; line-height: 1.05; text-align: center; overflow-wrap: anywhere; }
 .endorsement-position { min-height: 0.1in; padding: 2px 8px 0; color: var(--muted); font-size: 5.2pt; line-height: 1.05; text-align: center; overflow-wrap: anywhere; }
-.form48 .endorsements { width: 66%; margin-top: 0.075in; gap: 0.045in; }
-.form48 .endorsement { min-height: 0.3in; }
+.form48 .endorsements { width: 68%; min-height: 2.3in; margin-top: 0.095in; }
+.form48 .endorsement { min-height: 0.52in; }
 .form48 .endorsement-name { border-bottom-color: #111; color: #111; }
 .form48 .endorsement-position,
 .form48 .endorsement-meta { color: #303030; }
@@ -160,6 +164,7 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .range-card strong { font-size: 7pt; }
 .range-card em { padding: 0 5px; color: #ddd6fe; font-size: 6pt; font-style: normal; }
 .plain-profile { display: grid; grid-template-columns: 1.65fr 0.75fr 1.1fr 0.7fr; margin-bottom: 0.07in; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.plain-profile.without-number { grid-template-columns: 1.65fr 1.1fr 0.7fr; }
 .plain-profile > div { min-height: 0.45in; border-left: 1px solid var(--line); padding: 6px 8px; }
 .plain-profile > div:first-child { border-left: 0; }
 .plain-profile strong, .plain-profile span { display: block; overflow-wrap: anywhere; }
@@ -169,11 +174,12 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .plain-duty { grid-template-columns: 1fr 1fr 0.75in; }
 .plain .plain-table { width: 186mm; border-top: 2px solid var(--accent); }
 .plain-table col.plain-date-col { width: 11mm; }
-.plain-table col.plain-status-col { width: 26mm; }
-.plain-table col.plain-punches-col { width: 44mm; }
-.plain-table col.plain-deficit-col { width: 16mm; }
-.plain-table col.plain-hours-col { width: 16mm; }
-.plain-table col.plain-notes-col { width: 41mm; }
+.plain-table col.plain-status-col { width: 23mm; }
+.plain-table col.plain-punches-col { width: 39mm; }
+.plain-table col.plain-deficit-col { width: 14mm; }
+.plain-table col.plain-hours-col { width: 14mm; }
+.plain-table col.plain-overtime-col { width: 14mm; }
+.plain-table col.plain-notes-col { width: 43mm; }
 .plain-table th { padding: 3px 4px 2px; height: 0.34in; }
 .plain-table th span { display: block; line-height: 1.05; }
 .plain-table tbody tr { height: 0.31in; }
@@ -201,11 +207,12 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .plain-totals { margin-top: 0.08in; border-radius: 3px; }
 .plain-totals > div { background: var(--surface); }
 .plain-total span { font-size: 5.4pt; letter-spacing: 0.06em; }
+.plain-total-label > span { display: block; line-height: 1.05; }
 .plain-total strong { color: var(--ink); font-size: 8.2pt; }
 .plain-total-primary { background: #f4f0ff; }
 .plain-total-primary strong { color: var(--accent); font-size: 9pt; }
-.plain .endorsements { width: 70%; margin-top: 0.06in; gap: 0.025in; }
-.plain .endorsement { min-height: 0.27in; }
+.plain .endorsements { width: 72%; min-height: 1.9in; margin-top: 0.09in; }
+.plain .endorsement { min-height: 0.45in; padding-top: 0.14in; }
 .plain .endorsement-name { border-bottom-color: var(--accent); }
 .plain .certification { margin: 0.06in 0 0; border-left-color: var(--accent); background: #f8f6ff; }
 .plain .verification { border-top: 2px solid var(--accent); }

@@ -11,12 +11,31 @@
         }
     }
 
-    $pages = array_chunk($rows, 16);
-    if ($pages === []) {
+    $attestationCount = min(count($snapshot['attestations'] ?? []), 4);
+    if ($rows === []) {
         $pages = [[]];
+    } elseif ($attestationCount === 0) {
+        $pages = array_chunk($rows, 16);
+    } else {
+        $lastPageCapacity = max(8, 16 - ($attestationCount * 2));
+
+        if (count($rows) <= $lastPageCapacity) {
+            $pages = [$rows];
+        } else {
+            $leadingRows = array_slice($rows, 0, -$lastPageCapacity);
+            $lastPage = array_slice($rows, -$lastPageCapacity);
+            $leadingPageCount = (int) ceil(count($leadingRows) / 16);
+            $leadingPageSize = (int) ceil(count($leadingRows) / $leadingPageCount);
+            $pages = [...array_chunk($leadingRows, $leadingPageSize), $lastPage];
+        }
     }
 
     $duration = static fn (int $minutes): string => sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
+    $holidayType = static function (array $holiday): string {
+        $label = $holiday['type']['label'] ?? $holiday['type']['value'] ?? $holiday['type'] ?? 'Holiday';
+
+        return str_contains(strtolower($label), 'holiday') ? $label : $label.' holiday';
+    };
     $duty = static function ($days, bool $weekend): string {
         $patterns = collect($days)->filter(fn (array $day): bool => \Carbon\CarbonImmutable::parse($day['date'])->isWeekend() === $weekend)
             ->map(function (array $day): string {
@@ -55,16 +74,18 @@
         </div>
     </header>
 
-    <section class="plain-profile">
+    <section @class(['plain-profile', 'without-number' => empty($snapshot['employee']['number'])])>
         <div class="profile-name">
             <span class="field-label">Employee</span>
             <strong>{{ $snapshot['employee']['name'] ?? '' }}</strong>
             <span>{{ $snapshot['employee']['position'] ?? 'Position not specified' }}</span>
         </div>
-        <div>
-            <span class="field-label">Employee no.</span>
-            <strong>{{ $snapshot['employee']['number'] ?? '-' }}</strong>
-        </div>
+        @if (! empty($snapshot['employee']['number']))
+            <div>
+                <span class="field-label">Employee no.</span>
+                <strong>{{ $snapshot['employee']['number'] }}</strong>
+            </div>
+        @endif
         <div>
             <span class="field-label">Office unit</span>
             <strong>{{ $snapshot['workgroup']['name'] ?? '-' }}</strong>
@@ -94,6 +115,7 @@
             <col class="plain-deficit-col">
             <col class="plain-deficit-col">
             <col class="plain-hours-col">
+            <col class="plain-overtime-col">
             <col class="plain-notes-col">
         </colgroup>
         <thead>
@@ -111,6 +133,10 @@
                 <th rowspan="2" class="plain-hours-col">
                     <span>HOURS</span>
                     <span>WORKED</span>
+                </th>
+                <th rowspan="2" class="plain-overtime-col">
+                    <span>OVERTIME</span>
+                    <span>HOURS</span>
                 </th>
                 <th rowspan="2" class="plain-notes-col">
                     <span>REMARKS</span>
@@ -131,7 +157,11 @@
                 $dayTardy = (int) ($workday['tardy'] ?? 0);
                 $dayUndertime = (int) ($workday['undertime'] ?? 0);
                 $dayDeficit = $dayTardy + $dayUndertime;
+                $dayOvertime = (int) ($snapshot['totals']['overtimeByDate'][$workday['date']] ?? $workday['overtime'] ?? 0);
 
+                foreach ($workday['holidays'] ?? [] as $holiday) {
+                    $notes->push($holidayType($holiday));
+                }
                 if (! empty($workday['premium'])) {
                     $notes->push($workday['premium']['label'] ?? $workday['premium']['value']);
                 }
@@ -180,26 +210,27 @@
                 <td @class(['plain-metric', 'attention' => $dayUndertime > 0])>{{ $duration($dayUndertime) }}</td>
                 <td class="plain-metric">{{ $duration($dayDeficit) }}</td>
                 <td class="plain-metric">{{ $duration((int) ($workday['worked'] ?? 0)) }}</td>
+                <td class="plain-metric">{{ $duration($dayOvertime) }}</td>
                 <td class="plain-notes">{{ $notes->isEmpty() ? '-' : $notes->join(' / ') }}</td>
             </tr>
         @empty
-            <tr><td colspan="8" class="empty-record">No attendance days fall within this range.</td></tr>
+            <tr><td colspan="9" class="empty-record">No attendance days fall within this range.</td></tr>
         @endforelse
         </tbody>
     </table>
 
     <section class="totals-panel plain-totals">
         @foreach ([
-            'Worked' => $snapshot['totals']['worked'] ?? 0,
-            'Credited' => $snapshot['totals']['credited'] ?? 0,
-            'Tardy' => $snapshot['totals']['tardy'] ?? 0,
-            'Undertime' => $snapshot['totals']['undertime'] ?? 0,
-            'Deficit' => $periodDeficit,
-            'Overtime' => $snapshot['totals']['overtime'] ?? 0,
-            'Night' => $snapshot['totals']['night'] ?? 0,
-        ] as $label => $minutes)
-            <div @class(['plain-total', 'plain-total-primary' => $label === 'Deficit'])>
-                <span>{{ $label }}</span>
+            [['Hours', 'Worked'], $snapshot['totals']['worked'] ?? 0],
+            [['Credited', 'Hours'], $snapshot['totals']['credited'] ?? 0],
+            [['Total', 'Tardiness'], $snapshot['totals']['tardy'] ?? 0],
+            [['Total', 'Undertime'], $snapshot['totals']['undertime'] ?? 0],
+            [['Net', 'Deficit'], $periodDeficit],
+            [['Approved', 'Overtime'], $snapshot['totals']['overtime'] ?? 0],
+            [['Night', 'Hours'], $snapshot['totals']['night'] ?? 0],
+        ] as [$label, $minutes])
+            <div @class(['plain-total', 'plain-total-primary' => $label === ['Net', 'Deficit']])>
+                <span class="plain-total-label"><span>{{ $label[0] }}</span><span>{{ $label[1] }}</span></span>
                 <strong>{{ $duration((int) $minutes) }}</strong>
             </div>
         @endforeach
