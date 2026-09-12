@@ -17,3 +17,6 @@ M7 may render, download, and store immutable canonical ledger PDFs in private S3
 
 ## M7 attested ledger verification is independent of PDF archiving
 Completing the application attestation chain always freezes a rendition and creates its public verification token. The QR resolves to the attested ledger HTML view, not to object storage. Agency PDF archiving is opt-in and defaults off: disabled agencies generate downloads from the frozen rendition and discard the bytes; enabled agencies may retain the immutable PDF through generic documents and locations. M7 does not implement cryptographic signatures.
+
+## Employment status never drives behavior
+Khronoz is employment-status agnostic across every milestone. Employee tags may be used by each agency for identification, display, and filtering only; never infer cadence, attendance calculations, policy, template, permissions, attestation, retention, or any other application behavior from employment status or tags.
