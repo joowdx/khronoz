@@ -1,11 +1,12 @@
 import { Form, Link } from '@inertiajs/react';
+import { SecondFactorInput } from '@/components/second-factor-input';
 import { AccountInput } from '@/components/account-input';
 import { Button } from '@/components/ui/button';
 import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/actions/App/Http/Controllers/Auth/ConfirmationController';
 import { edit } from '@/routes/settings/profile';
 
-export default function Confirm({ destination }: { destination: string }) {
+export default function Confirm({ destination, twoFactor }: { destination: string; twoFactor: boolean }) {
     return (
         <AuthLayout
             title="Confirm your identity"
@@ -24,6 +25,7 @@ export default function Confirm({ destination }: { destination: string }) {
                             required
                             error={errors.password}
                         />
+                        <>{twoFactor && <SecondFactorInput errors={errors} />}</>
                         <Button disabled={processing}>Continue</Button>
                     </>
                 )}

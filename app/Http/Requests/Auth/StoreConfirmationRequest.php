@@ -13,7 +13,11 @@ class StoreConfirmationRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['password' => ['required', 'string', 'current_password:web'],
-            'destination' => ['nullable', 'string', 'max:2048'], ];
+        return [
+            'password' => ['required', 'string', 'current_password:web'],
+            'destination' => ['nullable', 'string', 'max:2048'],
+            'code' => ['nullable', 'digits:6'],
+            'recovery_code' => ['nullable', 'string', 'max:100'],
+        ];
     }
 }

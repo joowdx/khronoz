@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
@@ -22,18 +23,22 @@ class LoginRequest extends FormRequest
         ];
     }
 
-    public function authenticate(): void
+    public function authenticate(): User
     {
-        $credentials = $this->only('email', 'password');
+        $this->session()->forget('login');
+        $provider = Auth::guard('web')->getProvider();
+        $credentials = ['email' => strtolower(trim($this->validated('email'))), 'password' => $this->validated('password')];
+        $user = $provider->retrieveByCredentials($credentials);
 
-        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
+        if (! $user instanceof User || ! $provider->validateCredentials($user, $credentials)) {
             throw ValidationException::withMessages(['form' => __('auth.failed')]);
         }
 
-        if (Auth::user()->invited_at !== null && Auth::user()->email_verified_at === null) {
-            Auth::logout();
-
+        if ($user->invited_at !== null && $user->email_verified_at === null) {
             throw ValidationException::withMessages(['form' => __('auth.invited')]);
         }
+        $provider->rehashPasswordIfRequired($user, $credentials);
+
+        return $user;
     }
 }

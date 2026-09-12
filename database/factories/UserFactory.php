@@ -35,6 +35,9 @@ class UserFactory extends Factory
             'pending_email' => null,
             'pending_email_token' => null,
             'pending_email_expires_at' => null,
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
             // Resources read this attribute, so factory defaults set it explicitly.
             'invited_at' => null,
             'password' => static::$password ??= Hash::make('password'),

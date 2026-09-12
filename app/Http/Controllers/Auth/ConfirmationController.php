@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Actions\VerifySecondFactor;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\StoreConfirmationRequest;
 use App\Support\Authentication;
@@ -16,11 +17,15 @@ class ConfirmationController extends Controller
     {
         return Inertia::render('auth/confirm', [
             'destination' => Authentication::destination($request->query('return')),
+            'twoFactor' => $request->user()->hasEnabledTwoFactorAuthentication(),
         ]);
     }
 
-    public function store(StoreConfirmationRequest $request): RedirectResponse
+    public function store(StoreConfirmationRequest $request, VerifySecondFactor $verify): RedirectResponse
     {
+        if ($request->user()->hasEnabledTwoFactorAuthentication()) {
+            $verify->handle($request->user(), $request->validated('code'), $request->validated('recovery_code'));
+        }
         Authentication::confirm($request);
 
         return redirect()->to(Authentication::destination($request->validated('destination')));

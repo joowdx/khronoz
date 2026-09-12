@@ -1,10 +1,11 @@
+import { TwoFactorSettings, type TwoFactorState } from '@/components/two-factor-settings';
 import { Form } from '@inertiajs/react';
 import { AccountInput } from '@/components/account-input';
 import { Button } from '@/components/ui/button';
 import AccountLayout from '@/layouts/account-layout';
 import { update } from '@/routes/settings/password';
 
-export default function Security() {
+export default function Security({ twoFactor }: { twoFactor: TwoFactorState }) {
     return (
         <AccountLayout title="Security">
             <section className="grid gap-5">
@@ -45,6 +46,7 @@ export default function Security() {
                     )}
                 </Form>
             </section>
+            <TwoFactorSettings state={twoFactor} />
         </AccountLayout>
     );
 }

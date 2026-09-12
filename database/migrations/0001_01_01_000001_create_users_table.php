@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('pending_email_token', 64)->nullable();
             $table->timestamp('pending_email_expires_at')->nullable();
             $table->string('password');
+            $table->text('two_factor_secret')->nullable();
+            $table->text('two_factor_recovery_codes')->nullable();
+            $table->timestamp('two_factor_confirmed_at')->nullable();
             $table->jsonb('permissions')->default(DB::raw("'[]'::jsonb"));
             $table->timestamp('invited_at')->nullable();
             $table->rememberToken();

@@ -17,16 +17,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['agency_id', 'employee_id', 'name', 'email', 'password', 'permissions', 'invited_at'])]
-#[Hidden(['password', 'remember_token', 'pending_email', 'pending_email_token', 'pending_email_expires_at'])]
+#[Hidden(['password', 'remember_token', 'pending_email', 'pending_email_token', 'pending_email_expires_at', 'two_factor_secret', 'two_factor_recovery_codes'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /**
      * @use HasFactory<UserFactory>
      */
-    use HasApiTokens, HasFactory, HasUlids, Notifiable;
+    use HasApiTokens, HasFactory, HasUlids, Notifiable, TwoFactorAuthenticatable;
 
     /**
      * @return array<string, string>
@@ -36,6 +37,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'pending_email_expires_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
             'invited_at' => 'datetime',
             'password' => 'hashed',
             'permissions' => AsEnumCollection::of(Permission::class),

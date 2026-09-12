@@ -22,9 +22,11 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Laravel\Fortify\Fortify;
 use Laravel\Head\Enums\OgType;
 use Laravel\Head\Facades\Head;
 use Laravel\Head\HeadBuilder;
+use Laravel\Passkeys\Passkeys;
 use Laravel\Passport\Passport;
 use Laravel\Sanctum\Sanctum;
 use RuntimeException;
@@ -33,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        Fortify::ignoreRoutes();
+        Passkeys::ignoreRoutes();
         // Telescope is a development tool only. It is a dev dependency and is
         // excluded from package discovery, so it is registered by hand here
         // and never exists in any other environment.
