@@ -4,10 +4,7 @@ import { ChoiceField } from '@/components/choice-field';
 import { TagInput } from '@/components/tag-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Cadence, Choice, Employee } from '@/types';
-
-const UNRECORDED = 'unrecorded';
+import type { Cadence, Employee } from '@/types';
 
 function Pair({ className = 'sm:grid-cols-2', children }: { className?: string; children: ReactNode }) {
     return <div className={`mt-6 grid grid-cols-1 gap-3 ${className}`}>{children}</div>;
@@ -24,16 +21,13 @@ function Subject({ title, children }: { title: string; children: ReactNode }) {
 
 export function EmployeeFields({
     employee,
-    sexes,
     cadences,
     errors,
 }: {
     employee?: Employee;
-    sexes: Choice[];
     cadences: Cadence[];
     errors: Partial<Record<string, string>>;
 }) {
-    const [sex, setSex] = useState<string>(employee?.sex?.value ?? '');
     const [tags, setTags] = useState<string[]>(employee?.tags ?? []);
     const [exempt, setExempt] = useState<boolean>(employee?.exempt ?? false);
     const [cadence, setCadence] = useState(employee?.cadence_id ?? '');
@@ -118,88 +112,6 @@ export function EmployeeFields({
                     )}
                 </Field>
             </Pair>
-
-            <Pair>
-                <Field label="Sex" htmlFor="sex" error={errors.sex}>
-                    {({ id, invalid, describedBy }) => (
-                        <>
-                            <input type="hidden" name="sex" value={sex} />
-                            <Select
-                                value={sex === '' ? UNRECORDED : sex}
-                                onValueChange={(value) => setSex(value === UNRECORDED ? '' : value)}
-                            >
-                                <SelectTrigger
-                                    id={id}
-                                    className="w-full"
-                                    aria-invalid={invalid}
-                                    aria-describedby={describedBy}
-                                >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent position="popper" align="start" sideOffset={6}>
-                                    <SelectItem value={UNRECORDED}>Not recorded</SelectItem>
-                                    {sexes.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </>
-                    )}
-                </Field>
-                <Field label="Date of birth" htmlFor="birthdate" error={errors.birthdate}>
-                    {({ id, invalid, describedBy }) => (
-                        <Input
-                            id={id}
-                            name="birthdate"
-                            type="date"
-                            defaultValue={employee?.birthdate ?? ''}
-                            aria-invalid={invalid}
-                            aria-describedby={describedBy}
-                        />
-                    )}
-                </Field>
-            </Pair>
-
-            <Subject title="Contact">
-                <Field className="mt-4" label="Email" htmlFor="email" error={errors.email}>
-                    {({ id, invalid, describedBy }) => (
-                        <Input
-                            id={id}
-                            name="email"
-                            type="email"
-                            defaultValue={employee?.email ?? ''}
-                            autoComplete="email"
-                            maxLength={254}
-                            aria-invalid={invalid}
-                            aria-describedby={describedBy}
-                        />
-                    )}
-                </Field>
-                <Field
-                    className="mt-6"
-                    label="Mobile"
-                    htmlFor="mobile"
-                    error={errors.mobile}
-                    hint="Not used to notify anyone yet."
-                >
-                    {({ id, invalid, describedBy }) => (
-                        <Input
-                            id={id}
-                            name="mobile"
-                            type="tel"
-                            defaultValue={employee?.mobile ?? ''}
-                            autoComplete="tel"
-                            placeholder="09XX XXX XXXX"
-                            maxLength={20}
-                            className="tabular-nums sm:w-[240px]"
-                            aria-invalid={invalid}
-                            aria-describedby={describedBy}
-                        />
-                    )}
-                </Field>
-            </Subject>
 
             <Subject title="Employment">
                 <div className="mt-4">

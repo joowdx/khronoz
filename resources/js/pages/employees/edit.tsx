@@ -4,17 +4,9 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { index, show, update } from '@/routes/employees';
-import type { Cadence, Choice, Employee } from '@/types';
+import type { Cadence, Employee } from '@/types';
 
-export default function Edit({
-    employee,
-    sexes,
-    cadences,
-}: {
-    employee: Employee;
-    sexes: Choice[];
-    cadences: Cadence[];
-}) {
+export default function Edit({ employee, cadences }: { employee: Employee; cadences: Cadence[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -25,7 +17,7 @@ export default function Edit({
             <Form {...update.form(employee)} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <EmployeeFields employee={employee} sexes={sexes} cadences={cadences} errors={errors} />
+                        <EmployeeFields employee={employee} cadences={cadences} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 Save changes

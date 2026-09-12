@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\Sex;
 use App\Models\Concerns\BelongsToAgency;
 use Carbon\CarbonInterface;
 use Database\Factories\EmployeeFactory;
@@ -19,7 +18,7 @@ use Laravel\Scout\Searchable;
 
 #[Fillable([
     'agency_id', 'number', 'first_name', 'middle_name', 'last_name', 'suffix',
-    'sex', 'birthdate', 'email', 'mobile', 'position', 'tags', 'exempt', 'cadence_id',
+    'position', 'tags', 'exempt', 'cadence_id',
 ])]
 class Employee extends Model
 {
@@ -35,9 +34,7 @@ class Employee extends Model
     {
         return [
             'tags' => 'array',
-            'sex' => Sex::class,
             'exempt' => 'boolean',
-            'birthdate' => 'date',
         ];
     }
 
@@ -54,8 +51,6 @@ class Employee extends Model
             'middle_name' => $this->middle_name,
             'last_name' => $this->last_name,
             'suffix' => $this->suffix,
-            'email' => $this->email,
-            'mobile' => $this->mobile,
             'position' => $this->position,
         ];
     }

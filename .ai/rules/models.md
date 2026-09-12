@@ -24,3 +24,6 @@ The collision cannot be fixed on the `kind` side. `kind` is a plain nullable str
 `Workgroup` and `Team` are near-synonyms in English and are deliberately different things: a workgroup is where a person is *placed* (one at a time, via `Deployment`, under Organization); a team is the rotation they are *rostered into* (04-scheduling.md, under Scheduling).
 
 Also do not rename: PHPUnit's `tests/Unit` suite, `app()->runningUnitTests()`, or 04-scheduling.md's "Civil Security Unit" worked example — that last one is a real office's own name and the clearest illustration of the collision.
+
+## Employee identity is limited to timekeeping needs
+Employee sex, birthdate, email and mobile were removed for data minimization. Keep users.email for login/invitations/recovery; do not reintroduce employee contact or demographic fields without an established purpose. Employment-record privacy rights remain applicable; account deletion does not automatically erase attendance.

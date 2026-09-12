@@ -95,7 +95,6 @@ CHECK (parent_id IS DISTINCT FROM id)
 
 ```sql
 UNIQUE (agency_id, number)
-CHECK (sex IN ('male', 'female'))                                 -- nullable; the enum rule above, mirrored by App\Enums\Sex
 tags jsonb NOT NULL DEFAULT '[]'                                  -- free-form agency labels; no rule reads them
 CHECK (string_set_valid(tags))                                    -- array of distinct, non-empty strings
 CHECK (jsonb_array_length(tags) <= 20)                            -- guarded in the DDL; see below

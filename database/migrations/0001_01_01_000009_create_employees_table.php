@@ -21,10 +21,6 @@ return new class extends Migration
             $table->string('middle_name')->nullable();
             $table->string('last_name');
             $table->string('suffix')->nullable();
-            $table->string('sex')->nullable();
-            $table->date('birthdate')->nullable();
-            $table->string('email')->nullable();
-            $table->string('mobile')->nullable();
             $table->string('position')->nullable();
             $table->jsonb('tags')->default(DB::raw("'[]'::jsonb"));
             $table->boolean('exempt')->default(false);
@@ -50,7 +46,6 @@ return new class extends Migration
 
         DB::unprepared(<<<'SQL'
             ALTER TABLE employees
-                ADD CONSTRAINT employees_sex_valid CHECK (sex IN ('male', 'female')),
                 ADD CONSTRAINT employees_tags_valid CHECK (string_set_valid(tags)),
                 ADD CONSTRAINT employees_tags_bounded CHECK (jsonb_typeof(tags) <> 'array' OR jsonb_array_length(tags) <= 20);
         SQL);

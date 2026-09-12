@@ -200,7 +200,6 @@ class EmployeeControllerTest extends TestCase
             'first_name' => 'Ana',
             'last_name' => 'Zq7abalza',
             'middle_name' => null,
-            'email' => 'ana@example.test',
             'position' => 'Clerk',
         ]);
 
@@ -211,7 +210,6 @@ class EmployeeControllerTest extends TestCase
                 'first_name' => 'Ben',
                 'last_name' => $lastName,
                 'middle_name' => null,
-                'email' => "ben{$index}@example.test",
                 'position' => 'Clerk',
             ]);
         }

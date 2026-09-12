@@ -152,19 +152,8 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                     )}
                 </section>
 
-                <section className="grid gap-12 lg:grid-cols-2">
+                <section>
                     <div>
-                        <SectionHead title="Personal" />
-                        <dl>
-                            <Fact label="Date of birth">
-                                {employee.birthdate ? formatDay(employee.birthdate) : <Blank />}
-                            </Fact>
-                            <Fact label="Sex">{employee.sex?.label ?? <Blank />}</Fact>
-                            <Fact label="Email">{employee.email ?? <Blank />}</Fact>
-                            <Fact label="Mobile">{employee.mobile ?? <Blank />}</Fact>
-                        </dl>
-                    </div>
-                    <div className="lg:border-border lg:border-l lg:pl-12">
                         <SectionHead title="Employment" />
                         <dl>
                             <Fact label="Position">{employee.position ?? <Blank />}</Fact>

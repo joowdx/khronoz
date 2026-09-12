@@ -48,8 +48,6 @@ export interface Agency {
     platform: boolean;
 }
 
-export type Sex = 'male' | 'female';
-
 export interface Employee {
     id: string;
     number: string;
@@ -58,10 +56,6 @@ export interface Employee {
     middle_name: string | null;
     last_name: string;
     suffix: string | null;
-    sex: Choice | null;
-    birthdate: string | null;
-    email: string | null;
-    mobile: string | null;
     position: string | null;
     tags: string[];
     exempt: boolean;

@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\Sex;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -33,10 +32,6 @@ class UpdateEmployeeRequest extends FormRequest
             'middle_name' => ['nullable', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'suffix' => ['nullable', 'string', 'max:255'],
-            'sex' => ['nullable', Rule::enum(Sex::class)],
-            'birthdate' => ['nullable', 'date'],
-            'email' => ['nullable', 'email', 'max:254'],
-            'mobile' => ['nullable', 'string', 'max:20'],
             'position' => ['nullable', 'string', 'max:255'],
             'tags' => ['array', 'max:20'],
             'tags.*' => ['string', 'max:40', 'distinct'],

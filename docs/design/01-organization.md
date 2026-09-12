@@ -33,10 +33,6 @@ erDiagram
         string middle_name
         string last_name
         string suffix
-        enum sex
-        date birthdate
-        string email
-        string mobile
         string position
         json tags "free-form agency labels, read by no rule"
         boolean exempt "no DTR expected"

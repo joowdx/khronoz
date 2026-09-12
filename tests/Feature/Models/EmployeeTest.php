@@ -18,7 +18,6 @@ class EmployeeTest extends TestCase
             'number' => fake()->unique()->numerify('EMP#####'),
             'first_name' => 'X',
             'last_name' => 'X',
-            'sex' => null,
             'tags' => '[]',
             'exempt' => false,
             'created_at' => now(),
@@ -67,15 +66,6 @@ class EmployeeTest extends TestCase
         // Same number, a different agency: accepted.
         $elsewhere = Employee::factory()->create(['number' => 'EMP1']);
         $this->assertDatabaseHas('employees', ['id' => $elsewhere->id, 'number' => 'EMP1']);
-    }
-
-    public function test_sex_must_be_a_recognized_value(): void
-    {
-        $agency = Agency::factory()->create();
-
-        $this->assertDatabaseRefuses('23514', fn () => DB::table('employees')->insert(
-            $this->employeeRow($agency->id, ['sex' => 'x'])
-        ));
     }
 
     public function test_tags_must_be_a_set_of_distinct_non_empty_strings(): void

@@ -4,10 +4,10 @@ import { EmployeeFields } from '@/components/employee-fields';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
-import type { Cadence, Choice } from '@/types';
+import type { Cadence } from '@/types';
 import { index, store } from '@/routes/employees';
 
-export default function Create({ sexes, cadences }: { sexes: Choice[]; cadences: Cadence[] }) {
+export default function Create({ cadences }: { cadences: Cadence[] }) {
     return (
         <AppLayout>
             <PageHeader
@@ -18,7 +18,7 @@ export default function Create({ sexes, cadences }: { sexes: Choice[]; cadences:
             <Form {...store.form()} className="w-[560px] max-w-full" disableWhileProcessing>
                 {({ errors, processing }) => (
                     <>
-                        <EmployeeFields sexes={sexes} cadences={cadences} errors={errors} />
+                        <EmployeeFields cadences={cadences} errors={errors} />
                         <div className="flex gap-3 pt-8">
                             <Button type="submit" disabled={processing}>
                                 <PlusIcon aria-hidden strokeWidth={1.5} />

@@ -7,7 +7,6 @@ use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
 use App\Enums\OvertimeMode;
 use App\Enums\PunchKind;
-use App\Enums\Sex;
 use App\Enums\SyncStatus;
 use App\Enums\SyncTrigger;
 use App\Enums\TerminalKind;
@@ -23,7 +22,6 @@ class EnumCheckContractTest extends TestCase
     public static function enums(): array
     {
         return [
-            'employees.sex' => [Sex::class, '0001_01_01_000009_create_employees_table.php', 'employees_sex_valid'],
             'holidays.type' => [HolidayType::class, '0001_01_01_000019_create_holidays_table.php', 'holidays_type_valid'],
             'exemptions.type' => [ExemptionType::class, '0001_01_01_000021_create_exemptions_table.php', 'exemptions_type_valid'],
             'overtimes.mode' => [OvertimeMode::class, '0001_01_01_000022_create_overtimes_table.php', 'overtimes_mode_valid'],
@@ -33,8 +31,8 @@ class EnumCheckContractTest extends TestCase
             'terminals.kind' => [TerminalKind::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_kind_valid'],
             'terminals.protocol' => [TerminalProtocol::class, '0001_01_01_000024_create_terminals_table.php', 'terminals_protocol_valid'],
             'timelogs.source' => [TimelogSource::class, '0001_01_01_000027_create_timelogs_table.php', 'timelogs_source_valid'],
-            'workdays.status' => [WorkdayStatus::class, '0001_01_01_000030_create_workdays_table.php', 'workdays_status_valid'],
-            'punches.kind' => [PunchKind::class, '0001_01_01_000031_create_punches_table.php', 'punches_kind_valid'],
+            'workdays.status' => [WorkdayStatus::class, '0001_01_01_000032_create_workdays_table.php', 'workdays_status_valid'],
+            'punches.kind' => [PunchKind::class, '0001_01_01_000033_create_punches_table.php', 'punches_kind_valid'],
             // Not Premium: workdays_premium_valid is `premium IS NULL OR premium IN (...)`.
             // Null is a legal value of the column and not a case of the enum,
             // so the pairing this test asserts does not hold.
