@@ -55,10 +55,6 @@
         </div>
     </header>
 
-    @if ($preview)
-        <div class="preview">PREVIEW - NOT ATTESTED</div>
-    @endif
-
     <section class="plain-profile">
         <div class="profile-name">
             <span class="field-label">Employee</span>
@@ -139,8 +135,8 @@
                 if (! empty($workday['premium'])) {
                     $notes->push($workday['premium']['label'] ?? $workday['premium']['value']);
                 }
-                if (($workday['credited'] ?? 0) !== ($workday['worked'] ?? 0)) {
-                    $notes->push('Credited '.$duration((int) ($workday['credited'] ?? 0)));
+                if (($workday['credited'] ?? 0) > 0) {
+                    $notes->push('Credited '.$duration((int) $workday['credited']));
                 }
                 if (($workday['excess'] ?? 0) > 0) {
                     $notes->push('Excess '.$duration((int) $workday['excess']));

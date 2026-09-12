@@ -9,12 +9,12 @@
                     : \Carbon\CarbonImmutable::parse($attestation['at'])->setTimezone(config('app.timezone'))->format('M j, Y H:i');
             @endphp
             <div class="endorsement">
+                <div class="endorsement-name">{{ $attestation['name'] ?? '' }}</div>
+                <div class="endorsement-position">{{ $position }}</div>
                 <div class="endorsement-meta">
                     <span class="endorsement-role">{{ $role }}</span>
                     @if ($recordedAt)<time datetime="{{ $attestation['at'] }}">Recorded {{ $recordedAt }}</time>@endif
                 </div>
-                <div class="endorsement-name">{{ $attestation['name'] ?? '' }}</div>
-                <div class="endorsement-position">{{ $position }}</div>
             </div>
         @endforeach
     </section>

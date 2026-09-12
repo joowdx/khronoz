@@ -39,7 +39,7 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringNotContainsString('PREVIEW', $html);
     }
 
-    public function test_preview_escapes_personal_data_and_never_includes_a_verification_qr(): void
+    public function test_transient_form48_escapes_personal_data_without_a_status_watermark_or_verification_qr(): void
     {
         $snapshot = [
             'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-30'],
@@ -54,7 +54,8 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => '<svg></svg>',
         ])->render();
 
-        $this->assertStringContainsString('PREVIEW - NOT ATTESTED', $html);
+        $this->assertStringNotContainsString('PREVIEW', $html);
+        $this->assertStringNotContainsString('NOT ATTESTED', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringNotContainsString('<img ', $html);
@@ -160,11 +161,18 @@ class LedgerPdfViewTest extends TestCase
             'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-30'],
             'workdays' => [[
                 'date' => '2026-09-01',
+                'status' => ['value' => 'present', 'label' => 'Present'],
                 'tardy' => 7,
                 'undertime' => 65,
-                'worked' => 500,
+                'worked' => 408,
+                'punches' => [
+                    ['slot' => 1, 'kind' => ['value' => 'in'], 'actual_at' => '2026-09-01T08:07:00+08:00'],
+                    ['slot' => 1, 'kind' => ['value' => 'out'], 'actual_at' => '2026-09-01T12:00:00+08:00'],
+                    ['slot' => 2, 'kind' => ['value' => 'in'], 'actual_at' => '2026-09-01T13:00:00+08:00'],
+                    ['slot' => 2, 'kind' => ['value' => 'out'], 'actual_at' => '2026-09-01T15:55:00+08:00'],
+                ],
             ]],
-            'totals' => ['tardy' => 7, 'undertime' => 65],
+            'totals' => ['worked' => 408, 'tardy' => 7, 'undertime' => 65],
         ];
 
         $html = view('pdf.ledgers.form48', [
@@ -208,10 +216,7 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringContainsString('class="metric-cell">00:07', $html);
         $this->assertStringContainsString('class="metric-cell">01:05', $html);
         $this->assertStringContainsString('class="metric-cell">01:12', $html);
-        $this->assertMatchesRegularExpression(
-            '/<span>Deficit<\\/span>\\s*<strong>01:12<\\/strong>/',
-            $html
-        );
+        $this->assertMatchesRegularExpression('/<td>01:12<\\/td>/', $html);
         $this->assertStringContainsString('00:07', $html);
         $this->assertStringContainsString('01:05', $html);
         $this->assertStringContainsString('01:12', $html);
@@ -220,15 +225,26 @@ class LedgerPdfViewTest extends TestCase
         $this->assertNotFalse($css);
         $this->assertStringContainsString('.form48 {', $css);
         $this->assertStringContainsString('--accent: #111827;', $css);
-        $this->assertStringContainsString('.form48 .document-header', $css);
-        $this->assertMatchesRegularExpression('/\.form48\s+\.identity-grid(?:,|\s*\\{)/', $css);
-        $this->assertMatchesRegularExpression('/\.form48\s+\.duty-panel(?:,|\s*\\{)/', $css);
+        $this->assertStringContainsString('.form48-header {', $css);
+        $this->assertStringContainsString('.form48-employee-name {', $css);
+        $this->assertStringContainsString('.form48-identity-line {', $css);
+        $this->assertStringContainsString('.form48-duty-lines {', $css);
+        $this->assertStringContainsString('.form48-summary {', $css);
         $this->assertMatchesRegularExpression('/\.form48\s+\.attendance/', $css);
         $this->assertStringContainsString('border-radius: 0;', $css);
-        $this->assertStringContainsString('.form48-table col.numeric-col { width: 0.74in; }', $css);
-        $this->assertStringContainsString('.form48-table col.remarks-col { width: 1.44in; }', $css);
-        $this->assertStringContainsString('.form48-table .day, .form48-table .day-cell { width: 0.34in; padding-right: 5px; text-align: right; vertical-align: middle; }', $css);
-        $this->assertStringContainsString('border-bottom-color: #111827;', $css);
+        $this->assertStringContainsString('.form48-table col.day-col { width: 0.65in; }', $css);
+        $this->assertStringContainsString('.form48-table col.numeric-col { width: 0.65in; }', $css);
+        $this->assertStringContainsString('.form48-table col.remarks-col { width: 1.85in; }', $css);
+        $this->assertStringContainsString('.form48-table .day, .form48-table .day-cell { width: 0.65in; padding-right: 13px; text-align: right; vertical-align: middle; }', $css);
+        $this->assertStringContainsString('border-collapse: collapse;', $css);
+
+        $this->assertStringContainsString('Civil Service Form No. 48', $html);
+        $this->assertStringContainsString('class="form48-employee-name"', $html);
+        $this->assertStringContainsString('class="form48-period-line"', $html);
+        $this->assertStringContainsString('class="form48-duty-lines"', $html);
+        $this->assertStringContainsString('class="form48-summary"', $html);
+        $this->assertStringContainsString('I certify on my honor that the above is a true and correct report', $html);
+        $this->assertStringNotContainsString('>Present<', $html);
     }
 
     public function test_plain_form_stacks_multiword_headings_and_calculates_deficit_totals(): void
@@ -356,7 +372,8 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => null,
         ])->render();
 
-        $this->assertStringContainsString('<div class="preview-footer">PREVIEW - NOT ATTESTED</div>', $preview);
+        $this->assertStringNotContainsString('PREVIEW', $preview);
+        $this->assertStringNotContainsString('NOT ATTESTED', $preview);
         $this->assertStringNotContainsString('alt="Verify this ledger"', $preview);
     }
 

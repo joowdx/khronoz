@@ -16,11 +16,9 @@
             <span>Ledger {{ $snapshot['ledger']['id'] ?? '-' }} | revision {{ $snapshot['ledger']['revision'] ?? '-' }}</span>
             @if ($completedAt)<span>Completed {{ $completedAt }}</span>@endif
         </div>
-    @else
-        <div class="preview-footer">PREVIEW - NOT ATTESTED</div>
     @endif
     <div class="footer-meta">
-        @if (! $preview && $generatedAt)
+        @if ($generatedAt)
             <span>Generated {{ $generatedAt }}</span>
         @endif
         <strong>Page {{ $pageNumber }} of {{ $pageCount }}</strong>
