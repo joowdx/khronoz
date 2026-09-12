@@ -32,6 +32,7 @@ class EmployeeResource extends JsonResource
             'position' => $this->position,
             'tags' => $this->tags,
             'exempt' => $this->exempt,
+            'cadence_id' => $this->cadence_id,
             'current_deployment' => $this->whenLoaded('currentDeployment', fn ($deployment) => DeploymentResource::make($deployment)->resolve()),
             'deployments' => $this->whenLoaded('deployments', fn ($deployments) => DeploymentResource::collection($deployments)->resolve()),
         ];

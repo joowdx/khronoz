@@ -1,16 +1,25 @@
 <?php
 
+use App\Http\Controllers\AgencySettingsController;
+use App\Http\Controllers\CadenceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DefaultController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeDeploymentController;
+use App\Http\Controllers\EmployeePolicyController;
 use App\Http\Controllers\ExemptionController;
 use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LedgerAttestationController;
 use App\Http\Controllers\LedgerController;
+use App\Http\Controllers\LedgerPdfController;
+use App\Http\Controllers\LockLedgerController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\Platform\AgencyController;
 use App\Http\Controllers\Platform\EnterAgencyController;
+use App\Http\Controllers\RenditionPdfController;
+use App\Http\Controllers\RetireCadenceController;
+use App\Http\Controllers\RetryLedgerDocumentController;
 use App\Http\Controllers\RosterController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftController;
@@ -21,10 +30,13 @@ use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TerminalEnrollmentController;
 use App\Http\Controllers\TerminalSyncController;
 use App\Http\Controllers\TimelogController;
+use App\Http\Controllers\UnlockLedgerController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserInviteController;
+use App\Http\Controllers\VerifyLedgerController;
 use App\Http\Controllers\WorkdayController;
 use App\Http\Controllers\WorkgroupController;
+use App\Http\Controllers\WorkgroupPolicyController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home')
@@ -34,6 +46,10 @@ Route::get('/', HomeController::class)->name('home')
     )
     ->metadata(['ssr' => true]);
 
+Route::get('verify/ledgers/{token}', VerifyLedgerController::class)
+    ->middleware('throttle:ledger-verification')
+    ->name('ledgers.verify');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
@@ -41,6 +57,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('users/{user}/invite', [UserInviteController::class, 'store'])->name('users.invite');
 
     Route::middleware('agency')->group(function () {
+        Route::resource('cadences', CadenceController::class)->except(['show', 'destroy']);
+        Route::post('cadences/{cadence}/retire', RetireCadenceController::class)->name('cadences.retire');
+        Route::get('agency/settings', [AgencySettingsController::class, 'edit'])->name('agency.settings.edit');
+        Route::patch('agency/settings', [AgencySettingsController::class, 'update'])->name('agency.settings.update');
+        Route::put('workgroups/{workgroup}/policy', [WorkgroupPolicyController::class, 'update'])->name('workgroups.policy.update');
+        Route::put('employees/{employee}/policy', [EmployeePolicyController::class, 'update'])->name('employees.policy.update');
+        Route::get('employees/{employee}/ledger.pdf', [LedgerPdfController::class, 'current'])->withTrashed()->name('employees.ledger.download');
         Route::resource('employees', EmployeeController::class);
         Route::post('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'store'])->name('employees.deployments.store');
         Route::patch('employees/{employee}/deployments', [EmployeeDeploymentController::class, 'update'])->name('employees.deployments.update');
@@ -73,9 +96,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('workdays', [WorkdayController::class, 'index'])->name('workdays.index');
         Route::get('ledgers', [LedgerController::class, 'index'])->name('ledgers.index');
+        Route::post('ledgers/lock', LockLedgerController::class)->name('ledgers.lock');
         Route::get('ledgers/{ledger}', [LedgerController::class, 'show'])->name('ledgers.show');
-        Route::patch('ledgers/{ledger}/lock', [LedgerController::class, 'lock'])->name('ledgers.lock');
-        Route::patch('ledgers/{ledger}/unlock', [LedgerController::class, 'unlock'])->name('ledgers.unlock');
+        Route::post('ledgers/{ledger}/unlock', UnlockLedgerController::class)->name('ledgers.unlock');
+        Route::post('ledgers/{ledger}/attestations', [LedgerAttestationController::class, 'store'])->name('ledgers.attestations.store');
+        Route::delete('ledgers/{ledger}/attestations/{attestation}', [LedgerAttestationController::class, 'destroy'])->scopeBindings()->name('ledgers.attestations.destroy');
+        Route::get('ledgers/{ledger}/download', [LedgerPdfController::class, 'show'])->name('ledgers.download');
+        Route::get('ledgers/{ledger}/renditions/{rendition}/download', [RenditionPdfController::class, 'show'])->scopeBindings()->name('ledgers.renditions.download');
+        Route::post('ledgers/{ledger}/renditions/{rendition}/retry', RetryLedgerDocumentController::class)->scopeBindings()->name('ledgers.renditions.retry');
 
         Route::get('terminals/{terminal}/enrollments', [TerminalEnrollmentController::class, 'index'])
             ->name('terminals.enrollments.index');

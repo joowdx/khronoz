@@ -116,5 +116,7 @@ class AppServiceProvider extends ServiceProvider
     protected function configureRateLimiting(): void
     {
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(Str::lower($request->string('email')).'|'.$request->ip()));
+
+        RateLimiter::for('ledger-verification', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
     }
 }

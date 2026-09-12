@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\Sex;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -40,6 +41,7 @@ class UpdateEmployeeRequest extends FormRequest
             'tags' => ['array', 'max:20'],
             'tags.*' => ['string', 'max:40', 'distinct'],
             'exempt' => ['boolean'],
+            'cadence_id' => ['nullable', 'ulid', Rule::exists('cadences', 'id')->where('agency_id', $employee->agency_id)->where(fn (Builder $query) => $query->whereNull('retired_at')->orWhere('id', $employee->cadence_id))],
         ];
     }
 }

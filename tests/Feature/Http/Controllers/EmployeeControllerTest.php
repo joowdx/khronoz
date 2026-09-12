@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\FanOutRecompute;
 use App\Models\Agency;
+use App\Models\Cadence;
 use App\Models\Deployment;
 use App\Models\Employee;
 use App\Models\Workgroup;
@@ -18,6 +19,48 @@ use Tests\TestCase;
 
 class EmployeeControllerTest extends TestCase
 {
+    public function test_a_new_employee_accepts_an_active_agency_cadence(): void
+    {
+        $agency = Agency::factory()->create();
+        $cadence = Cadence::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->post(route('employees.store'), ['number' => 'CAD-1', 'first_name' => 'Amihan', 'last_name' => 'Reyes', 'cadence_id' => $cadence->id])
+            ->assertRedirect(route('employees.index'));
+
+        $this->assertDatabaseHas('employees', ['agency_id' => $agency->id, 'number' => 'CAD-1', 'cadence_id' => $cadence->id]);
+    }
+
+    public function test_new_cadence_assignments_refuse_retired_and_foreign_choices(): void
+    {
+        $agency = Agency::factory()->create();
+        $retired = Cadence::factory()->create(['agency_id' => $agency->id, 'retired_at' => now()]);
+        $foreign = Cadence::factory()->create();
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        foreach ([$retired, $foreign] as $cadence) {
+            $this->post(route('employees.store'), ['number' => 'CAD-1', 'first_name' => 'Amihan', 'last_name' => 'Reyes', 'cadence_id' => $cadence->id])
+                ->assertSessionHasErrors('cadence_id');
+        }
+
+        $this->assertDatabaseCount('employees', 0);
+    }
+
+    public function test_an_employee_may_keep_their_existing_retired_cadence(): void
+    {
+        $agency = Agency::factory()->create();
+        $cadence = Cadence::factory()->create(['agency_id' => $agency->id, 'retired_at' => now()]);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id, 'cadence_id' => $cadence->id]);
+        $this->actingAsAgency($agency, Permission::ManageOrganization);
+
+        $this->put(route('employees.update', $employee), ['number' => $employee->number, 'first_name' => 'Amihan', 'last_name' => 'Reyes', 'cadence_id' => $cadence->id])
+            ->assertRedirect(route('employees.index'));
+
+        $this->assertSame($cadence->id, $employee->fresh()->cadence_id);
+        $this->get(route('employees.edit', $employee))->assertInertia(fn (Assert $page) => $page
+            ->where('employee.cadence_id', $cadence->id)->where('cadences.0.id', $cadence->id));
+    }
+
     #[DataProvider('permissionsWithoutOrganizationView')]
     public function test_employees_without_organization_view_are_forbidden_from_index(Permission $permission): void
     {

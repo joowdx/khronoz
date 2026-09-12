@@ -40,6 +40,7 @@ class StoreEmployeeRequest extends FormRequest
             'tags' => ['array', 'max:20'],
             'tags.*' => ['string', 'max:40', 'distinct'],
             'exempt' => ['boolean'],
+            'cadence_id' => ['nullable', 'ulid', Rule::exists('cadences', 'id')->where('agency_id', app(Tenant::class)->id())->whereNull('retired_at')],
         ];
     }
 }

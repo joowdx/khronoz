@@ -7,9 +7,11 @@ use App\Enums\Sex;
 use App\Http\Controllers\Concerns\TranslatesUniqueCollisions;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
+use App\Http\Resources\CadenceResource;
 use App\Http\Resources\EmployeeResource;
 use App\Http\Resources\WorkgroupResource;
 use App\Jobs\FanOutRecompute;
+use App\Models\Cadence;
 use App\Models\Employee;
 use App\Models\Workgroup;
 use App\Tenancy\Tenant;
@@ -110,6 +112,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('employees/create', [
             'sexes' => Sex::choices(),
+            'cadences' => CadenceResource::collection(Cadence::whereNull('retired_at')->orderBy('name')->get())->resolve(),
         ]);
     }
 
@@ -146,6 +149,7 @@ class EmployeeController extends Controller
         return Inertia::render('employees/edit', [
             'employee' => EmployeeResource::make($employee)->resolve(),
             'sexes' => Sex::choices(),
+            'cadences' => CadenceResource::collection(Cadence::where(fn ($query) => $query->whereNull('retired_at')->orWhere('id', $employee->cadence_id))->orderBy('name')->get())->resolve(),
         ]);
     }
 
