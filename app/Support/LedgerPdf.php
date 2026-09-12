@@ -17,6 +17,12 @@ class LedgerPdf
         if (! in_array($template, ['form48', 'plain'], true)) {
             throw new InvalidArgumentException('Unsupported ledger template.');
         }
+
+        [$paperWidth, $paperHeight, $paperUnit] = match ($template) {
+            'form48' => [8.5, 14, 'in'],
+            'plain' => [210, 297, 'mm'],
+        };
+
         $verificationUrl = $token === null ? null : $this->urls->route('ledgers.verify', ['token' => $token]);
         $qrSvg = $verificationUrl === null ? null : (new SvgWriter)->write(new QrCode(data: $verificationUrl))->getString();
 
@@ -25,6 +31,6 @@ class LedgerPdf
             'preview' => $token === null,
             'verificationUrl' => $verificationUrl,
             'qrSvg' => $qrSvg,
-        ])->driver('gotenberg')->paperSize(8, 14, 'in')->margins(.4, .4, .4, .4, 'in')->base64(), true);
+        ])->driver('gotenberg')->paperSize($paperWidth, $paperHeight, $paperUnit)->margins(.4, .4, .4, .4, 'in')->base64(), true);
     }
 }

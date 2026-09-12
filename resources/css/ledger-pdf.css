@@ -1,7 +1,9 @@
-@page { size: 8in 14in; margin: 0.4in; }
+@page { margin: 0; }
 * { box-sizing: border-box; }
 body { margin: 0; color: #111; background: white; font-family: Arial, sans-serif; font-size: 10pt; }
-.page { display: flow-root; position: relative; height: 13.1in; break-after: page; padding-bottom: 1.1in; }
+.page { display: flow-root; position: relative; break-after: page; padding-bottom: 1.1in; }
+.form48 { height: 13.1in; }
+.plain { height: 10.8in; }
 .page:last-child { break-after: auto; }
 h1 { margin: 0.12in 0 0.08in; text-align: center; font-size: 16pt; }
 .form-number { font-size: 9pt; }
