@@ -1,3 +1,4 @@
+import { home } from '@/routes';
 import { Link } from '@inertiajs/react';
 import { BrandLink } from '@/components/marketing/brand';
 import { LegalLinks } from '@/components/legal-links';
@@ -20,7 +21,7 @@ export default function Show({ document }: { document: LegalDocument }) {
     return (
         <div className="mx-auto max-w-3xl px-6 py-8 sm:py-12">
             <header className="flex flex-wrap items-center justify-between gap-6 border-b pb-6">
-                <BrandLink />
+                <BrandLink href={home().url} />
                 <LegalLinks />
             </header>
             <main id="main-content" className="py-8">

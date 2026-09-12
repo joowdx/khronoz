@@ -61,6 +61,8 @@ class AppRoleGrants
             "GRANT UPDATE (withdrawn_by, withdrawn_at) ON attestations TO {$role}",
         ]);
 
+        static::narrow($db, 'acceptances', ["REVOKE UPDATE, DELETE ON acceptances FROM {$role}"]);
+
         static::narrow($db, 'documents', ["REVOKE UPDATE, DELETE ON documents FROM {$role}"]);
         static::narrow($db, 'locations', [
             "REVOKE UPDATE, DELETE ON locations FROM {$role}",

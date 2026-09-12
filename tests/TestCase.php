@@ -61,7 +61,7 @@ abstract class TestCase extends BaseTestCase
 
     protected function actingAsPlatform(?Agency $enter = null): User
     {
-        $user = User::factory()->platform()->create();
+        $user = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($user);
 
@@ -75,7 +75,7 @@ abstract class TestCase extends BaseTestCase
 
     protected function actingAsAgency(Agency $agency, Permission ...$permissions): User
     {
-        $user = User::factory()->forAgency($agency)->permissions(...$permissions)->create();
+        $user = User::factory()->acceptedLegal()->forAgency($agency)->permissions(...$permissions)->create();
 
         $this->actingAs($user);
 

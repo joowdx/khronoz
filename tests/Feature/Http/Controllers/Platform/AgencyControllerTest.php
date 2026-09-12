@@ -13,20 +13,20 @@ class AgencyControllerTest extends TestCase
 {
     public function test_agency_users_cannot_reach_the_platform_area(): void
     {
-        $this->actingAs(User::factory()->preset(Preset::Admin)->create())->get(route('platform.agencies.index'))->assertForbidden();
+        $this->actingAs(User::factory()->acceptedLegal()->preset(Preset::Admin)->create())->get(route('platform.agencies.index'))->assertForbidden();
     }
 
     public function test_platform_user_lists_agencies_without_the_platform_row(): void
     {
         Agency::factory()->count(3)->create();
 
-        $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.index'))
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->get(route('platform.agencies.index'))
             ->assertInertia(fn (Assert $page) => $page->component('platform/agencies/index')->has('agencies', 3));
     }
 
     public function test_store_creates_an_agency_and_redirects(): void
     {
-        $this->actingAs(User::factory()->platform()->create())
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())
             ->post(route('platform.agencies.store'), ['code' => 'DOH', 'name' => 'Department of Health'])
             ->assertRedirect(route('platform.agencies.index'))->assertSessionHas('success');
 
@@ -37,7 +37,7 @@ class AgencyControllerTest extends TestCase
     {
         Agency::factory()->create(['code' => 'DOH']);
 
-        $this->actingAs(User::factory()->platform()->create())
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())
             ->post(route('platform.agencies.store'), ['code' => 'doh', 'name' => 'Dup'])
             ->assertSessionHasErrors(['code' => 'Already taken']);
     }
@@ -46,7 +46,7 @@ class AgencyControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
 
-        $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.edit', $agency))
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->get(route('platform.agencies.edit', $agency))
             ->assertInertia(fn (Assert $page) => $page->component('platform/agencies/edit')
                 ->where('agency.id', $agency->id)
                 ->where('agency.code', $agency->code));
@@ -56,7 +56,7 @@ class AgencyControllerTest extends TestCase
     {
         $agency = Agency::factory()->create(['code' => 'DOH', 'name' => 'Department of Health']);
 
-        $this->actingAs(User::factory()->platform()->create())
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())
             ->put(route('platform.agencies.update', $agency), ['code' => 'MOH', 'name' => 'Ministry of Health'])
             ->assertRedirect(route('platform.agencies.index'))->assertSessionHas('success');
 
@@ -67,7 +67,7 @@ class AgencyControllerTest extends TestCase
     {
         $agency = Agency::factory()->create(['code' => 'DOH', 'name' => 'Department of Health']);
 
-        $this->actingAs(User::factory()->platform()->create())
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())
             ->put(route('platform.agencies.update', $agency), ['code' => $agency->code, 'name' => 'Renamed Department of Health'])
             ->assertSessionHasNoErrors();
 
@@ -76,7 +76,7 @@ class AgencyControllerTest extends TestCase
 
     public function test_a_platform_with_no_agencies_yet_renders_an_empty_list(): void
     {
-        $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.index'))
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->get(route('platform.agencies.index'))
             ->assertInertia(fn (Assert $page) => $page->has('agencies', 0)
                 ->where('pagination.total', 0)
                 ->where('pagination.from', null)
@@ -89,7 +89,7 @@ class AgencyControllerTest extends TestCase
         Agency::factory()->create(['code' => 'PHO', 'name' => 'Provincial Health Office']);
         Agency::factory()->create(['code' => 'DPWH', 'name' => 'Public Works']);
 
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         // By code, lower case: the column is searched with ILIKE.
         $this->actingAs($superuser)->get(route('platform.agencies.index', ['search' => 'doh']))
@@ -111,7 +111,7 @@ class AgencyControllerTest extends TestCase
         $empty = Agency::factory()->create(['code' => 'ZZZ', 'name' => 'Zzz Office']);
 
         // Default order is name ascending, so Aaa comes first.
-        $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.index'))
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->get(route('platform.agencies.index'))
             ->assertInertia(fn (Assert $page) => $page->has('agencies', 2)
                 ->where('agencies.0.id', $busy->id)
                 ->where('agencies.0.users_count', 2)
@@ -125,7 +125,7 @@ class AgencyControllerTest extends TestCase
 
         DB::enableQueryLog();
 
-        $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.index'))->assertOk();
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->get(route('platform.agencies.index'))->assertOk();
 
         $counts = collect(DB::getQueryLog())
             ->filter(fn (array $query) => str_contains($query['query'], 'as "users_count"'))
@@ -144,7 +144,7 @@ class AgencyControllerTest extends TestCase
         User::factory()->count(2)->for($busy)->create();
         $quiet = Agency::factory()->create(['code' => 'ZZZ', 'name' => 'Zzz']);
 
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($superuser)->get(route('platform.agencies.index', ['sort' => 'users', 'direction' => 'desc']))
             ->assertInertia(fn (Assert $page) => $page->where('agencies.0.id', $busy->id)
@@ -164,7 +164,7 @@ class AgencyControllerTest extends TestCase
     {
         Agency::factory()->count(22)->create();
 
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($superuser)->get(route('platform.agencies.index'))
             ->assertInertia(fn (Assert $page) => $page->has('agencies', 20)
@@ -182,7 +182,7 @@ class AgencyControllerTest extends TestCase
     public function test_the_entered_agency_is_the_shared_agency_prop_on_the_list(): void
     {
         $agency = Agency::factory()->create();
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($superuser)->post(route('platform.agencies.enter', $agency));
 
@@ -194,7 +194,7 @@ class AgencyControllerTest extends TestCase
     public function test_no_platform_route_is_reachable_by_an_agency_user(): void
     {
         $agency = Agency::factory()->create();
-        $user = User::factory()->preset(Preset::Admin)->create();
+        $user = User::factory()->acceptedLegal()->preset(Preset::Admin)->create();
 
         $this->actingAs($user)->get(route('platform.agencies.create'))->assertForbidden();
         $this->actingAs($user)->post(route('platform.agencies.store'), ['code' => 'X', 'name' => 'X'])->assertForbidden();
@@ -208,7 +208,7 @@ class AgencyControllerTest extends TestCase
 
     public function test_the_platform_row_cannot_be_edited_or_updated_by_id(): void
     {
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($superuser)->get(route('platform.agencies.edit', Agency::platform()->id))->assertNotFound();
 

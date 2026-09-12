@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcceptanceController;
 use App\Http\Controllers\AgencySettingsController;
 use App\Http\Controllers\CadenceController;
 use App\Http\Controllers\DashboardController;
@@ -58,6 +59,11 @@ Route::get('verify/ledgers/{token}', VerifyLedgerController::class)
     ->name('ledgers.verify');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('legal/acceptance', [AcceptanceController::class, 'create'])->name('legal.acceptance.create');
+    Route::post('legal/acceptance', [AcceptanceController::class, 'store'])->name('legal.acceptance.store');
+});
+
+Route::middleware(['auth', 'verified', 'legal'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::resource('users', UserController::class)->except(['show']);

@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Actions\RecordAcceptance;
 use App\Enums\Permission;
 use App\Enums\Preset;
 use App\Models\Agency;
 use App\Models\User;
+use App\Support\Legal;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -36,6 +38,21 @@ class UserFactory extends Factory
             'permissions' => [],
             'remember_token' => Str::random(10),
         ];
+    }
+
+    public function acceptedLegal(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            $documents = [];
+
+            foreach (app(Legal::class)->current() as $document) {
+                $documents[$document['slug']] = [
+                    'version' => $document['version'], 'hash' => $document['hash'], 'accepted' => true,
+                ];
+            }
+
+            app(RecordAcceptance::class)->handle($user, $documents);
+        });
     }
 
     public function platform(): static

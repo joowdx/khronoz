@@ -19,9 +19,9 @@ export function Mark({ className }: { className?: string }) {
     );
 }
 
-export function BrandLink({ className }: { className?: string }) {
+export function BrandLink({ className, href = '#top' }: { className?: string; href?: string }) {
     return (
-        <a href="#top" className={cn('text-acc-text inline-flex items-center gap-[9px] rounded-lg py-px', className)}>
+        <a href={href} className={cn('text-acc-text inline-flex items-center gap-[9px] rounded-lg py-px', className)}>
             <Mark className="h-[18px] w-[26px] flex-none" />
             <span className="text-foreground text-[17px] leading-[22px] font-bold tracking-[-0.008em] md:text-[19px] md:leading-6">
                 khronoz

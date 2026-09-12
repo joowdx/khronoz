@@ -57,6 +57,8 @@ class InviteControllerTest extends TestCase
         $this->assertAuthenticatedAs($user->fresh());
         $this->assertNotNull($user->fresh()->email_verified_at);
         $this->assertTrue(Hash::check('a-new-password', $user->fresh()->password));
+        $this->assertDatabaseMissing('acceptances', ['user_id' => $user->id]);
+        $this->get(route('dashboard'))->assertRedirect(route('legal.acceptance.create'));
     }
 
     public function test_password_confirmation_mismatch_returns_a_validation_error(): void

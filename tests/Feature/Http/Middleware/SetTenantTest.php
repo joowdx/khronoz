@@ -11,7 +11,7 @@ class SetTenantTest extends TestCase
 {
     public function test_agency_user_gets_their_own_agency(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('agency.id', $user->agency_id));
@@ -21,7 +21,7 @@ class SetTenantTest extends TestCase
     {
         Agency::factory()->count(2)->create();
 
-        $this->actingAs(User::factory()->platform()->create())->get(route('dashboard'))
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('agency.platform', true)->has('agencies', 2));
     }
 
@@ -29,14 +29,14 @@ class SetTenantTest extends TestCase
     {
         $agency = Agency::factory()->create();
 
-        $this->actingAs(User::factory()->platform()->create())->withSession(['agency' => $agency->id])->get(route('dashboard'))
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())->withSession(['agency' => $agency->id])->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('agency.id', $agency->id));
     }
 
     public function test_the_shared_agency_prop_distinguishes_the_platform_tenant_from_an_entered_one(): void
     {
         $agency = Agency::factory()->create();
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($superuser)->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('agency.platform', true)
@@ -50,13 +50,13 @@ class SetTenantTest extends TestCase
 
     public function test_a_staff_user_is_always_inside_a_real_agency(): void
     {
-        $this->actingAs(User::factory()->create())->get(route('dashboard'))
+        $this->actingAs(User::factory()->acceptedLegal()->create())->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('agency.platform', false));
     }
 
     public function test_agency_user_ignores_a_session_agency(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
         $other = Agency::factory()->create();
 
         $this->actingAs($user)->withSession(['agency' => $other->id])->get(route('dashboard'))

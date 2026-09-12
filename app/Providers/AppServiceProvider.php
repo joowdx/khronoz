@@ -107,6 +107,7 @@ class AppServiceProvider extends ServiceProvider
     protected function configureAuthorization(): void
     {
         Gate::before(fn (User $user) => $user->isPlatform() ? true : null);
+        Gate::define('accept-legal', fn (User $user): bool => true);
 
         foreach (Permission::cases() as $permission) {
             Gate::define($permission->value, fn (User $user) => $user->allows($permission));

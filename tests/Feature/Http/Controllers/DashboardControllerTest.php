@@ -31,7 +31,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_dashboard_shows_the_current_agency_counts(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
         User::factory()->forAgency($user->agency)->count(2)->create();
         User::factory()->forAgency($user->agency)->invited()->create();
 
@@ -44,7 +44,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_dashboard_counts_only_the_current_agencys_users(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
         User::factory()->forAgency($user->agency)->count(2)->create();
         User::factory()->forAgency($user->agency)->invited()->create();
 
@@ -77,7 +77,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_dashboard_omits_the_platform_figures_for_an_ordinary_agency_user(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page
@@ -100,7 +100,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_a_tenant_with_nothing_outstanding_reports_zero_rather_than_nothing(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
 
         $this->actingAs($user)->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('counts.invited', 0));
@@ -119,7 +119,7 @@ class DashboardControllerTest extends TestCase
 
     public function test_accepting_an_invitation_moves_a_user_from_invited_to_active(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->acceptedLegal()->create();
         $invitee = User::factory()->forAgency($user->agency)->invited()->create();
 
         $this->actingAs($user)->get(route('dashboard'))

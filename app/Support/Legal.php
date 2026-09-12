@@ -2,6 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\Acceptance;
+use App\Models\User;
+use App\Tenancy\Tenant;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -65,6 +68,20 @@ final class Legal
     public function current(): array
     {
         return array_map(fn (string $slug): array => $this->document($slug), self::DOCUMENTS);
+    }
+
+    public function isAcceptedBy(User $user): bool
+    {
+        $current = $this->current();
+
+        return app(Tenant::class)->within($user->agency, function () use ($user, $current): bool {
+            $accepted = Acceptance::where('user_id', $user->id)->get();
+
+            return collect($current)->every(fn (array $document): bool => $accepted->contains(
+                fn (Acceptance $row): bool => $row->document === $document['slug']
+                    && $row->version === $document['version'] && $row->content_hash === $document['hash'],
+            ));
+        });
     }
 
     public function isPublished(): bool

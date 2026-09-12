@@ -30,6 +30,6 @@ class EnsurePlatformTest extends TestCase
 
         $url = $needsAgency ? route($routeName, $agency) : route($routeName);
 
-        $this->actingAs(User::factory()->create())->{$verb}($url)->assertForbidden();
+        $this->actingAs(User::factory()->acceptedLegal()->create())->{$verb}($url)->assertForbidden();
     }
 }

@@ -32,6 +32,16 @@ Current user deletion can be refused by references protecting historical attesta
 
 Complete the operator's legal identity, working privacy contact, hosting/subprocessor locations, effective dates and retention particulars before publishing final versions. Establish the agency processing agreement, employee notice delivery, rights-request handling, retention/disposal and backup procedures. Google/Apple OAuth implementation and provider verification are separate. Draft acceptance cannot qualify as acceptance of a later published version.
 
+### Implemented legal foundation — 2026-09-12
+
+Employee sex, birthdate, email and mobile have been removed from the schema, input forms, responses and search; account email remains. Public Privacy Policy and User Agreement drafts now have retained version files, content hashes and safe Markdown rendering. `php artisan legal:check` verifies retained files; `php artisan legal:check --published` also requires published current versions. Publish by adding a new completed file and manifest entry, retaining all prior files and hashes, then changing `current`; never edit a published version in place. Review publication diffs against the previous release: a checksum detects changed bytes against the manifest, not an editor changing both together.
+
+All authenticated business routes require both current acknowledgments after email verification. The database records user, owning agency, document, version, SHA-256 hash and acceptance time; it refuses application updates and direct deletions. A user-row lock and transaction make repeat submissions idempotent and both acknowledgments atomic. An otherwise-permitted account deletion cascades these acknowledgments; existing attendance/attestation constraints continue to decide whether that deletion is allowed.
+
+Local draft rehearsal is supported, but production business access remains unavailable until current versions are published. Draft-prefixed versions and unresolved placeholders cannot be promoted as published documents. Login, invitation activation, recovery, verification, logout, public legal pages and the existing self-identity API remain reachable; the acknowledgment is neither employment-processing consent nor a substitute for notice to employees without accounts.
+
+The retention/disposal system, operational request process, contractual arrangements and deployment safeguards above remain launch work. This change does not implement OAuth, self-service account deletion, attendance erasure, or a blanket compliance certification.
+
 ## Historical research — 2026-09-11
 
 Written 2026-09-11. **Verified in primary text**: RA 10173 (Data Privacy Act of 2012) §§3(h), 3(i), 3(l), 4, 11, 12, 13, 14, 16, 21; Omnibus Rules Implementing the Labor Code, Book III, Rule X §§7, 8, 9, 11, 12.

@@ -17,7 +17,7 @@ class UserControllerTest extends TestCase
     #[DataProvider('permissionsWithoutUsersManage')]
     public function test_users_without_users_manage_are_forbidden(Permission $permission): void
     {
-        $this->actingAs(User::factory()->permissions($permission)->create())->get(route('users.index'))->assertForbidden();
+        $this->actingAs(User::factory()->acceptedLegal()->permissions($permission)->create())->get(route('users.index'))->assertForbidden();
     }
 
     public static function permissionsWithoutUsersManage(): array
@@ -28,7 +28,7 @@ class UserControllerTest extends TestCase
 
     public function test_index_lists_only_the_current_agency(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         User::factory()->forAgency($admin->agency)->count(2)->create();
         User::factory()->count(3)->create(); // other agencies
 
@@ -54,7 +54,7 @@ class UserControllerTest extends TestCase
 
     public function test_index_filters_by_search_on_name_or_email(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create([
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create([
             'name' => 'Dolor Uy',
             'email' => 'dolor.uy@x.test',
         ]);
@@ -90,7 +90,7 @@ class UserControllerTest extends TestCase
     {
         $agency = Agency::factory()->create();
         $colleague = User::factory()->forAgency($agency)->create();
-        $outsider = User::factory()->forAgency($agency)->create();
+        $outsider = User::factory()->acceptedLegal()->forAgency($agency)->create();
 
         $url = $needsColleague ? route($routeName, $colleague) : route($routeName);
 
@@ -100,7 +100,7 @@ class UserControllerTest extends TestCase
     public function test_store_invites_a_user_with_the_chosen_permissions(): void
     {
         Notification::fake([InviteNotification::class]);
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->post(route('users.store'), ['name' => 'Ana Cruz', 'email' => 'ana@x.test', 'permissions' => ['organization.manage', 'scheduling.view']])
             ->assertRedirect(route('users.index'));
@@ -114,7 +114,7 @@ class UserControllerTest extends TestCase
 
     public function test_store_rejects_unknown_permissions(): void
     {
-        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+        $this->actingAs(User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create())
             ->post(route('users.store'), ['name' => 'x', 'email' => 'x@x.test', 'permissions' => ['root']])
             ->assertSessionHasErrors('permissions.0');
     }
@@ -122,7 +122,7 @@ class UserControllerTest extends TestCase
     public function test_store_requires_a_unique_email_regardless_of_case(): void
     {
         User::factory()->create(['email' => 'ana@x.test']);
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->post(route('users.store'), ['name' => 'Dup', 'email' => 'ANA@X.TEST', 'permissions' => ['users.manage']])
             ->assertSessionHasErrors([
@@ -133,7 +133,7 @@ class UserControllerTest extends TestCase
 
     public function test_store_does_not_add_the_conflict_banner_to_a_malformed_address(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->post(route('users.store'), ['name' => 'Dup', 'email' => 'not-an-address', 'permissions' => ['users.manage']])
             ->assertSessionHasErrors(['email' => 'Enter a valid email'])
@@ -142,7 +142,7 @@ class UserControllerTest extends TestCase
 
     public function test_store_refuses_an_empty_permission_set(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->post(route('users.store'), ['name' => 'Ana Cruz', 'email' => 'ana@x.test', 'permissions' => []])
             ->assertSessionHasErrors(['permissions' => 'Choose at least one']);
@@ -152,7 +152,7 @@ class UserControllerTest extends TestCase
 
     public function test_update_refuses_an_empty_permission_set(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $colleague = User::factory()->forAgency($admin->agency)->permissions(Permission::ViewScheduling)->create();
 
         $this->actingAs($admin)->put(route('users.update', $colleague), ['name' => $colleague->name, 'permissions' => []])
@@ -179,13 +179,13 @@ class UserControllerTest extends TestCase
     {
         $stranger = User::factory()->create();
 
-        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+        $this->actingAs(User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create())
             ->get(route('users.edit', $stranger))->assertNotFound();
     }
 
     public function test_editing_a_colleague_renders(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $colleague = User::factory()->forAgency($admin->agency)->create();
 
         $this->actingAs($admin)->get(route('users.edit', $colleague))
@@ -194,7 +194,7 @@ class UserControllerTest extends TestCase
 
     public function test_update_persists_changes_and_redirects(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $colleague = User::factory()->forAgency($admin->agency)->permissions(Permission::ViewScheduling)->create();
 
         $this->actingAs($admin)->put(route('users.update', $colleague), [
@@ -209,7 +209,7 @@ class UserControllerTest extends TestCase
 
     public function test_self_edit_cannot_drop_users_manage(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers, Permission::ViewScheduling)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers, Permission::ViewScheduling)->create();
 
         $this->actingAs($admin)->put(route('users.update', $admin), [
             'name' => $admin->name,
@@ -222,7 +222,7 @@ class UserControllerTest extends TestCase
 
     public function test_editing_a_colleague_can_remove_their_users_manage(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $colleague = User::factory()->forAgency($admin->agency)->permissions(Permission::ManageUsers, Permission::ViewScheduling)->create();
 
         $this->actingAs($admin)->put(route('users.update', $colleague), [
@@ -238,7 +238,7 @@ class UserControllerTest extends TestCase
     {
         $stranger = User::factory()->create();
 
-        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+        $this->actingAs(User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create())
             ->put(route('users.update', $stranger), ['name' => 'Someone Else', 'permissions' => []])
             ->assertNotFound();
     }
@@ -256,14 +256,14 @@ class UserControllerTest extends TestCase
 
     public function test_admins_cannot_remove_themselves(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->delete(route('users.destroy', $admin))->assertForbidden();
     }
 
     public function test_destroy_removes_a_colleague_and_redirects(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $colleague = User::factory()->forAgency($admin->agency)->create();
 
         $this->actingAs($admin)->delete(route('users.destroy', $colleague))
@@ -276,7 +276,7 @@ class UserControllerTest extends TestCase
     {
         $stranger = User::factory()->create();
 
-        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+        $this->actingAs(User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create())
             ->delete(route('users.destroy', $stranger))->assertNotFound();
     }
 
@@ -292,7 +292,7 @@ class UserControllerTest extends TestCase
 
     public function test_index_filters_by_status_invited(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $invited = User::factory()->forAgency($admin->agency)->invited()->create();
         User::factory()->forAgency($admin->agency)->create(); // accepted
 
@@ -306,7 +306,7 @@ class UserControllerTest extends TestCase
 
     public function test_index_filters_by_status_active(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         User::factory()->forAgency($admin->agency)->invited()->create();
 
         // The admin themselves is accepted, so two rows exist and one matches.
@@ -343,7 +343,7 @@ class UserControllerTest extends TestCase
         $agency = Agency::factory()->create();
         // Named so the ascending name sort is deterministic: the acting user
         // is a row of this list too, and its faker name would land anywhere.
-        $this->actingAs(User::factory()->forAgency($agency)
+        $this->actingAs(User::factory()->acceptedLegal()->forAgency($agency)
             ->permissions(Permission::ManageUsers)->create(['name' => 'Zzz Actor']));
         User::factory()->forAgency($agency)->preset(Preset::Admin)->create(['name' => 'Aaa Admin']);
         User::factory()->forAgency($agency)
@@ -381,7 +381,7 @@ class UserControllerTest extends TestCase
 
     public function test_index_ignores_filters_it_does_not_recognise(): void
     {
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->get(route('users.index', [
             'sort' => 'permissions) --', 'direction' => 'desc; drop table users', 'status' => 'wat', 'access' => 'wat',
@@ -464,7 +464,7 @@ class UserControllerTest extends TestCase
 
     public function test_create_carries_the_presets_the_matrix_starts_from(): void
     {
-        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+        $this->actingAs(User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create())
             ->get(route('users.create'))
             ->assertInertia(fn (Assert $page) => $page->component('users/create')
                 ->has('presets', 3)
@@ -476,7 +476,7 @@ class UserControllerTest extends TestCase
     public function test_a_stored_manage_right_grants_the_view_it_implies(): void
     {
         Notification::fake([InviteNotification::class]);
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
 
         $this->actingAs($admin)->post(route('users.store'), [
             'name' => 'Ana Cruz', 'email' => 'ana@x.test', 'permissions' => ['ledgers.attest'],
@@ -491,7 +491,7 @@ class UserControllerTest extends TestCase
     public function test_resend_invite_notifies_the_user_again(): void
     {
         Notification::fake([InviteNotification::class]);
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $invited = User::factory()->forAgency($admin->agency)->invited()->create();
 
         $this->actingAs($admin)->post(route('users.invite', $invited))
@@ -503,7 +503,7 @@ class UserControllerTest extends TestCase
     public function test_resend_invite_refuses_an_already_accepted_invitation(): void
     {
         Notification::fake([InviteNotification::class]);
-        $admin = User::factory()->permissions(Permission::ManageUsers)->create();
+        $admin = User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create();
         $accepted = User::factory()->forAgency($admin->agency)->create(); // default state: already verified
 
         $this->actingAs($admin)->post(route('users.invite', $accepted))
@@ -516,7 +516,7 @@ class UserControllerTest extends TestCase
     {
         $stranger = User::factory()->create();
 
-        $this->actingAs(User::factory()->permissions(Permission::ManageUsers)->create())
+        $this->actingAs(User::factory()->acceptedLegal()->permissions(Permission::ManageUsers)->create())
             ->post(route('users.invite', $stranger))->assertNotFound();
     }
 }

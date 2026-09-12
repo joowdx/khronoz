@@ -11,7 +11,7 @@ class EnterAgencyControllerTest extends TestCase
     public function test_enter_stores_the_agency_in_the_session_and_leave_clears_it(): void
     {
         $agency = Agency::factory()->create();
-        $superuser = User::factory()->platform()->create();
+        $superuser = User::factory()->acceptedLegal()->platform()->create();
 
         $this->actingAs($superuser)->post(route('platform.agencies.enter', $agency))
             ->assertRedirect(route('dashboard'))->assertSessionHas('agency', $agency->id);
@@ -22,7 +22,7 @@ class EnterAgencyControllerTest extends TestCase
 
     public function test_entering_the_platform_row_is_not_possible_by_id(): void
     {
-        $this->actingAs(User::factory()->platform()->create())
+        $this->actingAs(User::factory()->acceptedLegal()->platform()->create())
             ->post(route('platform.agencies.enter', Agency::platform()->id))->assertNotFound();
     }
 }

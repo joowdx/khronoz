@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAgency;
+use App\Http\Middleware\EnsureLegalAcceptance;
 use App\Http\Middleware\EnsurePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTenant;
@@ -29,6 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'agency' => EnsureAgency::class,
+            'legal' => EnsureLegalAcceptance::class,
             'platform' => EnsurePlatform::class,
         ]);
 
