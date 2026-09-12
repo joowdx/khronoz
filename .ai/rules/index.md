@@ -12,6 +12,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | **/*, **/*.{php,ts,tsx,js,jsx,css,scss} | .ai/rules/general.md |
 | app/Jobs/** | .ai/rules/jobs.md |
 | resources/js/** | .ai/rules/js.md |
+| resources/views/pdf/ledgers/form48.blade.php | .ai/rules/ledgers.md |
 | app/Http/Middleware/**, bootstrap/app.php | .ai/rules/middleware.md |
 | database/migrations/** | .ai/rules/migrations.md |
 | app/Models/** | .ai/rules/models.md |

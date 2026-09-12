@@ -6,6 +6,7 @@ use App\Enums\ReportDay;
 use App\Http\Resources\WorkdayResource;
 use App\Models\Attestation;
 use App\Models\Ledger;
+use App\Models\Workday;
 use App\Support\Settings;
 
 final class LedgerSnapshot
@@ -20,6 +21,23 @@ final class LedgerSnapshot
         $totals = get_object_vars($view);
         unset($totals['workdays']);
         $settings = new Settings($ledger->agency);
+        $boundaryDates = [];
+
+        for ($month = $ledger->starts->startOfMonth(); $month->lte($ledger->ends); $month = $month->addMonth()) {
+            $boundaryDates[] = $month->subDays(2)->toDateString();
+            $boundaryDates[] = $month->subDay()->toDateString();
+            $boundaryDates[] = $month->endOfMonth()->addDay()->toDateString();
+            $boundaryDates[] = $month->endOfMonth()->addDays(2)->toDateString();
+        }
+
+        $boundaries = Workday::query()
+            ->with(['punches', 'exemption'])
+            ->where('employee_id', $ledger->employee_id)
+            ->whereIn('date', collect($boundaryDates)
+                ->unique()
+                ->reject(fn (string $date): bool => $date >= $ledger->starts->toDateString() && $date <= $ledger->ends->toDateString()))
+            ->orderBy('date')
+            ->get();
 
         return [
             'identity' => [
@@ -30,6 +48,7 @@ final class LedgerSnapshot
             ],
             'calculation' => [
                 'workdays' => WorkdayResource::collection($view->workdays)->resolve(),
+                'boundaries' => WorkdayResource::collection($boundaries)->resolve(),
                 'totals' => $totals,
                 'settings' => ['night_from' => $settings->nightFrom(), 'overtime_after_weekly_minutes' => $settings->overtimeAfterWeekly(), 'occurrences' => $settings->occurrences(), 'suspension_charge' => $settings->suspensionCharge(), 'premium_hours' => $settings->premiumHours(), 'overtime_gates' => $settings->overtimeGates(), 'missing_side' => $settings->missingSide()->value],
             ],

@@ -5,7 +5,8 @@
     for ($month = $starts->startOfMonth(); $month->lessThanOrEqualTo($ends); $month = $month->addMonth()) {
         $months[] = $month;
     }
-    $workdays = collect($snapshot['workdays'] ?? [])->keyBy('date');
+    $ledgerWorkdays = collect($snapshot['workdays'] ?? []);
+    $workdays = collect($snapshot['boundaries'] ?? [])->concat($ledgerWorkdays)->keyBy('date');
     $asOf = isset($snapshot['rendition']['completed_at']) ? \Carbon\CarbonImmutable::parse($snapshot['rendition']['completed_at']) : (isset($snapshot['ledger']['locked_at']) ? \Carbon\CarbonImmutable::parse($snapshot['ledger']['locked_at']) : now()->toImmutable());
     $duration = static function (int $minutes, bool $blankZero = false): string {
         return $blankZero && $minutes === 0 ? '' : sprintf('%02d:%02d', intdiv($minutes, 60), $minutes % 60);
@@ -40,6 +41,78 @@
 <head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>Daily Time Record</title><style>{!! file_get_contents(resource_path('css/ledger-pdf.css')) !!}</style></head>
 <body>
 @foreach ($months as $month)
+@php
+    $monthStart = $month->startOfMonth();
+    $monthEnd = $month->endOfMonth();
+    $rows = collect([$monthStart->subDays(2), $monthStart->subDay()])
+        ->map(fn ($date): array => ['date' => $date, 'boundary' => true])
+        ->concat(collect(range(1, 31))->map(fn (int $day): array => [
+            'date' => $day <= $month->daysInMonth ? $month->day($day) : null,
+            'boundary' => false,
+        ]))
+        ->concat(collect([$monthEnd->addDay(), $monthEnd->addDays(2)])
+            ->map(fn ($date): array => ['date' => $date, 'boundary' => true]));
+    $punchEntries = $workdays->flatMap(function (array $workday): \Illuminate\Support\Collection {
+        $workDate = \Carbon\CarbonImmutable::parse($workday['date'], config('app.timezone'));
+
+        return collect($workday['punches'] ?? [])->map(function (array $punch) use ($workDate): array {
+            $actual = empty($punch['actual_at']) ? null : \Carbon\CarbonImmutable::parse($punch['actual_at'])->setTimezone(config('app.timezone'));
+            $expected = empty($punch['expected_at']) ? null : \Carbon\CarbonImmutable::parse($punch['expected_at'])->setTimezone(config('app.timezone'));
+            $instant = $actual ?? $expected;
+            $intended = $expected ?? $actual;
+            $displayDate = $instant?->startOfDay() ?? $workDate;
+            $isMidnightOut = ($punch['kind']['value'] ?? null) === 'out'
+                && $intended?->format('H:i:s') === '00:00:00'
+                && $intended->startOfDay()->greaterThan($workDate);
+
+            if ($isMidnightOut) {
+                $displayDate = $intended->subDay()->startOfDay();
+            }
+
+            return [...$punch,
+                '_work_date' => $workDate->toDateString(),
+                '_display_date' => $displayDate->toDateString(),
+                '_midnight_out' => $isMidnightOut,
+            ];
+        });
+    });
+    $pageWorkdays = $workdays->filter(function (array $workday) use ($monthStart, $monthEnd, $punchEntries): bool {
+        $workDate = $workday['date'];
+
+        if ($workDate >= $monthStart->toDateString() && $workDate <= $monthEnd->toDateString()) {
+            return true;
+        }
+
+        $dates = $punchEntries->where('_work_date', $workDate)->pluck('_display_date');
+
+        return $dates->isNotEmpty()
+            && $dates->min() <= $monthEnd->toDateString()
+            && $dates->max() >= $monthStart->toDateString();
+    });
+    $pagePunches = $punchEntries
+        ->whereIn('_work_date', $pageWorkdays->keys())
+        ->sortBy(fn (array $punch): string => $punch['actual_at'] ?? $punch['expected_at'] ?? '')
+        ->groupBy('_display_date');
+    $continuations = $pageWorkdays->flatMap(function (array $workday): \Illuminate\Support\Collection {
+        return collect($workday['punches'] ?? [])->groupBy('slot')->flatMap(function ($punches) use ($workday): \Illuminate\Support\Collection {
+            $arrival = $punches->first(fn (array $punch): bool => ($punch['kind']['value'] ?? null) === 'in');
+            $departure = $punches->first(fn (array $punch): bool => ($punch['kind']['value'] ?? null) === 'out');
+            $startsAt = empty($arrival['actual_at'] ?? $arrival['expected_at'] ?? null) ? null : \Carbon\CarbonImmutable::parse($arrival['actual_at'] ?? $arrival['expected_at'])->setTimezone(config('app.timezone'));
+            $endsAt = empty($departure['actual_at'] ?? $departure['expected_at'] ?? null) ? null : \Carbon\CarbonImmutable::parse($departure['actual_at'] ?? $departure['expected_at'])->setTimezone(config('app.timezone'));
+
+            if ($startsAt === null || $endsAt === null || ! $endsAt->greaterThan($startsAt)) {
+                return collect();
+            }
+
+            $dates = collect();
+            for ($date = $startsAt->startOfDay()->addDay(); $date->lessThan($endsAt->startOfDay()); $date = $date->addDay()) {
+                $dates->push(['date' => $date->toDateString(), 'work_date' => $workday['date']]);
+            }
+
+            return $dates;
+        });
+    })->groupBy('date');
+@endphp
 <section class="page form48" aria-label="{{ $month->format('F Y') }}">
     <header class="form48-header">
         <div class="form48-number">Civil Service Form No. 48</div>
@@ -76,8 +149,8 @@
         <div class="form48-duty-lines">
             <div class="form48-duty-label">Official hours for<br>arrival and departure</div>
             <div class="form48-duty-values">
-                <div><span>Weekdays</span><strong>{{ $duty($workdays->values(), false) }}</strong></div>
-                <div><span>Weekends</span><strong>{{ $duty($workdays->values(), true) }}</strong></div>
+                <div><span>Weekdays</span><strong>{{ $duty($ledgerWorkdays, false) }}</strong></div>
+                <div><span>Weekends</span><strong>{{ $duty($ledgerWorkdays, true) }}</strong></div>
             </div>
         </div>
     </header>
@@ -117,43 +190,50 @@
             </tr>
         </thead>
         <tbody>
-        @for ($day = 1; $day <= 31; $day++)
+        @foreach ($rows as $row)
             @php
-                $dateExists = $day <= $month->daysInMonth;
-                $date = $dateExists ? $month->day($day) : null;
-                $outside = ! $dateExists || $date->lessThan($starts) || $date->greaterThan($ends);
-                $workday = $dateExists ? $workdays->get($date->format('Y-m-d'), []) : [];
-                $punches = collect($workday['punches'] ?? [])->sortBy(fn (array $punch): string => sprintf('%04d-%s', $punch['slot'] ?? 0, $punch['kind']['value'] ?? ''));
+                $date = $row['date'];
+                $dateExists = $date !== null;
+                $dateKey = $date?->toDateString();
+                $isBoundary = $row['boundary'];
+                $outside = ! $dateExists || $isBoundary || $date->lessThan($starts) || $date->greaterThan($ends);
+                $workday = $dateExists ? $workdays->get($dateKey, []) : [];
+                $punches = $dateExists ? collect($pagePunches->get($dateKey, [])) : collect();
+                $rowContinuations = $dateExists ? collect($continuations->get($dateKey, [])) : collect();
+                $hasBoundaryContext = $isBoundary && ($punches->isNotEmpty() || $rowContinuations->isNotEmpty());
+                $isContinuousOutside = ! $dateExists || ($isBoundary && ! $hasBoundaryContext);
                 $holidays = collect($workday['holidays'] ?? []);
-                $isHoliday = ! $outside && $holidays->isNotEmpty();
-                $isWeekend = ! $outside && $date->isWeekend();
+                $isHoliday = ! $isBoundary && ! $outside && $holidays->isNotEmpty();
+                $isWeekend = ! $isBoundary && ! $outside && $date->isWeekend();
                 $calendarLabel = collect([$isWeekend ? $date->format('l') : null])
                     ->merge($holidays->pluck('name'))
+                    ->when($rowContinuations->isNotEmpty(), fn ($labels) => $labels->push('Continuation from '.\Carbon\CarbonImmutable::parse($rowContinuations->first()['work_date'])->format('M j')))
                     ->filter()
                     ->unique()
                     ->join(' • ');
-                $mergeCalendarPunches = $calendarLabel !== ''
+                $mergeCalendarPunches = ($calendarLabel !== '' || $rowContinuations->isNotEmpty())
                     && $punches->isEmpty()
                     && collect(['worked', 'credited', 'tardy', 'undertime', 'excess', 'night', 'night_excess'])
                         ->every(fn (string $metric): bool => (int) ($workday[$metric] ?? 0) === 0);
-                $slots = $punches->pluck('slot')->unique()->values(); $cells = collect([null, null, null, null]); $annotated = collect();
+                $cells = collect([null, null, null, null]); $annotated = collect();
                 $column = static function (array $punch): int {
                     $kind = $punch['kind']['value'] ?? ''; $stamp = $punch['actual_at'] ?? $punch['expected_at'] ?? null;
                     $hour = $stamp === null ? 0 : (int) \Carbon\CarbonImmutable::parse($stamp)->setTimezone(config('app.timezone'))->format('G');
+
+                    if ($kind === 'out' && ($punch['_midnight_out'] ?? false)) {
+                        return 3;
+                    }
+
                     return $kind === 'in' ? ($hour < 12 ? 0 : 2) : ($hour < 12 ? 1 : 3);
                 };
                 $dayTardiness = (int) ($workday['tardy'] ?? 0);
                 $dayUndertime = (int) ($workday['undertime'] ?? 0);
                 $dayDeficit = $dayTardiness + $dayUndertime;
-                $dayOvertime = $dateExists ? (int) ($snapshot['totals']['overtimeByDate'][$date->format('Y-m-d')] ?? $workday['overtime'] ?? 0) : 0;
-                if ($slots->count() <= 2) {
-                    $natural = $punches->mapWithKeys(fn (array $punch): array => [$column($punch) => $punch]);
-                    if ($natural->count() === $punches->count()) { foreach ($natural as $index => $punch) { $cells->put($index, $punch); } }
-                    else { foreach ($slots as $position => $slot) { $pair = $punches->where('slot', $slot); $cells->put($position * 2, $pair->first(fn (array $punch): bool => ($punch['kind']['value'] ?? null) === 'in')); $cells->put(($position * 2) + 1, $pair->first(fn (array $punch): bool => ($punch['kind']['value'] ?? null) === 'out')); } }
-                } else {
-                    $first = $punches->first(fn (array $punch): bool => ($punch['kind']['value'] ?? null) === 'in'); $last = $punches->reverse()->first(fn (array $punch): bool => ($punch['kind']['value'] ?? null) === 'out');
-                    foreach (array_filter([$first, $last]) as $punch) { $cells->put($column($punch), $punch); }
-                    $annotated = $punches->reject(fn (array $punch): bool => $punch === $first || $punch === $last);
+                $dayOvertime = $dateExists && ! $isBoundary ? (int) ($snapshot['totals']['overtimeByDate'][$dateKey] ?? $workday['overtime'] ?? 0) : 0;
+                foreach ($punches as $punch) {
+                    $index = $column($punch);
+                    if ($cells->get($index) === null) { $cells->put($index, $punch); }
+                    else { $annotated->push($punch); }
                 }
                 $notes = collect();
                 if ($isHoliday) {
@@ -169,23 +249,27 @@
                 if (! empty($workday['exemption'])) { $notes->push(($workday['exemption']['type']['label'] ?? $workday['exemption']['type']['value'] ?? 'Exempt').(empty($workday['exemption']['reference']) ? '' : ' '.$workday['exemption']['reference'])); }
                 $notes = $notes->unique()->values();
             @endphp
-            <tr @class(['outside' => $outside, 'holiday' => $isHoliday, 'weekend' => $isWeekend])><td class="day-cell">{{ $dateExists ? $day : '--' }}</td>
-                @if ($outside)<td colspan="10" class="outside-scope"></td>
+            @if ($isContinuousOutside)
+                <tr class="outside continuous-outside"><td colspan="11" class="outside-scope"></td></tr>
+            @else
+            <tr @class(['outside' => $outside && ! $hasBoundaryContext, 'boundary-context' => $hasBoundaryContext, 'holiday' => $isHoliday, 'weekend' => $isWeekend])><td @class(['day-cell', 'boundary-day' => $isBoundary])>{{ $isBoundary ? $date->format('M j') : $date->day }}</td>
+                @if ($outside && ! $hasBoundaryContext)<td colspan="10" class="outside-scope"></td>
                 @elseif ($mergeCalendarPunches)
-                    <td colspan="4" class="calendar-label">{{ $calendarLabel }}</td>
+                    <td colspan="4" @class(['calendar-label', 'context-time' => $rowContinuations->contains(fn (array $continuation): bool => $continuation['work_date'] < $monthStart->toDateString() || $continuation['work_date'] > $monthEnd->toDateString())])>{{ $calendarLabel }}</td>
                     <td class="metric-cell">{{ $duration($dayTardiness, true) }}</td><td class="metric-cell">{{ $duration($dayUndertime, true) }}</td><td class="metric-cell">{{ $duration($dayDeficit, true) }}</td>
                     <td class="metric-cell">{{ $duration((int) ($workday['worked'] ?? 0), true) }}</td>
                     <td class="metric-cell">{{ $duration($dayOvertime, true) }}</td>
                     <td class="annotations">{{ $notes->join(' / ') }}</td>
                 @else
-                    @foreach ($cells as $punch)<td class="time-cell">@if ($punch !== null && ($punch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $punch['actual_at'], 'workDate' => $date->format('Y-m-d')])@elseif ($punch !== null && ($punch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($punch['expected_at'])->greaterThan($asOf))<span class="pending">Pending</span>@elseif ($punch !== null)<span class="missing">Missing</span>@endif</td>@endforeach
-                    <td class="metric-cell">{{ $duration($dayTardiness, true) }}</td><td class="metric-cell">{{ $duration($dayUndertime, true) }}</td><td class="metric-cell">{{ $duration($dayDeficit, true) }}</td>
-                    <td class="metric-cell">{{ $duration((int) ($workday['worked'] ?? 0), true) }}</td>
-                    <td class="metric-cell">{{ $duration($dayOvertime, true) }}</td>
-                    <td class="annotations">{{ $notes->join(' / ') }}@foreach ($annotated as $extraPunch)<span class="extra-slot">{{ $loop->first && $notes->isNotEmpty() ? ' / ' : '' }}S{{ $extraPunch['slot'] ?? '' }} {{ strtoupper($extraPunch['kind']['value'] ?? '') }} @if (($extraPunch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $extraPunch['actual_at'], 'workDate' => $date->format('Y-m-d')])@elseif (($extraPunch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($extraPunch['expected_at'])->greaterThan($asOf))pending @else missing @endif</span>@endforeach</td>
+                    @foreach ($cells as $punch)<td @class(['time-cell', 'context-time' => $punch !== null && ($punch['_work_date'] < $monthStart->toDateString() || $punch['_work_date'] > $monthEnd->toDateString()), 'trailing-timeout' => $punch !== null && ($punch['kind']['value'] ?? null) === 'out' && $punch['_work_date'] >= $monthStart->toDateString() && $punch['_work_date'] <= $monthEnd->toDateString() && $punch['_display_date'] > $monthEnd->toDateString()])>@if ($punch !== null && ($punch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $punch['actual_at'], 'workDate' => $dateKey])@elseif ($punch !== null && ($punch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($punch['expected_at'])->greaterThan($asOf))<span class="pending">Pending</span>@elseif ($punch !== null)<span class="missing">Missing</span>@endif</td>@endforeach
+                    <td class="metric-cell">{{ $isBoundary ? '' : $duration($dayTardiness, true) }}</td><td class="metric-cell">{{ $isBoundary ? '' : $duration($dayUndertime, true) }}</td><td class="metric-cell">{{ $isBoundary ? '' : $duration($dayDeficit, true) }}</td>
+                    <td class="metric-cell">{{ $isBoundary ? '' : $duration((int) ($workday['worked'] ?? 0), true) }}</td>
+                    <td class="metric-cell">{{ $isBoundary ? '' : $duration($dayOvertime, true) }}</td>
+                    <td class="annotations">{{ $isBoundary ? '' : $notes->join(' / ') }}@foreach ($annotated as $extraPunch)<span @class(['extra-slot', 'context-time' => $extraPunch['_work_date'] < $monthStart->toDateString() || $extraPunch['_work_date'] > $monthEnd->toDateString()])>{{ $loop->first && $notes->isNotEmpty() ? ' / ' : '' }}S{{ $extraPunch['slot'] ?? '' }} {{ strtoupper($extraPunch['kind']['value'] ?? '') }} @if (($extraPunch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $extraPunch['actual_at'], 'workDate' => $dateKey])@elseif (($extraPunch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($extraPunch['expected_at'])->greaterThan($asOf))pending @else missing @endif</span>@endforeach</td>
                 @endif
             </tr>
-        @endfor
+            @endif
+        @endforeach
         </tbody>
     </table>
     @php $periodDeficit = (int) ($snapshot['totals']['tardy'] ?? 0) + (int) ($snapshot['totals']['undertime'] ?? 0); @endphp

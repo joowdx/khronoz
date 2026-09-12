@@ -62,7 +62,7 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .attendance tbody tr:last-child td { border-bottom: 0; }
 .attendance th { background: var(--surface-strong); color: #344054; padding: 3px 2px; font-size: 6.1pt; font-weight: bold; letter-spacing: 0.035em; line-height: 1.1; text-transform: uppercase; vertical-align: middle; }
 .attendance th small { color: var(--muted); font-size: 5.2pt; font-weight: normal; }
-.form48-table tbody tr { height: 0.2in; }
+.form48-table tbody tr { height: 0.18in; }
 .form48-table td { padding: 1px 3px; font-size: 7.2pt; line-height: 1.05; }
 .form48-table .day, .form48-table .day-cell { width: 0.48in; padding-right: 11px; text-align: right; vertical-align: middle; }
 .form48-table .day-cell { background: #fff; font-weight: bold; }
@@ -76,6 +76,10 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .form48-table .metric-cell { color: #111; font-size: 6.8pt; font-variant-numeric: tabular-nums; font-weight: bold; }
 .form48-table .annotations { padding: 1px 4px; text-align: left; font-size: 5.6pt; line-height: 1.05; }
 .form48-table .calendar-label { padding: 1px 7px; font-size: 6.5pt; font-weight: bold; letter-spacing: 0.025em; text-align: left; }
+.form48-table .boundary-day { padding-right: 4px; color: #7d8795; font-size: 5.4pt; font-weight: normal; white-space: nowrap; }
+.form48-table .context-time { color: #7d8795; }
+.form48-table .trailing-timeout { color: #111827; }
+.form48-table .continuous-outside td { border-right: 0; }
 .extra-slot { display: inline; }
 .missing { color: var(--warning); font-size: 5.4pt; font-weight: bold; text-transform: uppercase; }
 .pending { color: var(--muted); font-size: 5.4pt; font-style: italic; text-transform: uppercase; }

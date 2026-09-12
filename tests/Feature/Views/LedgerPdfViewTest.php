@@ -31,7 +31,7 @@ class LedgerPdfViewTest extends TestCase
 
         $this->assertSame(2, substr_count($html, 'class="page form48"'));
         $this->assertSame(2, substr_count($html, 'alt="Verify this ledger"'));
-        $this->assertSame(58, substr_count($html, 'class="outside"'));
+        $this->assertSame(66, substr_count($html, 'class="outside continuous-outside"') + substr_count($html, 'class="outside"'));
         $this->assertStringContainsString('January 2026', $html);
         $this->assertStringContainsString('February 2026', $html);
         $this->assertStringContainsString('08:01', $html);
@@ -147,14 +147,88 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => null,
         ])->render();
 
-        $this->assertStringContainsString('01:15<small>(+1d)</small>', $html);
-        $this->assertStringContainsString('03:05<small>(+1d)</small>', $html);
-        $this->assertStringContainsString('05:45<small>(+1d)</small>', $html);
-        $this->assertStringContainsString('06:30<small>(+1d)</small>', $html);
+        $this->assertStringContainsString('01:15', $html);
+        $this->assertStringContainsString('03:05', $html);
+        $this->assertStringContainsString('05:45', $html);
+        $this->assertStringContainsString('06:30', $html);
+        $this->assertStringNotContainsString('(+1d)', $html);
         $this->assertStringContainsString('Rest day', $html);
         $this->assertStringContainsString('Excess 01:30', $html);
         $this->assertStringContainsString('Night 01:00', $html);
         $this->assertStringContainsString('Night excess 00:30', $html);
+    }
+
+    public function test_form48_uses_month_buffers_and_places_punches_on_their_calendar_rows(): void
+    {
+        config(['app.timezone' => 'Asia/Manila']);
+        $snapshot = [
+            'ledger' => ['starts' => '2026-07-01', 'ends' => '2026-07-31'],
+            'boundaries' => [[
+                'date' => '2026-06-30',
+                'punches' => [
+                    ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-06-30T19:00:00+08:00', 'actual_at' => '2026-06-30T19:00:00+08:00'],
+                    ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-07-01T07:00:00+08:00', 'actual_at' => '2026-07-01T07:00:00+08:00'],
+                ],
+            ]],
+            'workdays' => [
+                [
+                    'date' => '2026-07-05',
+                    'punches' => [
+                        ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-07-05T16:00:00+08:00', 'actual_at' => '2026-07-05T16:00:00+08:00'],
+                        ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-07-06T00:00:00+08:00', 'actual_at' => '2026-07-06T00:00:00+08:00'],
+                    ],
+                ],
+                [
+                    'date' => '2026-07-10',
+                    'punches' => [
+                        ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-07-10T00:00:00+08:00', 'actual_at' => '2026-07-10T00:00:00+08:00'],
+                        ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-07-10T08:00:00+08:00', 'actual_at' => '2026-07-10T08:00:00+08:00'],
+                    ],
+                ],
+                [
+                    'date' => '2026-07-12',
+                    'punches' => [
+                        ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-07-12T19:00:00+08:00', 'actual_at' => '2026-07-12T19:00:00+08:00'],
+                        ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-07-13T07:00:00+08:00', 'actual_at' => '2026-07-13T07:00:00+08:00'],
+                    ],
+                ],
+                [
+                    'date' => '2026-07-31',
+                    'punches' => [
+                        ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-07-31T19:00:00+08:00', 'actual_at' => '2026-07-31T19:00:00+08:00'],
+                        ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-08-01T07:00:00+08:00', 'actual_at' => '2026-08-01T07:00:00+08:00'],
+                    ],
+                ],
+            ],
+        ];
+
+        $html = view('pdf.ledgers.form48', [
+            'snapshot' => $snapshot,
+            'preview' => true,
+            'verificationUrl' => null,
+            'qrSvg' => null,
+        ])->render();
+
+        preg_match('/<tbody>(.*?)<\\/tbody>/s', $html, $body);
+        preg_match('/<tr[^>]*><td class="day-cell">5<\\/td>(.*?)<\\/tr>/s', $html, $dayFive);
+        preg_match('/<tr[^>]*><td class="day-cell">6<\\/td>(.*?)<\\/tr>/s', $html, $daySix);
+        preg_match('/<tr[^>]*><td class="day-cell">10<\\/td>(.*?)<\\/tr>/s', $html, $dayTen);
+        preg_match('/<tr[^>]*><td class="day-cell">12<\\/td>(.*?)<\\/tr>/s', $html, $dayTwelve);
+        preg_match('/<tr[^>]*><td class="day-cell">13<\\/td>(.*?)<\\/tr>/s', $html, $dayThirteen);
+
+        $this->assertArrayHasKey(1, $body);
+        $this->assertSame(35, substr_count($body[1], '<tr'));
+        $this->assertStringNotContainsString('>--<', $body[1]);
+        $this->assertSame(2, substr_count($body[1], '<tr class="outside continuous-outside"><td colspan="11" class="outside-scope"></td></tr>'));
+        $this->assertMatchesRegularExpression('/<tr class="boundary-context"><td class="day-cell boundary-day">Jun 30<\\/td>.*class="time-cell context-time"[^>]*>19:00.*<td class="time-cell context-time">07:00<\\/td>/s', $html);
+        $this->assertMatchesRegularExpression('/<tr class="boundary-context"><td class="day-cell boundary-day">Aug 1<\\/td>.*class="time-cell trailing-timeout"[^>]*>07:00/s', $html);
+        $this->assertStringContainsString('16:00', $dayFive[1]);
+        $this->assertStringContainsString('00:00<small>(+1d)</small>', $dayFive[1]);
+        $this->assertStringNotContainsString('00:00', $daySix[1]);
+        $this->assertLessThan(strpos($dayTen[1], '08:00'), strpos($dayTen[1], '00:00'));
+        $this->assertStringContainsString('19:00', $dayTwelve[1]);
+        $this->assertStringNotContainsString('07:00', $dayTwelve[1]);
+        $this->assertStringContainsString('07:00', $dayThirteen[1]);
     }
 
     public function test_form48_uses_the_two_level_clock_header_and_separate_hhmm_deductions(): void
@@ -316,14 +390,15 @@ class LedgerPdfViewTest extends TestCase
 
         preg_match('/<tbody>(.*?)<\\/tbody>/s', $html, $body);
         $this->assertArrayHasKey(1, $body);
-        $this->assertSame(31, substr_count($body[1], '<tr'));
+        $this->assertSame(35, substr_count($body[1], '<tr'));
+        $this->assertSame(5, substr_count($body[1], '<tr class="outside continuous-outside"><td colspan="11" class="outside-scope"></td></tr>'));
         $this->assertMatchesRegularExpression('/<tr class="outside"><td class="day-cell">1<\\/td>\\s*<td colspan="10" class="outside-scope"><\\/td>/', $html);
         $this->assertMatchesRegularExpression('/<tr class="holiday"><td class="day-cell">3<\\/td>\\s*<td colspan="4" class="calendar-label">Good Friday<\\/td>.*<td class="annotations">Regular holiday<\\/td>/s', $html);
         $this->assertMatchesRegularExpression('/<tr class="weekend"><td class="day-cell">4<\\/td>\\s*<td colspan="4" class="calendar-label">Saturday<\\/td>.*<td class="annotations"><\\/td>/s', $html);
         $this->assertMatchesRegularExpression('/<tr class="weekend"><td class="day-cell">5<\\/td>.*08:00.*12:00.*<td class="annotations"><\\/td>\\s*<\\/tr>/s', $html);
         $this->assertMatchesRegularExpression('/<tr class="holiday"><td class="day-cell">9<\\/td>.*08:00.*12:00.*<td class="annotations">Local holiday<\\/td>\\s*<\\/tr>/s', $html);
         $this->assertMatchesRegularExpression('/<tr class="holiday weekend"><td class="day-cell">12<\\/td>\\s*<td colspan="4" class="calendar-label">Sunday • Founders Day • Cityhood Day<\\/td>.*<td class="metric-cell">08:00<\\/td>\\s*<td class="annotations">Regular holiday \\/ Local holiday<\\/td>/s', $html);
-        $this->assertMatchesRegularExpression('/<tr class="outside"><td class="day-cell">--<\\/td>\\s*<td colspan="10" class="outside-scope"><\\/td>/', $html);
+        $this->assertMatchesRegularExpression('/<tr class="outside continuous-outside"><td colspan="11" class="outside-scope"><\\/td><\\/tr>/', $html);
         $this->assertStringContainsString('tbody tr.weekend td { background-color: #f0f2f4;', file_get_contents(resource_path('css/ledger-pdf.css')));
         $this->assertStringContainsString('tbody tr.holiday td { background-image: repeating-linear-gradient', file_get_contents(resource_path('css/ledger-pdf.css')));
         $this->assertStringContainsString('.form48-table .calendar-label { padding: 1px 7px; font-size: 6.5pt; font-weight: bold; letter-spacing: 0.025em; text-align: left;', file_get_contents(resource_path('css/ledger-pdf.css')));
