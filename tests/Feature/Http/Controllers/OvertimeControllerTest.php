@@ -242,11 +242,13 @@ class OvertimeControllerTest extends TestCase
         $overtime = Overtime::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
+            'starts' => '2026-08-15 17:00:00',
+            'ends' => '2026-08-15 20:00:00',
         ]);
         Ledger::factory()->locked()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'month' => '2026-09-01',
+            'month' => '2026-08-01',
         ]);
 
         $this->delete(route('overtimes.destroy', $overtime))->assertSessionHas('error');

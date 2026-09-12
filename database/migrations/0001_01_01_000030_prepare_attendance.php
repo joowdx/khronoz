@@ -121,7 +121,7 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Refuse changes to a locked month's covered days, not mere range overlap.
+        // Refuse changes to a locked ledger's covered days, not mere range overlap.
         // TG_OP uses IF/ELSIF because DELETE has no NEW record; inverted ranges remain silent for their CHECK.
         // Compare month intersections so a re-date cannot erase part of a signed month.
         DB::unprepared(<<<'SQL'
@@ -140,7 +140,7 @@ return new class extends Migration
                            AND daterange(OLD.starts, OLD.ends, '[]')
                                && daterange(ledgers.starts, ledgers.ends, '[]')
                     ) THEN
-                        RAISE EXCEPTION 'a deployment cannot change which locked months it covers';
+                        RAISE EXCEPTION 'a deployment cannot change which locked ledger ranges it covers';
                     END IF;
 
                     RETURN OLD;
@@ -172,7 +172,7 @@ return new class extends Migration
                                      ELSE 'empty'::daterange END
                            )
                     ) THEN
-                        RAISE EXCEPTION 'a deployment cannot change which locked months it covers';
+                        RAISE EXCEPTION 'a deployment cannot change which locked ledger ranges it covers';
                     END IF;
 
                     RETURN NEW;
@@ -186,7 +186,7 @@ return new class extends Migration
                        AND daterange(NEW.starts, NEW.ends, '[]')
                            && daterange(ledgers.starts, ledgers.ends, '[]')
                 ) THEN
-                    RAISE EXCEPTION 'a deployment cannot change which locked months it covers';
+                    RAISE EXCEPTION 'a deployment cannot change which locked ledger ranges it covers';
                 END IF;
 
                 RETURN NEW;
@@ -299,7 +299,7 @@ return new class extends Migration
                            AND daterange(OLD.date, OLD.until, '[]')
                                && daterange(ledgers.starts, ledgers.ends, '[]')
                     ) THEN
-                        RAISE EXCEPTION 'an exemption cannot change which locked months it covers';
+                        RAISE EXCEPTION 'an exemption cannot change which locked ledger ranges it covers';
                     END IF;
 
                     RETURN OLD;
@@ -329,7 +329,7 @@ return new class extends Migration
                                  && daterange(ledgers.starts, ledgers.ends, '[]'))
                        )
                 ) THEN
-                    RAISE EXCEPTION 'an exemption cannot change which locked months it covers';
+                    RAISE EXCEPTION 'an exemption cannot change which locked ledger ranges it covers';
                 END IF;
 
                 RETURN NEW;
@@ -353,7 +353,7 @@ return new class extends Migration
                            AND daterange(OLD.starts::date, OLD.ends::date, '[]')
                                && daterange(ledgers.starts, ledgers.ends, '[]')
                     ) THEN
-                        RAISE EXCEPTION 'an overtime authority cannot change which locked months it covers';
+                        RAISE EXCEPTION 'an overtime authority cannot change which locked ledger ranges it covers';
                     END IF;
 
                     RETURN OLD;
@@ -384,7 +384,7 @@ return new class extends Migration
                                  && daterange(ledgers.starts, ledgers.ends, '[]'))
                        )
                 ) THEN
-                    RAISE EXCEPTION 'an overtime authority cannot change which locked months it covers';
+                    RAISE EXCEPTION 'an overtime authority cannot change which locked ledger ranges it covers';
                 END IF;
 
                 RETURN NEW;

@@ -59,7 +59,7 @@ class LedgerPdfController extends Controller
         $policy = $policies->resolve($employee, $ledger->ends);
         $snapshot = [
             'version' => 1,
-            'ledger' => ['id' => null, 'starts' => $ledger->starts->toDateString(), 'ends' => $ledger->ends->toDateString(), 'scope' => $ledger->scope->value, 'revision' => 0, 'locked_at' => null],
+            'ledger' => ['id' => null, 'starts' => $ledger->starts->toDateString(), 'ends' => $ledger->ends->toDateString(), 'scope' => $ledger->scope->value, 'scope_label' => $ledger->scope->label(), 'revision' => 0, 'locked_at' => null],
             ...$captured['identity'], ...$captured['calculation'], 'policy' => $policy,
             'signers' => [], 'attestations' => [], 'document' => ['generated_at' => now()->toIso8601String()],
         ];

@@ -310,7 +310,15 @@ export interface LedgerIdentity {
 }
 
 export interface LedgerSnapshot extends LedgerIdentity {
-    ledger: { id: string; starts: string; ends: string; scope: string; revision: number; locked_at: string };
+    ledger: {
+        id: string;
+        starts: string;
+        ends: string;
+        scope: string;
+        scope_label?: string;
+        revision: number;
+        locked_at: string;
+    };
     workdays: Workday[];
     totals: Omit<LedgerView, 'workdays'> & {
         nightExcess?: number;
@@ -414,7 +422,6 @@ export interface SharedProps {
     auth: { user: AuthUser | null };
     agency: Agency | null;
     agencies: Agency[];
-    flash: Flash;
     [key: string]: unknown;
 }
 export interface BreadcrumbItem {

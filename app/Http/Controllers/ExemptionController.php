@@ -141,7 +141,7 @@ class ExemptionController extends Controller
     private function refused(QueryException $e): ?RedirectResponse
     {
         return match ($e->getCode()) {
-            'P0001' => back()->withInput()->with('error', 'Those days fall in a locked month. Unlock the ledger first.'),
+            'P0001' => back()->withInput()->with('error', 'Those days fall in a locked ledger. Unlock it first.'),
             default => null,
         };
     }

@@ -250,7 +250,7 @@ class LedgerTest extends TestCase
             'employee_id' => $employee,
             'date' => '2026-08-10',
             'until' => '2026-08-10',
-        ]), 'an exemption cannot change which locked months it covers');
+        ]), 'an exemption cannot change which locked ledger ranges it covers');
 
         $september = Exemption::factory()->create([
             'agency_id' => $agency,
@@ -308,7 +308,7 @@ class LedgerTest extends TestCase
             'employee_id' => $employee,
             'starts' => '2026-08-10 17:00:00',
             'ends' => '2026-08-10 21:00:00',
-        ]), 'an overtime authority cannot change which locked months it covers');
+        ]), 'an overtime authority cannot change which locked ledger ranges it covers');
 
         $september = Overtime::factory()->create([
             'agency_id' => $agency,
@@ -340,7 +340,7 @@ class LedgerTest extends TestCase
             'employee_id' => $employee,
             'starts' => '2026-07-31 22:00:00',
             'ends' => '2026-08-01 02:00:00',
-        ]), 'an overtime authority cannot change which locked months it covers');
+        ]), 'an overtime authority cannot change which locked ledger ranges it covers');
     }
 
     public function test_a_regular_only_ledger_does_not_freeze_overtime_authorities(): void

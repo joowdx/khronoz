@@ -364,15 +364,15 @@ class ExemptionControllerTest extends TestCase
         Ledger::factory()->locked()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'month' => '2026-09-01',
+            'month' => '2026-08-01',
         ]);
 
         $this->post(route('exemptions.store'), [
             'employee_id' => $employee->id,
             'type' => 'leave',
-            'date' => '2026-09-15',
-            'until' => '2026-09-15',
-            'approved_at' => '2026-09-14',
+            'date' => '2026-08-15',
+            'until' => '2026-08-15',
+            'approved_at' => '2026-08-14',
         ])->assertSessionHas('error');
 
         $this->assertSame(0, Exemption::query()->count());

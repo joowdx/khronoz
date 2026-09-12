@@ -660,11 +660,11 @@ class EmployeeDeploymentControllerTest extends TestCase
         Ledger::factory()->locked()->create([
             'agency_id' => $agency->id,
             'employee_id' => $placement->employee_id,
-            'month' => '2026-09-01',
+            'month' => '2026-08-01',
         ]);
 
         $this->delete(route('employees.deployments.destroy', [$placement->employee, $placement]))
-            ->assertSessionHasErrors(['deployment' => 'That placement covers a locked month. Unlock the ledger first.']);
+            ->assertSessionHasErrors(['deployment' => 'That placement covers a locked ledger. Unlock it first.']);
 
         $this->assertDatabaseHas('deployments', ['id' => $placement->id]);
     }

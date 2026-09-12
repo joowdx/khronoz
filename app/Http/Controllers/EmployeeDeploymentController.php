@@ -41,7 +41,7 @@ class EmployeeDeploymentController extends Controller
                 '23514' => ValidationException::withMessages(['starts' => ['Before the current placement began.']]),
                 'P0001' => ValidationException::withMessages(['starts' => [
                     $this->frozen($e)
-                        ? 'That range covers a locked month. Unlock the ledger first.'
+                        ? 'That range covers a locked ledger. Unlock it first.'
                         : ($reassigning
                             ? 'Outside the placement this reassignment departs from.'
                             : 'End the open reassignment before transferring this employee.'),
@@ -69,7 +69,7 @@ class EmployeeDeploymentController extends Controller
                 '23514' => ValidationException::withMessages(['ends' => ['Before the current placement began.']]),
                 'P0001' => ValidationException::withMessages(['ends' => [
                     $this->frozen($e)
-                        ? 'That placement covers a locked month. Unlock the ledger first.'
+                        ? 'That placement covers a locked ledger. Unlock it first.'
                         : 'End the reassignment nested under this placement first.',
                 ]]),
                 default => $e,
@@ -104,7 +104,7 @@ class EmployeeDeploymentController extends Controller
                 'P0001' => ValidationException::withMessages([
                     'deployment' => [
                         $this->frozen($e)
-                            ? 'That placement covers a locked month. Unlock the ledger first.'
+                            ? 'That placement covers a locked ledger. Unlock it first.'
                             : 'Remove the reassignment nested under this placement first.',
                     ],
                 ]),
@@ -119,7 +119,7 @@ class EmployeeDeploymentController extends Controller
 
     private function frozen(QueryException $e): bool
     {
-        return str_contains($e->getMessage(), 'locked months');
+        return str_contains($e->getMessage(), 'locked ledger ranges');
     }
 
     private function recompute(Employee $employee, CarbonInterface $from, ?CarbonInterface $to): void

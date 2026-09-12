@@ -37,8 +37,7 @@ export default function Verify({
                             </p>
                             <p className="mt-2 text-sm">
                                 {formatDay(snapshot.ledger.starts)} – {formatDay(snapshot.ledger.ends)} ·{' '}
-                                {snapshot.ledger.scope === 'all' ? 'All work' : snapshot.ledger.scope} · Revision{' '}
-                                {snapshot.ledger.revision}
+                                {snapshot.ledger.scope_label ?? snapshot.ledger.scope} · Revision {snapshot.ledger.revision}
                             </p>
                         </div>
                         <StatusPill variant={superseded_at ? 'attention' : 'positive'}>

@@ -8,7 +8,6 @@ use App\Enums\WorkdayStatus;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
-use App\Models\Ledger;
 use App\Models\Punch;
 use App\Models\Shift;
 use App\Models\Workday;
@@ -117,12 +116,11 @@ class WorkdayControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $this->actingAsAgency($agency, Permission::ViewLedgers);
 
-        $ledger = Ledger::factory()->create(['agency_id' => $agency->id, 'month' => '2026-09-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
 
         $present = Workday::factory()->create([
             'agency_id' => $agency->id,
-            'employee_id' => $ledger->employee_id,
-            'ledger_id' => $ledger->id,
+            'employee_id' => $employee->id,
             'date' => '2026-09-01',
             'status' => WorkdayStatus::Present,
         ]);
@@ -137,16 +135,14 @@ class WorkdayControllerTest extends TestCase
 
         $absent = Workday::factory()->create([
             'agency_id' => $agency->id,
-            'employee_id' => $ledger->employee_id,
-            'ledger_id' => $ledger->id,
+            'employee_id' => $employee->id,
             'date' => '2026-09-02',
             'status' => WorkdayStatus::Absent,
         ]);
 
         $open = Workday::factory()->create([
             'agency_id' => $agency->id,
-            'employee_id' => $ledger->employee_id,
-            'ledger_id' => $ledger->id,
+            'employee_id' => $employee->id,
             'date' => '2026-09-03',
             'status' => WorkdayStatus::Present,
         ]);
@@ -171,11 +167,10 @@ class WorkdayControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $this->actingAsAgency($agency, Permission::ViewLedgers);
 
-        $ledger = Ledger::factory()->create(['agency_id' => $agency->id, 'month' => '2026-09-01']);
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $mine = Workday::factory()->create([
             'agency_id' => $agency->id,
-            'employee_id' => $ledger->employee_id,
-            'ledger_id' => $ledger->id,
+            'employee_id' => $employee->id,
             'date' => '2026-09-01',
             'status' => WorkdayStatus::Absent,
         ]);
@@ -187,13 +182,13 @@ class WorkdayControllerTest extends TestCase
 
         $this->get(route('workdays.index', [
             'month' => '2026-09',
-            'employee' => $ledger->employee_id,
+            'employee' => $employee->id,
             'status' => WorkdayStatus::Absent->value,
         ]))->assertInertia(
             fn (Assert $page) => $page
                 ->has('workdays', 1)
                 ->where('workdays.0.id', $mine->id)
-                ->where('filters.employee', $ledger->employee_id)
+                ->where('filters.employee', $employee->id)
                 ->where('filters.status', 'absent')
         );
     }
@@ -223,15 +218,9 @@ class WorkdayControllerTest extends TestCase
             'last_name' => 'Reyes',
             'suffix' => null,
         ]);
-        $ledger = Ledger::factory()->create([
-            'agency_id' => $agency->id,
-            'employee_id' => $employee->id,
-            'month' => '2026-09-01',
-        ]);
         $workday = Workday::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'ledger_id' => $ledger->id,
             'date' => '2026-09-15',
         ]);
 
@@ -301,16 +290,10 @@ class WorkdayControllerTest extends TestCase
             'starts' => '2020-01-01',
             'ends' => null,
         ]);
-        $ledger = Ledger::factory()->create([
-            'agency_id' => $agency->id,
-            'employee_id' => $person->id,
-            'month' => '2026-09-01',
-        ]);
 
         return Workday::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $person->id,
-            'ledger_id' => $ledger->id,
             'date' => $date,
         ]);
     }

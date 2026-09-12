@@ -39,7 +39,7 @@ final class LedgerSnapshot
     {
         return [
             'version' => 1,
-            'ledger' => ['id' => $ledger->id, 'starts' => $ledger->starts->toDateString(), 'ends' => $ledger->ends->toDateString(), 'scope' => $ledger->scope->value, 'revision' => $ledger->revision, 'locked_at' => $ledger->locked_at->toIso8601String()],
+            'ledger' => ['id' => $ledger->id, 'starts' => $ledger->starts->toDateString(), 'ends' => $ledger->ends->toDateString(), 'scope' => $ledger->scope->value, 'scope_label' => $ledger->scope->label(), 'revision' => $ledger->revision, 'locked_at' => $ledger->locked_at->toIso8601String()],
             ...$ledger->identity,
             ...$ledger->calculation,
             'policy' => $ledger->policy,

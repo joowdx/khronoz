@@ -43,7 +43,10 @@ class WorkdayController extends Controller
                     ->with('currentDeployment.workgroup'),
                 'punches' => fn (HasMany $punches) => $punches->orderBy('slot')->orderBy('expected_at'),
             ])
-            ->where('workdays.month', $month->toDateString())
+            ->whereBetween('workdays.date', [
+                $month->toDateString(),
+                $month->endOfMonth()->toDateString(),
+            ])
             ->when($employee !== null, fn (Builder $query) => $query->where('workdays.employee_id', $employee->id))
             ->when($status !== null, fn (Builder $query) => $query->where('workdays.status', $status))
             ->when($attention, function (Builder $query): void {

@@ -130,7 +130,7 @@ class OvertimeController extends Controller
     {
         return match ($e->getCode()) {
             '23P01' => back()->withInput()->with('error', 'That person is already authorised for overtime over part of those hours.'),
-            'P0001' => back()->withInput()->with('error', 'Those hours fall in a locked month. Unlock the ledger first.'),
+            'P0001' => back()->withInput()->with('error', 'Those hours fall in a locked ledger. Unlock it first.'),
             default => null,
         };
     }
