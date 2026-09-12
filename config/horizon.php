@@ -98,6 +98,7 @@ return [
 
     'waits' => [
         'redis:default' => 60,
+        'redis:pdfs' => 60,
     ],
 
     /*
@@ -210,10 +211,26 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        'supervisor-pdfs' => [
+            'connection' => 'redis',
+            'queue' => ['pdfs'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 3,
+            'timeout' => 75,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
         'production' => [
+            'supervisor-pdfs' => [
+                'maxProcesses' => 1,
+            ],
             'supervisor-1' => [
                 'maxProcesses' => 10,
                 'balanceMaxShift' => 1,
@@ -222,6 +239,9 @@ return [
         ],
 
         'local' => [
+            'supervisor-pdfs' => [
+                'maxProcesses' => 1,
+            ],
             'supervisor-1' => [
                 'maxProcesses' => 3,
             ],

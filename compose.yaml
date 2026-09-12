@@ -79,6 +79,30 @@ services:
             timeout: 10s
             retries: 3
             start_period: 40s
+    gotenberg:
+        image: 'gotenberg/gotenberg:8'
+        container_name: khronoz-gotenberg
+        ports:
+            - '127.0.0.1:43000:3000'
+        environment:
+            CHROMIUM_ALLOW_LIST: '^file:///tmp/.*|^data:.*|^about:blank$'
+            CHROMIUM_DENY_PRIVATE_IPS: 'true'
+            CHROMIUM_DENY_PUBLIC_IPS: 'true'
+            CHROMIUM_DISABLE_JAVASCRIPT: 'true'
+            API_DISABLE_DOWNLOAD_FROM: 'true'
+            WEBHOOK_DISABLE: 'true'
+        networks:
+            - khronoz
+        healthcheck:
+            test:
+                - CMD
+                - curl
+                - '-f'
+                - 'http://127.0.0.1:3000/health'
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 25s
     mailpit:
         image: 'axllent/mailpit:latest'
         container_name: khronoz-mailpit

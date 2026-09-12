@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Support;
+
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\SvgWriter;
+use Illuminate\Contracts\Routing\UrlGenerator;
+use InvalidArgumentException;
+use Spatie\LaravelPdf\Facades\Pdf;
+
+class LedgerPdf
+{
+    public function __construct(private UrlGenerator $urls) {}
+
+    public function render(array $snapshot, string $template = 'form48', ?string $token = null): string
+    {
+        if (! in_array($template, ['form48', 'plain'], true)) {
+            throw new InvalidArgumentException('Unsupported ledger template.');
+        }
+        $verificationUrl = $token === null ? null : $this->urls->route('ledgers.verify', ['token' => $token]);
+        $qrSvg = $verificationUrl === null ? null : (new SvgWriter)->write(new QrCode(data: $verificationUrl))->getString();
+
+        return base64_decode(Pdf::view('pdf.ledgers.'.$template, [
+            'snapshot' => $snapshot,
+            'preview' => $token === null,
+            'verificationUrl' => $verificationUrl,
+            'qrSvg' => $qrSvg,
+        ])->driver('gotenberg')->paperSize(8, 14, 'in')->margins(.4, .4, .4, .4, 'in')->base64(), true);
+    }
+}
