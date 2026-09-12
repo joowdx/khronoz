@@ -42,7 +42,7 @@ class LedgerFactory extends Factory
                     'cadence' => ['id' => null, 'name' => 'Monthly', 'kind' => 'monthly', 'rules' => ['starts' => [1]], 'anchor' => null],
                 ];
             },
-            'policy' => ['template' => 'form48', 'roles' => ['employee'], 'supervisor' => 'operative', 'head_kind' => null],
+            'policy' => ['template' => 'plain', 'roles' => ['employee'], 'supervisor' => 'operative', 'head_kind' => null],
             'signers' => function (array $attributes): array {
                 $user = User::findOrFail($attributes['locked_by']);
 

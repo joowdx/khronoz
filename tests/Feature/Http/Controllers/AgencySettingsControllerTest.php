@@ -51,6 +51,33 @@ class AgencySettingsControllerTest extends TestCase
             ->assertSessionHasErrors(['policy.roles.0', 'policy.head_kind']);
     }
 
+    public function test_form48_requires_at_least_two_attestation_roles(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->for($agency)->create();
+        $workgroup = Workgroup::factory()->for($agency)->create();
+        $this->actingAsAgency($agency, Permission::ManageAgency);
+
+        $this->patch(route('agency.settings.update'), [
+            'settings' => ['ledger_archiving' => false],
+            'policy' => ['template' => 'form48', 'roles' => ['employee']],
+        ])->assertSessionHasErrors([
+            'policy.roles' => 'CSC Form 48 requires at least two attestation roles.',
+        ]);
+        $this->put(route('employees.policy.update', $employee), [
+            'template' => 'form48', 'roles' => ['employee'],
+        ])->assertSessionHasErrors([
+            'roles' => 'CSC Form 48 requires at least two attestation roles.',
+        ]);
+        $this->put(route('workgroups.policy.update', $workgroup), [
+            'template' => 'form48', 'roles' => ['employee'],
+        ])->assertSessionHasErrors([
+            'roles' => 'CSC Form 48 requires at least two attestation roles.',
+        ]);
+
+        $this->assertDatabaseCount('policies', 0);
+    }
+
     public function test_boolean_form_values_are_saved_as_booleans(): void
     {
         $agency = Agency::factory()->create();

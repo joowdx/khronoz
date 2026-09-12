@@ -20,7 +20,7 @@ class AttestLedgerTest extends TestCase
         $this->withTenant($agency);
         $actor = User::factory()->forAgency($agency)->create(['name' => 'Ana Signer']);
         $ledger = Ledger::factory()->for($agency)->create([
-            'policy' => ['template' => 'form48', 'roles' => ['employee']],
+            'policy' => ['template' => 'plain', 'roles' => ['employee']],
             'signers' => [['role' => 'employee', 'user_ids' => [$actor->id], 'users' => [['id' => $actor->id, 'name' => 'Ana Signer', 'position' => 'Records Officer']]]],
             'identity' => ['employee' => ['name' => 'Frozen Employee']],
             'calculation' => ['totals' => ['worked' => 480], 'workdays' => []],
@@ -77,6 +77,30 @@ class AttestLedgerTest extends TestCase
             $this->fail('A role cannot be skipped.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('role', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('attestations', 0);
+        $this->assertDatabaseCount('renditions', 0);
+    }
+
+    public function test_rejects_an_invalid_single_role_form48_chain(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $actor = User::factory()->forAgency($agency)->create();
+        $ledger = Ledger::factory()->for($agency)->create([
+            'policy' => ['template' => 'form48', 'roles' => ['employee']],
+            'signers' => [['role' => 'employee', 'user_ids' => [$actor->id]]],
+        ]);
+
+        try {
+            app(AttestLedger::class)->handle($ledger, $actor);
+            $this->fail('An invalid one-role Form 48 chain must not be accepted.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                ['CSC Form 48 requires at least two attestation roles.'],
+                $exception->errors()['policy'] ?? [],
+            );
         }
 
         $this->assertDatabaseCount('attestations', 0);

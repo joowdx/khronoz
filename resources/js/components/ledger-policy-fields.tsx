@@ -50,7 +50,11 @@ export function LedgerPolicyFields({
                     errors[errorKey('roles')] ??
                     Object.entries(errors).find(([key]) => key.startsWith(errorKey('roles') + '.'))?.[1]
                 }
-                hint="Each person attests after the preceding role. Clear this list to inherit the applicable policy."
+                hint={
+                    template === 'form48'
+                        ? 'CSC Form 48 requires at least two roles. Each person attests after the preceding role.'
+                        : 'Each person attests after the preceding role. Clear this list to inherit the applicable policy.'
+                }
             >
                 {({ id, describedBy }) => (
                     <div id={id} aria-describedby={describedBy} className="grid gap-3">

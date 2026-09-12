@@ -26,6 +26,9 @@ final class AttestLedger
             if (! $ledger->locked()) {
                 throw ValidationException::withMessages(['ledger' => 'Only a locked ledger may be attested.']);
             }
+            if (($ledger->policy['template'] ?? null) === 'form48' && count($ledger->policy['roles'] ?? []) < 2) {
+                throw ValidationException::withMessages(['policy' => 'CSC Form 48 requires at least two attestation roles.']);
+            }
             $sequence = $ledger->attestations()->whereNull('withdrawn_at')->count() + 1;
             $next = $ledger->signers[$sequence - 1] ?? null;
             if ($next === null || ($role !== null && $role !== $next['role'])) {

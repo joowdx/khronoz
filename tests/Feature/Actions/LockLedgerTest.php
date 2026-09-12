@@ -25,7 +25,7 @@ class LockLedgerTest extends TestCase
         $employee = Employee::factory()->for($agency)->for($cadence)->create(['first_name' => 'Ana']);
         $actor = User::factory()->forAgency($agency)->permissions(Permission::ManageLedgers)->create();
         User::factory()->forAgency($agency)->create(['employee_id' => $employee->id]);
-        Policy::factory()->for($agency)->create(['roles' => ['employee']]);
+        Policy::factory()->for($agency)->create(['template' => 'plain', 'roles' => ['employee']]);
 
         $first = app(LockLedger::class)->handle($employee, '2026-08-01', '2026-08-31', Work::All, $actor);
         app(UnlockLedger::class)->handle($first, $actor);
@@ -64,7 +64,7 @@ class LockLedgerTest extends TestCase
         $this->withTenant($agency);
         $employee = Employee::factory()->for($agency)->create();
         $actor = User::factory()->forAgency($agency)->permissions(Permission::ManageLedgers)->create(['employee_id' => $employee->id]);
-        Policy::factory()->for($agency)->create(['roles' => ['employee']]);
+        Policy::factory()->for($agency)->create(['template' => 'plain', 'roles' => ['employee']]);
 
         $ledger = app(LockLedger::class)->handle($employee, '2026-08-01', '2026-08-31', Work::All, $actor);
         $factory = Ledger::factory()->for($agency)->make();
@@ -88,6 +88,28 @@ class LockLedgerTest extends TestCase
             $this->fail('An unresolved required signer must prevent locking.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('policy', $exception->errors());
+        }
+
+        $this->assertDatabaseCount('ledgers', 0);
+    }
+
+    public function test_form48_requires_at_least_two_attestation_roles_before_locking(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->withTenant($agency);
+        $employee = Employee::factory()->for($agency)->create();
+        $actor = User::factory()->forAgency($agency)->permissions(Permission::ManageLedgers)->create();
+        User::factory()->forAgency($agency)->create(['employee_id' => $employee->id]);
+        Policy::factory()->for($agency)->create(['template' => 'form48', 'roles' => ['employee']]);
+
+        try {
+            app(LockLedger::class)->handle($employee, '2026-08-01', '2026-08-31', Work::All, $actor);
+            $this->fail('Form 48 must not lock with fewer than two required attestations.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                ['CSC Form 48 requires at least two attestation roles.'],
+                $exception->errors()['policy'] ?? [],
+            );
         }
 
         $this->assertDatabaseCount('ledgers', 0);

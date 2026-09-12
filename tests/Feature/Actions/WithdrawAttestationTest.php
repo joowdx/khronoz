@@ -20,7 +20,7 @@ class WithdrawAttestationTest extends TestCase
         $this->withTenant($agency);
         $actor = User::factory()->forAgency($agency)->permissions(Permission::ManageLedgers)->create();
         $ledger = Ledger::factory()->for($agency)->create([
-            'policy' => ['template' => 'form48', 'roles' => ['employee']],
+            'policy' => ['template' => 'plain', 'roles' => ['employee']],
             'signers' => [['role' => 'employee', 'user_ids' => [$actor->id]]],
         ]);
         $first = app(AttestLedger::class)->handle($ledger, $actor);

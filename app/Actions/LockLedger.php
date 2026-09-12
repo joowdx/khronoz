@@ -49,6 +49,9 @@ final class LockLedger
                 throw ValidationException::withMessages(['ledger' => 'A workday still has a pending out punch.']);
             }
             $policy = $this->policies->resolve($employee, $to);
+            if ($policy['template'] === 'form48' && count($policy['roles']) < 2) {
+                throw ValidationException::withMessages(['policy' => 'CSC Form 48 requires at least two attestation roles.']);
+            }
             $signers = $this->policies->signers($employee, $to, $policy);
             foreach ($signers as $signer) {
                 if ($signer['user_ids'] === []) {

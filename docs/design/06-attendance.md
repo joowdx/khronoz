@@ -160,20 +160,20 @@ Rules:
 
 ## CSC Form 48
 
-The form is one renderer of the ledger view, not the storage. Its fixed columns are AM arrival, AM departure, PM arrival, PM departure, undertime hours and minutes.
+The form is one optional renderer of the ledger view, not the storage and not an employment-status rule. Khronoz uses Clockwork's traditional one-sided Form 48 layout as the visual reference while retaining its expanded columns: day; AM in and out; PM in and out; tardiness, undertime, and total deficit; hours worked; and remarks or adjustments. Day and time figures are tabular, day values align right, and the four punch, three deficit, and hours-worked columns share a consistent numeric rhythm.
 
 | Slots in the shift | Printed as |
 |---|---|
 | 1 pair | each side in the column its own clock time falls in, AM before 12:00 and PM from 12:00, with the side taken from the punch `kind`: 08:00–17:00 prints an AM arrival and a PM departure, 22:00–06:00 prints a PM arrival and an AM departure `06:00⁺¹`. The two unused columns stay blank |
 | 2 pairs | by clock when the four punches fall in four different columns, which is the ordinary day, 08:00–12:00 and 13:00–17:00. When they do not, because both pairs sit in the same half of the day, the four columns are positional: slot 1 takes the first pair of columns, slot 2 the second. An afternoon shift of 14:00–18:00 and 19:02–22:00, and a night shift of 22:00–02:00⁺¹ and 03:00⁺¹–06:00⁺¹, both print this way |
-| 3 or more | first in and last out only, placed by the 1 pair rule. The form has four time columns and cannot hold more; the intermediate punches stay in the ledger view |
+| 3 or more | first in and last out occupy the four conventional time columns; every intermediate punch remains printed as a deterministic annotation in remarks so the PDF does not drop data |
 | a punch dated after the workday | the time with a day marker, `06:00⁺¹`, `08:00⁺²` |
 | whole-day exemption | the exemption `type`, or its `reference` when the exemption carries an order number, across the four time columns |
 | partial exemption | the punches as usual, with the excused side marked |
 | missed punch | blank |
 | punch whose `expected_at` is still in the future | `…`, pending, never missed |
 | Off day inside a duty that started earlier | blank, status `off`; the hours are on the start day |
-| undertime column | tardy plus undertime minutes of the workday |
+| deficit columns | tardiness and undertime remain separate `HH:MM` figures; total is their sum for that day |
 
 Placement by clock time (decision 23) supersedes the earlier rule that a one-pair shift printed its arrival in the first column and its departure in the last, which put a 22:00 arrival in the AM column. The paper form asks for a time under a heading, so the heading is read literally wherever the day's punches allow it. They do not always allow it: the form carries four time columns, and two pairs inside one half of the day cannot be split across headings that do not exist, so those fall back to the positional layout. Every punch that belongs to a later date carries its day marker either way, which is what removes the ambiguity the headings then create.
 
@@ -291,17 +291,17 @@ rather than an invented rule.
 ## PDF renditions
 
 1. **Milestone 7 produces downloadable PDFs and does not apply cryptographic digital signatures.** The renderer is Spatie Laravel PDF through a Gotenberg service, which keeps headless Chromium and its browser dependencies outside the application process. The resolved policy selects CSC Form 48 or the plain private-sector form.
-2. An unlocked or partly attested ledger is a preview. Its PDF is rendered for the request, downloaded, and discarded; it is not an official stored record and must not accumulate in object storage. Preview PDFs are visibly marked and carry no verification QR.
+2. An unlocked or partly attested ledger PDF is rendered for the request, downloaded, and discarded; it is not a stored record and must not accumulate in object storage. It carries no verification QR or attestation-status watermark. The absence of frozen rendition and document identifiers distinguishes it from a completed rendition without adding a misleading label to the form.
 3. Completing the configured attestation chain always freezes an immutable rendition and creates its public verification token. The QR points to the attested ledger's HTML verification page, never to object storage, and works independently of PDF archiving. The page renders the frozen ledger view itself, its ordered attestations, identifiers, covered dates and scope, and current or superseded status. It does **not** embed or stream the PDF. When an archived document exists it may also show byte count and SHA-256 metadata, while the authenticated historical-download route remains separate. The token route has no listing or search, is rate-limited, returns `noindex`, `nofollow`, and `noarchive`, and exposes no storage location or unrelated employee data.
 4. Agency PDF archiving is opt-in and defaults **off**. With archiving off, completed downloads are generated from the frozen rendition and the PDF bytes are discarded after delivery. With archiving on, the generated PDF is retained through generic `documents` and `locations` records. A document describes bytes by name, media type, length, digest algorithm, and digest; only its locations carry a logical store and opaque object key. The initial logical store is `archive`, mapped through configuration to the existing private RustFS-backed S3 disk; no additional bucket or storage volume is required. Object keys use identifiers, never employee names or numbers. Retained downloads return the stored bytes. Reopening or finalizing another revision never overwrites an earlier rendition or object.
 5. Locking snapshots every agency setting that can change the ledger's derived figures, template, or attestation chain. Unlocked views continue to read current settings. Locked views and the canonical PDF read the snapshot, closing decision 81's residual without making ordinary setting changes retroactive.
 6. A frozen rendition and any retained canonical PDF belong to the same attendance-record series as their ledger and attestations. Their lifecycle is governed by M8's effective-dated retention policy and holds, not by a separate `pdf_retention_years` value or an object-store rule acting alone. Transient PDF bytes are temporary data and are removed immediately.
 7. RustFS is the only M7 object store and is not its own backup. No additional volume, replica, bucket, NAS, or external backup is added in this milestone, so losing the current RustFS volume can lose every retained PDF location. An independently credentialed copy in another failure domain and tested restoration are prerequisites before cryptographic signing is enabled; any future backup remains inside the same retention and disposal scope as the primary object.
-8. CSC Form 48 and the plain form use 8 by 14 inch paper. Form 48 has one page per calendar month covered by the ledger range, visibly marks days outside that range, and includes its verification QR on every completed page. Assets are embedded locally; the renderer does not fetch remote fonts, images or styles. Gotenberg 8 has a `/health` probe and binds locally only at `127.0.0.1:43000`; applications sharing its private service network can use `http://gotenberg:3000` instead.
+8. CSC Form 48 uses 8 by 14 inch legal paper and the plain form uses A4. Form 48 has one page per calendar month covered by the ledger range, visibly marks days outside that range, and includes its verification QR on every completed page. Assets are embedded locally; the renderer does not fetch remote fonts, images or styles. Gotenberg 8 has a `/health` probe and binds locally only at `127.0.0.1:43000`; applications sharing its private service network can use `http://gotenberg:3000` instead.
 
 ## Attestation
 
-CSC Form 48 is certified by the employee and verified by the in-charge. Agencies add a department head or the timekeeper. Who signs, and in what order, is agency data, not schema.
+CSC Form 48 requires at least two ordered application attestations. Agencies choose the roles and order, including whether to add a department head or timekeeper; who attests remains agency data rather than schema. The plain format may use a single required role.
 
 1. An attestation records its ledger revision, ordered role, authenticated user, and timestamp. There is one act per required role in that revision; prior acts are not overwritten or deleted to restart a chain.
 2. The locked policy supplies the required roles in order, for example `[employee, supervisor]` or `[employee, supervisor, head]`. Each next role follows the preceding act. A later policy change applies only to a new revision.
