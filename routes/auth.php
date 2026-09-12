@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\InviteController;
 use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasskeyConfirmationController;
+use App\Http\Controllers\Auth\PasskeyLoginController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
@@ -13,6 +15,8 @@ use App\Http\Controllers\Settings\EmailVerificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
+    Route::get('passkeys/login/options', [PasskeyLoginController::class, 'create'])->middleware('throttle:10,1')->block()->name('passkeys.login.options');
+    Route::post('passkeys/login', [PasskeyLoginController::class, 'store'])->middleware('throttle:10,1')->block()->name('passkeys.login.store');
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login')->block();
     Route::get('two-factor-challenge', [TwoFactorChallengeController::class, 'create'])->name('two-factor.login');
@@ -30,6 +34,8 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('passkeys/confirm/options', [PasskeyConfirmationController::class, 'create'])->middleware('throttle:10,1')->block()->name('passkeys.confirm.options');
+    Route::post('passkeys/confirm', [PasskeyConfirmationController::class, 'store'])->middleware('throttle:10,1')->block()->name('passkeys.confirm.store');
     Route::get('confirm-password', [ConfirmationController::class, 'create'])->name('password.confirm');
     Route::post('confirm-password', [ConfirmationController::class, 'store'])->middleware('throttle:6,1')->name('password.confirm.store');
     Route::get('settings/email/verify/{token}', EmailVerificationController::class)

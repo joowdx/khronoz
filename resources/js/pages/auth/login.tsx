@@ -1,3 +1,5 @@
+import { PasskeyButton } from '@/components/passkey-button';
+import { options, store as verify } from '@/routes/passkeys/login';
 import { Form, Link } from '@inertiajs/react';
 import { store } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
 import { request } from '@/routes/password';
@@ -60,7 +62,10 @@ export default function Login({ status, canResetPassword }: { status?: string; c
     const resetHref = request().url;
 
     return (
-        <AuthLayout title="Sign in" description="khronoz is invite-only. Use the email address your administrator invited.">
+        <AuthLayout
+            title="Sign in"
+            description="khronoz is invite-only. Use the email address your administrator invited."
+        >
             {status && (
                 <Alert variant="positive" className="mb-5">
                     <CircleCheckIcon />
@@ -136,6 +141,15 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                     </>
                 )}
             </Form>
+
+            <PasskeyButton
+                optionsUrl={options.url()}
+                submitUrl={verify.url()}
+                label="Sign in with a passkey"
+                remember={() =>
+                    document.querySelector<HTMLButtonElement>('#remember')?.getAttribute('data-state') === 'checked'
+                }
+            />
 
             <div className="flex items-center gap-3 py-6">
                 <span className="bg-border h-px flex-1" />

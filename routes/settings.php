@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Settings\EmailController;
 use App\Http\Controllers\Settings\EmailNotificationController;
+use App\Http\Controllers\Settings\PasskeyController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\RecoveryCodeController;
@@ -15,6 +16,10 @@ Route::prefix('settings')->name('settings.')->group(function () {
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
 
     Route::middleware('confirmed')->group(function () {
+        Route::get('passkeys/options', [PasskeyController::class, 'create'])->middleware('throttle:10,1')->block()->name('passkeys.options');
+        Route::post('passkeys', [PasskeyController::class, 'store'])->middleware('throttle:10,1')->block()->name('passkeys.store');
+        Route::patch('passkeys/{credential}', [PasskeyController::class, 'update'])->name('passkeys.update');
+        Route::delete('passkeys/{credential}', [PasskeyController::class, 'destroy'])->name('passkeys.destroy');
         Route::get('two-factor', [TwoFactorController::class, 'show'])->name('two-factor.show');
         Route::post('two-factor', [TwoFactorController::class, 'store'])->name('two-factor.store');
         Route::delete('two-factor', [TwoFactorController::class, 'destroy'])->name('two-factor.destroy');

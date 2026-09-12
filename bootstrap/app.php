@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Route;
+use Webauthn\Exception\WebauthnException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -44,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(fn (WebauthnException $exception) => response()->json([
+            'message' => 'Passkey verification failed. Please try again.',
+            'errors' => ['credential' => ['Passkey verification failed. Please try again.']],
+        ], 422));
         $exceptions->dontFlash(['password', 'password_confirmation', 'current_password', 'code', 'recovery_code', 'credential', 'token']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),

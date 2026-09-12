@@ -18,16 +18,20 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Passkeys\Contracts\PasskeyUser;
+use Laravel\Passkeys\PasskeyAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['agency_id', 'employee_id', 'name', 'email', 'password', 'permissions', 'invited_at'])]
 #[Hidden(['password', 'remember_token', 'pending_email', 'pending_email_token', 'pending_email_expires_at', 'two_factor_secret', 'two_factor_recovery_codes'])]
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 {
     /**
      * @use HasFactory<UserFactory>
      */
     use HasApiTokens, HasFactory, HasUlids, Notifiable, TwoFactorAuthenticatable;
+
+    use PasskeyAuthenticatable;
 
     /**
      * @return array<string, string>

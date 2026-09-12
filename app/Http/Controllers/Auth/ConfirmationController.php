@@ -6,6 +6,7 @@ use App\Actions\VerifySecondFactor;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\StoreConfirmationRequest;
 use App\Support\Authentication;
+use App\Tenancy\Tenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,10 +14,11 @@ use Inertia\Response;
 
 class ConfirmationController extends Controller
 {
-    public function create(Request $request): Response
+    public function create(Request $request, Tenant $tenant): Response
     {
         return Inertia::render('auth/confirm', [
             'destination' => Authentication::destination($request->query('return')),
+            'hasPasskeys' => $tenant->within($request->user()->agency, fn () => $request->user()->passkeys()->exists()),
             'twoFactor' => $request->user()->hasEnabledTwoFactorAuthentication(),
         ]);
     }

@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Models\Client;
 use App\Models\Code;
 use App\Models\Device;
+use App\Models\Passkey;
 use App\Models\Refresh;
 use App\Models\Secret;
 use App\Models\Token;
@@ -37,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Fortify::ignoreRoutes();
         Passkeys::ignoreRoutes();
+        Passkeys::usePasskeyModel(Passkey::class);
         // Telescope is a development tool only. It is a dev dependency and is
         // excluded from package discovery, so it is registered by hand here
         // and never exists in any other environment.

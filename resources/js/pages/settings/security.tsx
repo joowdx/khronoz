@@ -1,3 +1,5 @@
+import { PasskeySettings } from '@/components/passkey-settings';
+import type { Passkey } from '@/types';
 import { TwoFactorSettings, type TwoFactorState } from '@/components/two-factor-settings';
 import { Form } from '@inertiajs/react';
 import { AccountInput } from '@/components/account-input';
@@ -5,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import AccountLayout from '@/layouts/account-layout';
 import { update } from '@/routes/settings/password';
 
-export default function Security({ twoFactor }: { twoFactor: TwoFactorState }) {
+export default function Security({ twoFactor, passkeys }: { twoFactor: TwoFactorState; passkeys: Passkey[] }) {
     return (
         <AccountLayout title="Security">
             <section className="grid gap-5">
@@ -46,6 +48,7 @@ export default function Security({ twoFactor }: { twoFactor: TwoFactorState }) {
                     )}
                 </Form>
             </section>
+            <PasskeySettings passkeys={passkeys} />
             <TwoFactorSettings state={twoFactor} />
         </AccountLayout>
     );
