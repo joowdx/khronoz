@@ -22,6 +22,15 @@ class CadenceControllerTest extends TestCase
         $this->post(route('cadences.store'), ['name' => 'Monthly', 'kind' => 'monthly'])->assertForbidden();
     }
 
+    public function test_create_uses_the_cadence_enum_labels(): void
+    {
+        $this->actingAsAgency(Agency::factory()->create(), Permission::ManageAgency);
+
+        $this->get(route('cadences.create'))->assertInertia(fn (Assert $page) => $page
+            ->where('kinds.2.value', 'semimonthly')
+            ->where('kinds.2.label', 'Semi-monthly'));
+    }
+
     public function test_setting_a_preferred_cadence_replaces_only_this_agencys_preference(): void
     {
         $agency = Agency::factory()->create();

@@ -76,6 +76,6 @@ class CadenceController extends Controller
 
     private function kinds(): array
     {
-        return array_map(fn (CadenceKind $kind): array => ['value' => $kind->value, 'label' => ucfirst($kind->value)], CadenceKind::cases());
+        return CadenceKind::choices();
     }
 }
