@@ -118,6 +118,11 @@ class LedgerPdfViewTest extends TestCase
             'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-30'],
             'workdays' => [[
                 'date' => '2026-09-01',
+                'status' => ['label' => 'Off'],
+                'premium' => ['value' => 'rest', 'label' => 'Rest day'],
+                'excess' => 90,
+                'night' => 60,
+                'night_excess' => 30,
                 'punches' => [
                     ['slot' => 2, 'kind' => ['value' => 'out'], 'actual_at' => '2026-09-02 01:15:00'],
                     ['slot' => 3, 'kind' => ['value' => 'in'], 'actual_at' => '2026-09-02 03:05:00'],
@@ -138,5 +143,9 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringContainsString('03:05<small>(+1d)</small>', $html);
         $this->assertStringContainsString('05:45<small>(+1d)</small>', $html);
         $this->assertStringContainsString('06:30<small>(+1d)</small>', $html);
+        $this->assertStringContainsString('Rest day', $html);
+        $this->assertStringContainsString('Excess 90 min', $html);
+        $this->assertStringContainsString('Night 60 min', $html);
+        $this->assertStringContainsString('Night excess 30 min', $html);
     }
 }

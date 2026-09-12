@@ -104,6 +104,18 @@
                         <td>{{ $undertime > 0 ? intdiv($undertime, 60) : '' }}</td>
                         <td>{{ $undertime > 0 ? $undertime % 60 : '' }}</td>
                         <td class="annotations">{{ $workday['status']['label'] ?? ($workday === [] ? 'No workday' : '') }}
+                            @if (! empty($workday['premium']))
+                                · {{ $workday['premium']['label'] ?? $workday['premium']['value'] }}
+                            @endif
+                            @if (($workday['excess'] ?? 0) > 0)
+                                · Excess {{ $workday['excess'] }} min
+                            @endif
+                            @if (($workday['night'] ?? 0) > 0)
+                                · Night {{ $workday['night'] }} min
+                            @endif
+                            @if (($workday['night_excess'] ?? 0) > 0)
+                                · Night excess {{ $workday['night_excess'] }} min
+                            @endif
                             @if (! empty($workday['exemption']))
                                 · {{ $workday['exemption']['type']['label'] ?? $workday['exemption']['type']['value'] ?? 'Exempt' }}{{ empty($workday['exemption']['reference']) ? '' : ' '.$workday['exemption']['reference'] }}
                             @endif

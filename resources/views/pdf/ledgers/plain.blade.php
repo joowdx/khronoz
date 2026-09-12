@@ -35,7 +35,7 @@
             <thead><tr><th class="date">Date</th><th class="status">Status</th><th>Worked</th><th>Credited</th><th>Tardy</th><th>Undertime</th><th>Excess</th><th>Night</th></tr></thead>
             <tbody>
             @foreach ($workdays as $workday)
-                <tr><td>{{ $workday['date'] ?? '' }}</td><td>{{ $workday['status']['label'] ?? 'No workday' }}@if (! empty($workday['exemption'])) · {{ $workday['exemption']['type']['label'] ?? $workday['exemption']['type']['value'] ?? 'Exempt' }}{{ empty($workday['exemption']['reference']) ? '' : ' '.$workday['exemption']['reference'] }}@endif</td><td>{{ $workday['worked'] ?? 0 }}</td><td>{{ $workday['credited'] ?? 0 }}</td><td>{{ $workday['tardy'] ?? 0 }}</td><td>{{ $workday['undertime'] ?? 0 }}</td><td>{{ $workday['excess'] ?? 0 }}</td><td>{{ $workday['night'] ?? 0 }}</td></tr>
+                <tr><td>{{ $workday['date'] ?? '' }}</td><td>{{ $workday['status']['label'] ?? 'No workday' }}@if (! empty($workday['premium'])) · {{ $workday['premium']['label'] ?? $workday['premium']['value'] }}@endif @if (! empty($workday['exemption'])) · {{ $workday['exemption']['type']['label'] ?? $workday['exemption']['type']['value'] ?? 'Exempt' }}{{ empty($workday['exemption']['reference']) ? '' : ' '.$workday['exemption']['reference'] }}@endif</td><td>{{ $workday['worked'] ?? 0 }}</td><td>{{ $workday['credited'] ?? 0 }}</td><td>{{ $workday['tardy'] ?? 0 }}</td><td>{{ $workday['undertime'] ?? 0 }}</td><td>{{ $workday['excess'] ?? 0 }}</td><td>{{ $workday['night'] ?? 0 }}</td></tr>
                 @if (! empty($workday['punches']))
                     <tr class="punch-detail"><td colspan="8">{{ $workday['shift_name'] ?? '' }}
                         @foreach (collect($workday['punches'])->sortBy('slot') as $punch)
