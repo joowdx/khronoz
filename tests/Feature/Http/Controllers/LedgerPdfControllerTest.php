@@ -110,7 +110,7 @@ class LedgerPdfControllerTest extends TestCase
             $mock->shouldReceive('render')->once()->withArgs(fn (array $rendered, string $template, string $renderToken): bool => $rendered['ledger'] === $snapshot['ledger']
                 && $rendered['attestations'] === $snapshot['attestations']
                 && is_string($rendered['document']['generated_at'] ?? null)
-                && $template === 'form48'
+                && $template === 'plain'
                 && $renderToken === $token
             )->andReturn('%PDF-frozen');
         });
@@ -165,7 +165,7 @@ class LedgerPdfControllerTest extends TestCase
         $agency = Agency::factory()->create(['settings' => ['ledger_archiving' => $archive]]);
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $actor = $this->actingAsAgency($agency, Permission::ManageLedgers, Permission::AttestLedgers);
-        Policy::factory()->create(['agency_id' => $agency->id, 'roles' => ['timekeeper']]);
+        Policy::factory()->create(['agency_id' => $agency->id, 'template' => 'plain', 'roles' => ['timekeeper']]);
         $this->withTenant($agency);
         $ledger = app(LockLedger::class)->handle($employee, '2026-08-01', '2026-08-31', Work::All, $actor);
         app(AttestLedger::class)->handle($ledger, $actor);

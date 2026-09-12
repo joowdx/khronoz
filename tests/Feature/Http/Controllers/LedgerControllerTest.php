@@ -228,7 +228,7 @@ class LedgerControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $actor = $this->actingAsAgency($agency, Permission::ManageLedgers, Permission::AttestLedgers);
-        Policy::factory()->create(['agency_id' => $agency->id, 'roles' => ['timekeeper']]);
+        Policy::factory()->create(['agency_id' => $agency->id, 'template' => 'plain', 'roles' => ['timekeeper']]);
         $this->withTenant($agency);
 
         return [$agency, $employee, $actor];

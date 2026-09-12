@@ -71,7 +71,7 @@ class VerifyLedgerControllerTest extends TestCase
         $agency = Agency::factory()->create();
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
         $user = User::factory()->forAgency($agency)->permissions(Permission::ManageLedgers, Permission::AttestLedgers)->create();
-        Policy::factory()->create(['agency_id' => $agency->id, 'roles' => ['timekeeper']]);
+        Policy::factory()->create(['agency_id' => $agency->id, 'template' => 'plain', 'roles' => ['timekeeper']]);
         $this->withTenant($agency);
         $ledger = app(LockLedger::class)->handle($employee, '2026-08-01', '2026-08-31', Work::All, $user);
         app(AttestLedger::class)->handle($ledger, $user);
