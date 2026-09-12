@@ -6,6 +6,17 @@ body { margin: 0; color: var(--ink); background: #fff; font-family: Arial, Helve
 .page + .page { break-before: page; page-break-before: always; }
 .form48 { height: 13.1in; padding-bottom: 0.91in; }
 .plain { height: 10.65in; padding-bottom: 0.79in; }
+.form48 {
+    --ink: #111827;
+    --muted: #344054;
+    --line: #a8b0bb;
+    --line-dark: #334155;
+    --surface: #f8fafc;
+    --surface-strong: #eef2f7;
+    --accent: #111827;
+    --accent-soft: #f2f4f7;
+    --warning: #8a2d27;
+}
 h1 { margin: 0; color: var(--ink); letter-spacing: 0.065em; font-size: 16pt; line-height: 1.05; }
 .document-kicker { margin-bottom: 4px; color: var(--accent); font-size: 6.5pt; font-weight: bold; letter-spacing: 0.14em; text-transform: uppercase; }
 .agency { margin: 4px 0 0; color: var(--muted); font-size: 8pt; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; }
@@ -28,6 +39,8 @@ h1 { margin: 0; color: var(--ink); letter-spacing: 0.065em; font-size: 16pt; lin
 .filter-note { margin: 0 0 0.07in; border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 4px 7px; color: #344054; font-size: 6.5pt; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .attendance { border: 1px solid var(--line-dark); border-radius: 3px; overflow: hidden; }
+.form48 .attendance { border-radius: 0; }
+.form48 .attendance { border-color: #111827; }
 .attendance th, .attendance td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: center; overflow-wrap: anywhere; }
 .attendance th:last-child, .attendance td:last-child { border-right: 0; }
 .attendance tbody tr:last-child td { border-bottom: 0; }
@@ -35,10 +48,14 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .attendance th small { color: var(--muted); font-size: 5.2pt; font-weight: normal; }
 .form48-table tbody tr { height: 0.195in; }
 .form48-table td { padding: 1px 2px; font-size: 7.1pt; line-height: 1.05; }
-.form48-table .day, .form48-table .day-cell { width: 0.35in; vertical-align: middle; }
+.form48-table .day, .form48-table .day-cell { width: 0.34in; vertical-align: middle; text-align: center; }
 .form48-table .day-cell { background: #fbfcfd; font-weight: bold; }
-.form48-table .duration-column { width: 0.58in; font-size: 5.7pt; letter-spacing: 0; }
-.form48-table .remarks { width: 1.56in; }
+.form48 .form48-table .day-cell { background: #ffffff; }
+.form48-table col.day-col { width: 0.34in; }
+.form48-table col.numeric-col { width: 0.74in; }
+.form48-table col.remarks-col { width: 1.44in; }
+.form48-table .hours-col span { display: block; line-height: 1.02; }
+.form48-table .remarks-col span { display: block; line-height: 1.02; }
 .form48-table .time-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .form48-table .metric-cell { color: var(--warning); font-size: 6.7pt; font-variant-numeric: tabular-nums; font-weight: bold; }
 .form48-table .annotations { padding: 1px 3px; text-align: left; font-size: 5.6pt; line-height: 1.05; }
@@ -54,6 +71,44 @@ table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout:
 .totals-panel span, .totals-panel strong { display: block; }
 .totals-panel span { color: var(--muted); font-size: 5.8pt; font-weight: bold; letter-spacing: 0.05em; text-transform: uppercase; }
 .totals-panel strong { margin-top: 1px; font-size: 8pt; font-variant-numeric: tabular-nums; }
+.form48 .totals-panel { grid-template-columns: repeat(7, 1fr); }
+.form48 .document-header { min-height: 0.48in; border-bottom-color: #111827; padding-right: 1.55in; }
+.form48 .document-header .form-number { right: 0; color: #1f2937; letter-spacing: 0.07em; text-transform: uppercase; }
+.form48 .document-header .period-chip { right: 0; bottom: 0.09in; width: 1.42in; min-width: 0; background: transparent; border: 1px solid #111827; border-radius: 0; padding: 4px 5px; }
+.form48 .document-kicker { color: #1f2937; }
+.form48 .identity-grid,
+.form48 .duty-panel,
+.form48 .totals-panel,
+.form48 .attestation-panel,
+.form48 .certification,
+.form48 .verification,
+.form48 .filter-note { border-radius: 0; }
+.form48 .identity-grid,
+.form48 .duty-panel,
+.form48 .totals-panel,
+.form48 .verification,
+.form48 .document-header,
+.form48 .period-chip { border-color: #334155; }
+.form48 .identity-grid,
+.form48 .duty-panel { background: #ffffff; }
+.form48 .identity-grid { border: 0; gap: 0.08in; overflow: visible; }
+.form48 .identity-grid > div { min-height: 0.38in; border: 0; border-bottom: 1px solid #334155; padding: 3px 2px 4px; }
+.form48 .duty-panel { grid-template-columns: 1fr 1fr 1.05in; border: 0; gap: 0.08in; overflow: visible; }
+.form48 .duty-panel > div { min-height: 0.34in; border: 0; border-bottom: 1px solid #334155; padding: 3px 2px 4px; }
+.form48 .duty-panel .time-note { max-width: none; border-bottom: 1px solid #334155; padding: 3px 2px 4px; }
+.form48 .totals-panel > div { border-color: #cbd5e1; }
+.form48 .identity-primary > strong,
+.form48 .duty-panel strong,
+.form48 .time-note { color: #111827; }
+.form48 .filter-note,
+.form48 .attestation-record strong { color: #111827; }
+.form48 .outside { background: repeating-linear-gradient(135deg, #f8fafc, #f8fafc 5px, #eff2f5 5px, #eff2f5 10px); color: #98a2b3; }
+.form48 .certification { border-left-color: #111827; background: #ffffff; }
+.form48 .attendance th,
+.form48 .attendance td,
+.form48 .verification img,
+.form48 .form-number,
+.form48 .document-kicker { color: #111827; }
 .certification { margin: 0.065in 0; border-left: 3px solid var(--accent); padding: 3px 7px; color: #344054; font-size: 6.2pt; line-height: 1.25; }
 .attestation-panel { margin-top: 0.06in; }
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; color: var(--ink); font-size: 6.5pt; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; }

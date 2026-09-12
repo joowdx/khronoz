@@ -31,7 +31,7 @@ class LedgerPdfViewTest extends TestCase
 
         $this->assertSame(2, substr_count($html, 'class="page form48"'));
         $this->assertSame(2, substr_count($html, 'alt="Verify attested ledger"'));
-        $this->assertSame(55, substr_count($html, 'Outside covered range'));
+        $this->assertSame(55, substr_count($html, 'class="outside"'));
         $this->assertStringContainsString('January 2026', $html);
         $this->assertStringContainsString('February 2026', $html);
         $this->assertStringContainsString('08:01', $html);
@@ -157,7 +157,9 @@ class LedgerPdfViewTest extends TestCase
                 'date' => '2026-09-01',
                 'tardy' => 7,
                 'undertime' => 65,
+                'worked' => 500,
             ]],
+            'totals' => ['tardy' => 7, 'undertime' => 65],
         ];
 
         $html = view('pdf.ledgers.form48', [
@@ -167,14 +169,57 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => null,
         ])->render();
 
+        $colgroupStart = strpos($html, '<colgroup>');
+        $colgroupEnd = strpos($html, '</colgroup>');
+        $this->assertNotFalse($colgroupStart);
+        $this->assertNotFalse($colgroupEnd);
+        $colgroup = substr($html, $colgroupStart, $colgroupEnd - $colgroupStart);
+
+        $this->assertMatchesRegularExpression('/<col[^>]*class="[^"]*day-col[^"]*"[^>]*>/', $colgroup);
+        $this->assertMatchesRegularExpression('/<col[^>]*class="[^"]*remarks-col[^"]*"[^>]*>/', $colgroup);
+        $this->assertSame(1, preg_match_all('/<col[^>]*class="[^"]*day-col[^"]*"[^>]*>/', $colgroup));
+        $this->assertSame(1, preg_match_all('/<col[^>]*class="[^"]*remarks-col[^"]*"[^>]*>/', $colgroup));
+        $this->assertSame(8, preg_match_all('/<col[^>]*class="[^"]*numeric-col[^"]*"[^>]*>/', $colgroup));
+        $this->assertLessThan(strpos($colgroup, 'class="remarks-col"'), strrpos($colgroup, 'class="numeric-col"'));
+
+        $this->assertMatchesRegularExpression(
+            '/<tr>\\s*<th rowspan="2" class="day">DAY<\\/th>\\s*<th colspan="2">AM<\\/th>\\s*<th colspan="2">PM<\\/th>\\s*<th colspan="3">DEFICIT<\\/th>\\s*<th rowspan="2" class="hours-col">\\s*<span>HOURS<\\/span>\\s*<span>WORKED<\\/span><\\/th>\\s*<th rowspan="2" class="remarks-col">\\s*<span>REMARKS<\\/span>\\s*<span>ADJUSTMENTS<\\/span><\\/th>\\s*<\\/tr>/s',
+            $html
+        );
+        $this->assertMatchesRegularExpression(
+            '/<tr>\\s*<th>IN<\\/th>\\s*<th>OUT<\\/th>\\s*<th>IN<\\/th>\\s*<th>OUT<\\/th>\\s*<th class="metric-col">TARDINESS<\\/th>\\s*<th class="metric-col">UNDERTIME<\\/th>\\s*<th class="metric-col">TOTAL<\\/th>\\s*<\\/tr>/s',
+            $html
+        );
         $this->assertStringContainsString('rowspan="2" class="day"', $html);
         $this->assertStringContainsString('colspan="2">AM', $html);
         $this->assertStringContainsString('colspan="2">PM', $html);
-        $this->assertStringContainsString('Tardiness', $html);
-        $this->assertStringContainsString('Undertime', $html);
-        $this->assertStringContainsString('Adjustment', $html);
+        $this->assertStringContainsString('colspan="3">DEFICIT', $html);
+        $this->assertStringContainsString('<span>HOURS</span><span>WORKED</span>', $html);
+        $this->assertStringContainsString('<span>REMARKS</span><span>ADJUSTMENTS</span>', $html);
+        $this->assertStringContainsString('TARDINESS', $html);
+        $this->assertStringContainsString('UNDERTIME', $html);
+        $this->assertStringContainsString('TOTAL', $html);
+        $this->assertStringNotContainsString('HH:MM', $html);
+        $this->assertStringContainsString('class="metric-cell">00:07', $html);
+        $this->assertStringContainsString('class="metric-cell">01:05', $html);
+        $this->assertStringContainsString('class="metric-cell">01:12', $html);
+        $this->assertStringContainsString('<span>Deficit</span><strong>01:12</strong>', $html);
         $this->assertStringContainsString('00:07', $html);
         $this->assertStringContainsString('01:05', $html);
+        $this->assertStringContainsString('01:12', $html);
+
+        $css = file_get_contents(resource_path('css/ledger-pdf.css'));
+        $this->assertNotFalse($css);
+        $this->assertStringContainsString('.form48 {', $css);
+        $this->assertStringContainsString('--accent: #111827;', $css);
+        $this->assertStringContainsString('.form48 .document-header', $css);
+        $this->assertMatchesRegularExpression('/\.form48\s+\.identity-grid(?:,|\s*\\{)/', $css);
+        $this->assertMatchesRegularExpression('/\.form48\s+\.duty-panel(?:,|\s*\\{)/', $css);
+        $this->assertMatchesRegularExpression('/\.form48\s+\.attendance/', $css);
+        $this->assertStringContainsString('border-radius: 0;', $css);
+        $this->assertStringContainsString('.form48-table col.numeric-col { width: 0.74in; }', $css);
+        $this->assertStringContainsString('.form48-table col.remarks-col { width: 1.44in; }', $css);
+        $this->assertStringContainsString('border-bottom-color: #111827;', $css);
     }
 
     public function test_plain_form_shows_frozen_duty_times_and_vertical_attestations(): void

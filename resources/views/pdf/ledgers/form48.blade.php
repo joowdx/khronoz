@@ -45,7 +45,37 @@
     </section>
     @if (! empty($snapshot['filters']))<div class="filter-note"><strong>Detail filter:</strong> {{ collect($snapshot['filters'])->pluck('label')->join(', ') }}. Totals remain for the complete selected range.</div>@endif
     <table class="attendance form48-table">
-        <thead><tr><th rowspan="2" class="day">Day</th><th colspan="2">AM</th><th colspan="2">PM</th><th rowspan="2" class="duration-column">Tardiness<br><small>HH:MM</small></th><th rowspan="2" class="duration-column">Undertime<br><small>HH:MM</small></th><th class="remarks">Remarks</th></tr><tr><th>In</th><th>Out</th><th>In</th><th>Out</th><th>Adjustment</th></tr></thead>
+        <colgroup>
+            <col class="day-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="numeric-col">
+            <col class="remarks-col">
+        </colgroup>
+        <thead>
+            <tr>
+                <th rowspan="2" class="day">DAY</th>
+                <th colspan="2">AM</th>
+                <th colspan="2">PM</th>
+                <th colspan="3">DEFICIT</th>
+                <th rowspan="2" class="hours-col"><span>HOURS</span><span>WORKED</span></th>
+                <th rowspan="2" class="remarks-col"><span>REMARKS</span><span>ADJUSTMENTS</span></th>
+            </tr>
+            <tr>
+                <th>IN</th>
+                <th>OUT</th>
+                <th>IN</th>
+                <th>OUT</th>
+                <th class="metric-col">TARDINESS</th>
+                <th class="metric-col">UNDERTIME</th>
+                <th class="metric-col">TOTAL</th>
+            </tr>
+        </thead>
         <tbody>
         @for ($day = 1; $day <= $month->daysInMonth; $day++)
             @php
@@ -57,6 +87,9 @@
                     $hour = $stamp === null ? 0 : (int) \Carbon\CarbonImmutable::parse($stamp)->setTimezone(config('app.timezone'))->format('G');
                     return $kind === 'in' ? ($hour < 12 ? 0 : 2) : ($hour < 12 ? 1 : 3);
                 };
+                $dayTardiness = (int) ($workday['tardy'] ?? 0);
+                $dayUndertime = (int) ($workday['undertime'] ?? 0);
+                $dayDeficit = $dayTardiness + $dayUndertime;
                 if ($slots->count() <= 2) {
                     $natural = $punches->mapWithKeys(fn (array $punch): array => [$column($punch) => $punch]);
                     if ($natural->count() === $punches->count()) { foreach ($natural as $index => $punch) { $cells->put($index, $punch); } }
@@ -75,17 +108,19 @@
                 if (! empty($workday['exemption'])) { $notes->push(($workday['exemption']['type']['label'] ?? $workday['exemption']['type']['value'] ?? 'Exempt').(empty($workday['exemption']['reference']) ? '' : ' '.$workday['exemption']['reference'])); }
             @endphp
             <tr @class(['outside' => $outside])><td class="day-cell">{{ $day }}</td>
-                @if ($outside)<td colspan="7" class="outside-scope">Outside covered range</td>
+                @if ($outside)<td colspan="9" class="outside-scope"></td>
                 @else
                     @foreach ($cells as $punch)<td class="time-cell">@if ($punch !== null && ($punch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $punch['actual_at'], 'workDate' => $date->format('Y-m-d')])@elseif ($punch !== null && ($punch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($punch['expected_at'])->greaterThan($asOf))<span class="pending">Pending</span>@elseif ($punch !== null)<span class="missing">Missing</span>@endif</td>@endforeach
-                    <td class="metric-cell">{{ $duration((int) ($workday['tardy'] ?? 0), true) }}</td><td class="metric-cell">{{ $duration((int) ($workday['undertime'] ?? 0), true) }}</td>
+                    <td class="metric-cell">{{ $duration($dayTardiness, true) }}</td><td class="metric-cell">{{ $duration($dayUndertime, true) }}</td><td class="metric-cell">{{ $duration($dayDeficit, true) }}</td>
+                    <td class="metric-cell">{{ $duration((int) ($workday['worked'] ?? 0), true) }}</td>
                     <td class="annotations">{{ $notes->join(' / ') }}@foreach ($annotated as $extraPunch)<span class="extra-slot">{{ $loop->first && $notes->isNotEmpty() ? ' / ' : '' }}S{{ $extraPunch['slot'] ?? '' }} {{ strtoupper($extraPunch['kind']['value'] ?? '') }} @if (($extraPunch['actual_at'] ?? null) !== null)@include('pdf.ledgers.time', ['timestamp' => $extraPunch['actual_at'], 'workDate' => $date->format('Y-m-d')])@elseif (($extraPunch['expected_at'] ?? null) !== null && \Carbon\CarbonImmutable::parse($extraPunch['expected_at'])->greaterThan($asOf))pending @else missing @endif</span>@endforeach</td>
                 @endif
             </tr>
         @endfor
         </tbody>
     </table>
-    <section class="totals-panel">@foreach (['Worked' => $snapshot['totals']['worked'] ?? 0, 'Credited' => $snapshot['totals']['credited'] ?? 0, 'Tardy' => $snapshot['totals']['tardy'] ?? 0, 'Undertime' => $snapshot['totals']['undertime'] ?? 0, 'Overtime' => $snapshot['totals']['overtime'] ?? 0, 'Night' => $snapshot['totals']['night'] ?? 0] as $label => $minutes)<div><span>{{ $label }}</span><strong>{{ $duration((int) $minutes) }}</strong></div>@endforeach</section>
+    @php $periodDeficit = (int) ($snapshot['totals']['tardy'] ?? 0) + (int) ($snapshot['totals']['undertime'] ?? 0); @endphp
+    <section class="totals-panel">@foreach (['Worked' => $snapshot['totals']['worked'] ?? 0, 'Credited' => $snapshot['totals']['credited'] ?? 0, 'Tardy' => $snapshot['totals']['tardy'] ?? 0, 'Undertime' => $snapshot['totals']['undertime'] ?? 0, 'Deficit' => $periodDeficit, 'Overtime' => $snapshot['totals']['overtime'] ?? 0, 'Night' => $snapshot['totals']['night'] ?? 0] as $label => $minutes)<div><span>{{ $label }}</span><strong>{{ $duration((int) $minutes) }}</strong></div>@endforeach</section>
     <p class="certification"><strong>Certification.</strong> I certify on my honor that this is a true and correct report of the hours of work performed, recorded daily at arrival and departure.</p>
     @include('pdf.ledgers.attestations', ['attestations' => $snapshot['attestations'] ?? []])
     @include('pdf.ledgers.verification', ['pageNumber' => $loop->iteration, 'pageCount' => count($months)])
