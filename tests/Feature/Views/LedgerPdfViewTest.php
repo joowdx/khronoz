@@ -227,6 +227,7 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringContainsString('border-radius: 0;', $css);
         $this->assertStringContainsString('.form48-table col.numeric-col { width: 0.74in; }', $css);
         $this->assertStringContainsString('.form48-table col.remarks-col { width: 1.44in; }', $css);
+        $this->assertStringContainsString('.form48-table .day, .form48-table .day-cell { width: 0.34in; padding-right: 5px; text-align: right; vertical-align: middle; }', $css);
         $this->assertStringContainsString('border-bottom-color: #111827;', $css);
     }
 
