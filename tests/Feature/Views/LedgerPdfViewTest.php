@@ -217,9 +217,9 @@ class LedgerPdfViewTest extends TestCase
         preg_match('/<tr[^>]*><td class="day-cell">13<\\/td>(.*?)<\\/tr>/s', $html, $dayThirteen);
 
         $this->assertArrayHasKey(1, $body);
-        $this->assertSame(35, substr_count($body[1], '<tr'));
+        $this->assertSame(36, substr_count($body[1], '<tr'));
         $this->assertStringNotContainsString('>--<', $body[1]);
-        $this->assertSame(2, substr_count($body[1], '<tr class="outside continuous-outside"><td colspan="11" class="outside-scope"></td></tr>'));
+        $this->assertSame(3, substr_count($body[1], '<tr class="outside continuous-outside"><td colspan="11" class="outside-scope"></td></tr>'));
         $this->assertMatchesRegularExpression('/<tr class="boundary-context"><td class="day-cell boundary-day">Jun 30<\\/td>.*class="time-cell context-time"[^>]*>19:00.*<td class="time-cell context-time">07:00<\\/td>/s', $html);
         $this->assertMatchesRegularExpression('/<tr class="boundary-context"><td class="day-cell boundary-day">Aug 1<\\/td>.*class="time-cell trailing-timeout"[^>]*>07:00/s', $html);
         $this->assertStringContainsString('16:00', $dayFive[1]);

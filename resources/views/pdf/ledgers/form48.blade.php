@@ -44,14 +44,6 @@
 @php
     $monthStart = $month->startOfMonth();
     $monthEnd = $month->endOfMonth();
-    $rows = collect([$monthStart->subDays(2), $monthStart->subDay()])
-        ->map(fn ($date): array => ['date' => $date, 'boundary' => true])
-        ->concat(collect(range(1, 31))->map(fn (int $day): array => [
-            'date' => $day <= $month->daysInMonth ? $month->day($day) : null,
-            'boundary' => false,
-        ]))
-        ->concat(collect([$monthEnd->addDay(), $monthEnd->addDays(2)])
-            ->map(fn ($date): array => ['date' => $date, 'boundary' => true]));
     $punchEntries = $workdays->flatMap(function (array $workday): \Illuminate\Support\Collection {
         $workDate = \Carbon\CarbonImmutable::parse($workday['date'], config('app.timezone'));
 
@@ -112,6 +104,20 @@
             return $dates;
         });
     })->groupBy('date');
+    $lastTrailingOffset = $pagePunches->keys()
+        ->merge($continuations->keys())
+        ->filter(fn (string $date): bool => $date > $monthEnd->toDateString())
+        ->map(fn (string $date): int => (int) $monthEnd->startOfDay()->diffInDays(\Carbon\CarbonImmutable::parse($date)->startOfDay(), true))
+        ->max() ?? 0;
+    $trailingRows = max(2, $lastTrailingOffset + 2);
+    $rows = collect([$monthStart->subDays(2), $monthStart->subDay()])
+        ->map(fn ($date): array => ['date' => $date, 'boundary' => true])
+        ->concat(collect(range(1, 31))->map(fn (int $day): array => [
+            'date' => $day <= $month->daysInMonth ? $month->day($day) : null,
+            'boundary' => false,
+        ]))
+        ->concat(collect(range(1, $trailingRows))
+            ->map(fn (int $days): array => ['date' => $monthEnd->addDays($days), 'boundary' => true]));
 @endphp
 <section class="page form48" aria-label="{{ $month->format('F Y') }}">
     <header class="form48-header">
