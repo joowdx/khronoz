@@ -34,7 +34,7 @@ final class LedgerPolicyResolver
         return $resolved;
     }
 
-    /** @return list<array{role: string, user_ids: list<string>, users: list<array{id: string, name: string}>}> */
+    /** @return list<array{role: string, user_ids: list<string>, users: list<array{id: string, name: string, position: ?string}>}> */
     public function signers(Employee $employee, CarbonInterface $date, array $policy): array
     {
         $operative = $employee->operativeDeployment($date)?->workgroup;
@@ -60,7 +60,16 @@ final class LedgerPolicyResolver
             if ($role === 'timekeeper') {
                 $users = $users->filter(fn (User $user): bool => $user->allows(Permission::AttestLedgers));
             }
-            $signers[] = ['role' => $role, 'user_ids' => $users->values()->modelKeys(), 'users' => $users->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name])->values()->all()];
+            $positions = Employee::query()->withTrashed()->whereIn('id', $users->pluck('employee_id')->filter())->pluck('position', 'id');
+            $signers[] = [
+                'role' => $role,
+                'user_ids' => $users->values()->modelKeys(),
+                'users' => $users->map(fn (User $user): array => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'position' => $user->employee_id === null ? null : $positions->get($user->employee_id),
+                ])->values()->all(),
+            ];
         }
 
         return $signers;

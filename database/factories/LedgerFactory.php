@@ -43,7 +43,15 @@ class LedgerFactory extends Factory
                 ];
             },
             'policy' => ['template' => 'form48', 'roles' => ['employee'], 'supervisor' => 'operative', 'head_kind' => null],
-            'signers' => fn (array $attributes): array => [['role' => 'employee', 'user_ids' => [$attributes['locked_by']], 'users' => [['id' => $attributes['locked_by'], 'name' => User::findOrFail($attributes['locked_by'])->name]]]],
+            'signers' => function (array $attributes): array {
+                $user = User::findOrFail($attributes['locked_by']);
+
+                return [['role' => 'employee', 'user_ids' => [$user->id], 'users' => [[
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'position' => Employee::withoutGlobalScopes()->find($user->employee_id)?->position,
+                ]]]];
+            },
         ];
     }
 

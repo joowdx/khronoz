@@ -48,7 +48,7 @@ class LedgerPolicyResolverTest extends TestCase
 
         $signers = app(LedgerPolicyResolver::class)->signers($employee, CarbonImmutable::parse('2026-08-31'), ['roles' => ['employee', 'supervisor', 'timekeeper'], 'supervisor' => 'operative', 'head_kind' => null]);
 
-        $this->assertSame([['role' => 'employee', 'user_ids' => [$self->id], 'users' => [['id' => $self->id, 'name' => $self->name]]], ['role' => 'supervisor', 'user_ids' => [$supervisor->id], 'users' => [['id' => $supervisor->id, 'name' => $supervisor->name]]], ['role' => 'timekeeper', 'user_ids' => [$keeper->id], 'users' => [['id' => $keeper->id, 'name' => $keeper->name]]]], $signers);
+        $this->assertSame([['role' => 'employee', 'user_ids' => [$self->id], 'users' => [['id' => $self->id, 'name' => $self->name, 'position' => $employee->position]]], ['role' => 'supervisor', 'user_ids' => [$supervisor->id], 'users' => [['id' => $supervisor->id, 'name' => $supervisor->name, 'position' => $head->position]]], ['role' => 'timekeeper', 'user_ids' => [$keeper->id], 'users' => [['id' => $keeper->id, 'name' => $keeper->name, 'position' => null]]]], $signers);
     }
 
     public function test_head_resolution_includes_the_substantive_group_itself(): void
@@ -65,5 +65,6 @@ class LedgerPolicyResolverTest extends TestCase
 
         $this->assertSame([$signer->id], $signers[0]['user_ids']);
         $this->assertSame($signer->name, $signers[0]['users'][0]['name']);
+        $this->assertSame($head->position, $signers[0]['users'][0]['position']);
     }
 }

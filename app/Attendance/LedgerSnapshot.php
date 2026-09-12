@@ -46,7 +46,22 @@ final class LedgerSnapshot
             'policy' => $ledger->policy,
             'signers' => $ledger->signers,
             'attestations' => $ledger->attestations()->whereNull('withdrawn_at')->orderBy('sequence')->get()
-                ->map(fn (Attestation $attestation): array => ['id' => $attestation->id, 'role' => $attestation->role, 'user_id' => $attestation->user_id, 'name' => $attestation->name, 'sequence' => $attestation->sequence, 'at' => $attestation->at->toIso8601String()])->all(),
+                ->map(function (Attestation $attestation) use ($ledger): array {
+                    $signer = collect($ledger->signers)
+                        ->firstWhere('role', $attestation->role);
+                    $identity = collect($signer['users'] ?? [])
+                        ->firstWhere('id', $attestation->user_id);
+
+                    return [
+                        'id' => $attestation->id,
+                        'role' => $attestation->role,
+                        'user_id' => $attestation->user_id,
+                        'name' => $attestation->name,
+                        'position' => $identity['position'] ?? null,
+                        'sequence' => $attestation->sequence,
+                        'at' => $attestation->at->toIso8601String(),
+                    ];
+                })->all(),
         ];
     }
 

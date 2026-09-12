@@ -21,7 +21,7 @@ class AttestLedgerTest extends TestCase
         $actor = User::factory()->forAgency($agency)->create(['name' => 'Ana Signer']);
         $ledger = Ledger::factory()->for($agency)->create([
             'policy' => ['template' => 'form48', 'roles' => ['employee']],
-            'signers' => [['role' => 'employee', 'user_ids' => [$actor->id]]],
+            'signers' => [['role' => 'employee', 'user_ids' => [$actor->id], 'users' => [['id' => $actor->id, 'name' => 'Ana Signer', 'position' => 'Records Officer']]]],
             'identity' => ['employee' => ['name' => 'Frozen Employee']],
             'calculation' => ['totals' => ['worked' => 480], 'workdays' => []],
         ]);
@@ -36,6 +36,7 @@ class AttestLedgerTest extends TestCase
         $this->assertSame(RenditionStatus::Unstored, $rendition->status);
         $this->assertSame('Frozen Employee', $rendition->snapshot['employee']['name']);
         $this->assertSame('Ana Signer', $rendition->snapshot['attestations'][0]['name']);
+        $this->assertSame('Records Officer', $rendition->snapshot['attestations'][0]['position']);
         $this->assertSame(480, $rendition->snapshot['totals']['worked']);
         $this->assertSame(64, strlen($rendition->token));
         $this->assertNull($rendition->document_id);

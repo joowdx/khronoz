@@ -31,7 +31,7 @@ class LedgerPdfViewTest extends TestCase
 
         $this->assertSame(2, substr_count($html, 'class="page form48"'));
         $this->assertSame(2, substr_count($html, 'alt="Verify attested ledger"'));
-        $this->assertSame(55, substr_count($html, 'Outside ledger period'));
+        $this->assertSame(55, substr_count($html, 'Outside covered range'));
         $this->assertStringContainsString('January 2026', $html);
         $this->assertStringContainsString('February 2026', $html);
         $this->assertStringContainsString('08:01', $html);
@@ -54,7 +54,7 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => '<svg></svg>',
         ])->render();
 
-        $this->assertStringContainsString('PREVIEW — NOT ATTESTED', $html);
+        $this->assertStringContainsString('PREVIEW - NOT ATTESTED', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringNotContainsString('<img ', $html);
@@ -75,7 +75,7 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => null,
         ])->render();
 
-        $this->assertStringContainsString('Detail filter: Night work', $html);
+        $this->assertStringContainsString('Detail filter:</strong> Night work', $html);
         $this->assertStringContainsString('Totals remain for the complete selected range.', $html);
     }
 
@@ -94,7 +94,7 @@ class LedgerPdfViewTest extends TestCase
         ])->render();
 
         $this->assertSame(2, substr_count($html, 'class="page plain"'));
-        $this->assertStringContainsString('2026-09-26', $html);
+        $this->assertStringContainsString('<strong>26</strong><span>Sat</span>', $html);
         $this->assertStringNotContainsString('<img ', $html);
     }
 
@@ -144,8 +144,72 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringContainsString('05:45<small>(+1d)</small>', $html);
         $this->assertStringContainsString('06:30<small>(+1d)</small>', $html);
         $this->assertStringContainsString('Rest day', $html);
-        $this->assertStringContainsString('Excess 90 min', $html);
-        $this->assertStringContainsString('Night 60 min', $html);
-        $this->assertStringContainsString('Night excess 30 min', $html);
+        $this->assertStringContainsString('Excess 01:30', $html);
+        $this->assertStringContainsString('Night 01:00', $html);
+        $this->assertStringContainsString('Night excess 00:30', $html);
+    }
+
+    public function test_form48_uses_the_two_level_clock_header_and_separate_hhmm_deductions(): void
+    {
+        $snapshot = [
+            'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-30'],
+            'workdays' => [[
+                'date' => '2026-09-01',
+                'tardy' => 7,
+                'undertime' => 65,
+            ]],
+        ];
+
+        $html = view('pdf.ledgers.form48', [
+            'snapshot' => $snapshot,
+            'preview' => true,
+            'verificationUrl' => null,
+            'qrSvg' => null,
+        ])->render();
+
+        $this->assertStringContainsString('rowspan="2" class="day"', $html);
+        $this->assertStringContainsString('colspan="2">AM', $html);
+        $this->assertStringContainsString('colspan="2">PM', $html);
+        $this->assertStringContainsString('Tardiness', $html);
+        $this->assertStringContainsString('Undertime', $html);
+        $this->assertStringContainsString('Adjustment', $html);
+        $this->assertStringContainsString('00:07', $html);
+        $this->assertStringContainsString('01:05', $html);
+    }
+
+    public function test_plain_form_shows_frozen_duty_times_and_vertical_attestations(): void
+    {
+        $snapshot = [
+            'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-01'],
+            'workdays' => [[
+                'date' => '2026-09-01',
+                'shift_name' => 'Standard duty',
+                'punches' => [
+                    ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-09-01 08:00:00', 'actual_at' => '2026-09-01 08:03:00'],
+                    ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-09-01 12:00:00', 'actual_at' => '2026-09-01 12:00:00'],
+                    ['slot' => 2, 'kind' => ['value' => 'in'], 'expected_at' => '2026-09-01 13:00:00', 'actual_at' => '2026-09-01 13:00:00'],
+                    ['slot' => 2, 'kind' => ['value' => 'out'], 'expected_at' => '2026-09-01 17:00:00', 'actual_at' => '2026-09-01 17:02:00'],
+                ],
+            ]],
+            'attestations' => [[
+                'role' => 'employee',
+                'name' => 'Ana Example',
+                'position' => 'Administrative Officer II',
+                'sequence' => 1,
+                'at' => '2026-09-02T01:00:00Z',
+            ]],
+        ];
+
+        $html = view('pdf.ledgers.plain', [
+            'snapshot' => $snapshot,
+            'preview' => true,
+            'verificationUrl' => null,
+            'qrSvg' => null,
+        ])->render();
+
+        $this->assertStringContainsString('Standard duty 08:00-12:00 / 13:00-17:00', $html);
+        $this->assertStringContainsString('class="attestation-step"', $html);
+        $this->assertStringContainsString('Administrative Officer II', $html);
+        $this->assertStringContainsString('Sep 2, 2026 09:00', $html);
     }
 }
