@@ -1,25 +1,10 @@
-import { usePage } from '@inertiajs/react';
-import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { type CSSProperties, type ReactNode, useState } from 'react';
 import { AppSidebar } from '@/components/app-sidebar';
-import { Toaster } from '@/components/ui/sonner';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import type { BreadcrumbItem as Crumb, SharedProps } from '@/types';
+import type { BreadcrumbItem as Crumb } from '@/types';
 
-export default function AppLayout({
-    breadcrumbs = [],
-    children,
-}: {
-    breadcrumbs?: Crumb[];
-    children: ReactNode;
-}) {
-    const { flash } = usePage<SharedProps>().props;
+export default function AppLayout({ breadcrumbs = [], children }: { breadcrumbs?: Crumb[]; children: ReactNode }) {
     const [stuck, setStuck] = useState(false);
-
-    useEffect(() => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
-    }, [flash]);
 
     return (
         <SidebarProvider className="h-svh" style={{ '--sidebar-width': 'var(--side-w)' } as CSSProperties}>
@@ -44,7 +29,6 @@ export default function AppLayout({
                 >
                     {children}
                 </div>
-                <Toaster position="bottom-right" />
             </SidebarInset>
         </SidebarProvider>
     );

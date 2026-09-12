@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Agency;
 use App\Tenancy\Tenant;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -44,6 +45,15 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $messages = array_filter([
+            'success' => $request->session()->pull('success'),
+            'error' => $request->session()->pull('error'),
+        ], fn (mixed $value): bool => is_string($value));
+
+        if ($messages !== []) {
+            Inertia::flash($messages);
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -51,12 +61,6 @@ class HandleInertiaRequests extends Middleware
             ],
             'agency' => fn () => ($agency = $this->tenant->agency()) ? AgencyResource::make($agency)->resolve() : null,
             'agencies' => fn () => $request->user()?->isPlatform() ? AgencyResource::collection(Agency::orderBy('name')->get())->resolve() : [],
-            // index.d.ts declares success/error optional (`success?: string`),
-            // not nullable, so an unset key must be absent, not sent as null.
-            'flash' => fn () => array_filter([
-                'success' => $request->session()->get('success'),
-                'error' => $request->session()->get('error'),
-            ], fn (mixed $value): bool => $value !== null),
         ];
     }
 }

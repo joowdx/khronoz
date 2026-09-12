@@ -18,3 +18,6 @@ A cross-tenant lookup is the only shape that can detect this ordering regression
 `EnsureAgency` 404s when `Tenant::id()` equals `Tenant::platformId()`, and `routes/web.php` wraps both resources in it. 404 rather than 403, because the rows these screens are about cannot exist for this tenant at all — the same answer a cross-tenant lookup already gives everywhere else.
 
 `EnsureAgencyTest` asserts only the routes with **no bound model**: `workgroups.edit`, `employees.show` and the rest bind a `{model}` that AgencyScope already refuses across tenants, so they answer 404 whether this middleware runs or not and cannot detect it being dropped — the same rule the cross-tenant tripwire above follows. It also asserts the positive: one `enter` away, the same superuser gets both screens, so a middleware that 404s everything would not pass.
+
+## Toast messages use native Inertia flash
+HandleInertiaRequests bridges Laravel session success/error messages into Inertia 3 native page.flash and consumes the legacy keys. Never share these as ordinary props: history and partial responses replay them. The single application-bootstrap flash listener and root Toaster handle all pages; do not add layout toast effects.

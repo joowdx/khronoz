@@ -2,6 +2,7 @@ import { createInertiaApp, type ResolvedComponent } from '@inertiajs/react';
 import createServer from '@inertiajs/react/server';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { renderToString } from 'react-dom/server';
+import { Toaster } from '@/components/ui/sonner';
 
 createServer(
     (page) =>
@@ -11,7 +12,12 @@ createServer(
 
             serverHead: true,
 
-            setup: ({ App, props }) => <App {...props} />,
+            setup: ({ App, props }) => (
+                <>
+                    <App {...props} />
+                    <Toaster position="bottom-right" />
+                </>
+            ),
 
             resolve: (name) =>
                 resolvePageComponent<ResolvedComponent>(
