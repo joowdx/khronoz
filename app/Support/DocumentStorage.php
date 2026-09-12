@@ -3,7 +3,9 @@
 namespace App\Support;
 
 use App\Models\Document;
+use App\Models\Location;
 use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
@@ -34,5 +36,53 @@ class DocumentStorage
         }
 
         throw new RuntimeException('No verified document copy is available.');
+    }
+
+    public function copy(Document $document, string $store, string $key, bool $primary = true): Location
+    {
+        $bytes = $this->read($document);
+        $disk = $this->disk($store);
+
+        if (! $disk->exists($key) && ! $disk->put($key, $bytes, ['visibility' => 'private'])) {
+            throw new RuntimeException('The document copy could not be written.');
+        }
+
+        $copied = $disk->get($key);
+        if (! is_string($copied)
+            || strlen($copied) !== $document->bytes
+            || $document->algorithm !== 'sha256'
+            || ! hash_equals($document->digest, hash('sha256', $copied))) {
+            throw new RuntimeException('The document copy failed its integrity check.');
+        }
+
+        return DB::transaction(function () use ($document, $store, $key, $primary): Location {
+            $document = Document::query()->findOrFail($document->id);
+            $document->locations()->lockForUpdate()->get();
+            $location = Location::query()->where('store', $store)->where('key', $key)->first();
+
+            if ($location !== null && $location->document_id !== $document->id) {
+                throw new RuntimeException('The storage key belongs to another document.');
+            }
+
+            $location ??= Location::create([
+                'agency_id' => $document->agency_id,
+                'document_id' => $document->id,
+                'store' => $store,
+                'key' => $key,
+                'primary' => false,
+            ]);
+
+            if ($primary) {
+                $document->locations()->whereKeyNot($location->id)->where('primary', true)->update(['primary' => false]);
+            }
+
+            $location->update([
+                'verified_at' => now(),
+                'primary' => $primary,
+                'retired_at' => null,
+            ]);
+
+            return $location->refresh();
+        });
     }
 }
