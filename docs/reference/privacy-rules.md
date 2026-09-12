@@ -1,5 +1,39 @@
 # 10 — data privacy rules that touch retention
 
+## Current implementation assessment — 2026-09-12
+
+This dated assessment supersedes conflicting conclusions in the historical research below. The IRR and consent circular are now accessible in primary text. Earlier starred instruments, the supposed NAP Item 44 retention period, and any proposed 2026 circular remain unverified here; they must not determine product behavior. This is a requirements cross-check, not certification of compliance.
+
+| Requirement and primary source | Khronoz treatment | Remaining dependency |
+| --- | --- | --- |
+| Purpose and proportionality: [RA 10173 §§11–13](https://privacy.gov.ph/data-privacy-act/), [IRR §§18–19](https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/) | Remove employee sex, birthdate, email and mobile; retain account email for invitation, authentication and recovery. | Employers must identify the lawful ground for each purpose, including a separate applicable ground for sensitive information. |
+| Notice and acknowledgment: [NPC Circular 2023-04 §§3–5, 8, 12](https://privacy.gov.ph/wp-content/uploads/2023/11/NPC-Circular-No.-2023-04_Guidelines-on-Consent_07Nov2023.pdf) | Public versioned notice and agreement; separate affirmative controls; no new IP/user-agent collection for acknowledgments. | Acknowledgment is not blanket consent. Employers must give notice to employees who never receive a login. Reacknowledgment for every published revision is a product choice, not a universal legal requirement. |
+| Rights: [NPC erasure/blocking guidance](https://privacy.gov.ph/right-to-erasure-or-blocking/) | Account deletion does not automatically erase employment records. Employment requests are referred to the employer for assessment, never rejected merely because the records belong to an employment system. | Implement a verified request and response process, lawful holds, restricted access and eventual secure disposal; soft deletion is not erasure. |
+| Retention: [Labor Code implementing rules, Book III, Rule X §§11–12](https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/2/85819), [National Archives guidance](https://nationalarchives.gov.ph/frequently-asked-question/) | Preserve attendance integrity while retention is justified. Do not advertise unlimited retention or a universal government retention period. | Private-sector required records have a three-year minimum from the last entry; government records require the applicable approved schedule and disposal authority. Confirm schedules, holds and disposal across live data, exports and backups before launch. |
+| Responsibility and outsourcing: [IRR §§43–45](https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/) | Employer directs employment-record processing; Khronoz has its own responsibilities for account operation and remains subject to processor obligations. | Agency processing agreement specifying instructions, purpose, duration, security, subprocessors, locations, rights assistance, audit and return/deletion. Separate drafting is outside this task. |
+| Security and accountability: [RA 10173 §§20–21](https://privacy.gov.ph/data-privacy-act/), [NPC issuances index](https://privacy.gov.ph/pips-and-pics/advisories-circulars/) | Existing tenant boundaries, permissions and immutable attendance documents remain in force. | Verify deployment safeguards and applicable NPC security requirements, incident response and conditional breach notification; do not promise every incident triggers the same notification deadline. |
+
+### Collection inventory and decisions
+
+- **Keep:** account name/email and authentication state; employee number/name/position; placement history; schedules, attendance and necessary exemptions; terminal enrollment identifiers; document, attestation and operational audit metadata. These support identity, access, time calculations or record integrity.
+- **Remove:** employee sex, birthdate, email and mobile throughout storage and interfaces. These have no established timekeeping purpose; employee contact fields duplicate the separate login identity where one exists.
+- **Decision requested, retained for now:** enrollment `privilege` is collected and displayed but has no implemented device-synchronization consumer. Confirm a concrete need or remove it in a separate change.
+- **Minimize free text:** tags, remarks, exemption notes and imported device metadata can contain unnecessary personal information. Do not enter diagnoses, government identity numbers or unrelated personal details. Necessary leave information may require sensitive-data safeguards.
+- **Public disclosure:** a holder of a DTR verification link can access the frozen employee identity, attendance and attestation details without signing in. A no-index header is not access control. Employers must assess this disclosure and communicate it to employees. PDF archiving is optional and private; HTML verification exists independently.
+- **No server biometric-template collection in this version:** imported terminal identifiers and punch codes must not be described as fingerprint images or templates. Terminal-side processing remains part of the employer's own notice and assessment.
+
+### Account deletion and employment records
+
+Account deletion concerns platform access and account information no longer required. It does not automatically delete employee profiles, attendance, daily time records or employment documents. Employees retain applicable rights to information, access, correction, objection, blocking and erasure. The employer assesses employment-record requests against the purpose, lawful basis, applicable retention duties and legal holds; Khronoz refers requests about those records and assists under the employer's instructions.
+
+Current user deletion can be refused by references protecting historical attestations. Employee removal is a soft deletion. There is no self-service account-deletion or employment-erasure workflow, and neither is implemented by this legal-foundation task. Public wording must describe requests without promising an unavailable automated operation or asserting that employment records are outside privacy rights.
+
+### Launch dependencies
+
+Complete the operator's legal identity, working privacy contact, hosting/subprocessor locations, effective dates and retention particulars before publishing final versions. Establish the agency processing agreement, employee notice delivery, rights-request handling, retention/disposal and backup procedures. Google/Apple OAuth implementation and provider verification are separate. Draft acceptance cannot qualify as acceptance of a later published version.
+
+## Historical research — 2026-09-11
+
 Written 2026-09-11. **Verified in primary text**: RA 10173 (Data Privacy Act of 2012) §§3(h), 3(i), 3(l), 4, 11, 12, 13, 14, 16, 21; Omnibus Rules Implementing the Labor Code, Book III, Rule X §§7, 8, 9, 11, 12.
 
 Marks: **★** not read in primary text by anyone; **☆** not read by the author but attested by a secondary source that quotes the instrument closely. `privacy.gov.ph`, `officialgazette.gov.ph` and the Supreme Court e-library all refused fetches for the IRR and the NPC advisories, so the IRR §19 wording below is ☆ and the NPC advisories are ★. Nothing in this file is implemented.
