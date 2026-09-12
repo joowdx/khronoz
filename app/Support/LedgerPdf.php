@@ -18,9 +18,9 @@ class LedgerPdf
             throw new InvalidArgumentException('Unsupported ledger template.');
         }
 
-        [$paperWidth, $paperHeight, $paperUnit] = match ($template) {
-            'form48' => [8.5, 14, 'in'],
-            'plain' => [210, 297, 'mm'],
+        [$paperWidth, $paperHeight, $paperUnit, $marginTop, $marginRight, $marginBottom, $marginLeft, $marginUnit] = match ($template) {
+            'form48' => [8.5, 14, 'in', 0.4, 0.4, 0.4, 0.4, 'in'],
+            'plain' => [210, 297, 'mm', 12, 12, 12, 12, 'mm'],
         };
 
         $verificationUrl = $token === null ? null : $this->urls->route('ledgers.verify', ['token' => $token]);
@@ -31,6 +31,6 @@ class LedgerPdf
             'preview' => $token === null,
             'verificationUrl' => $verificationUrl,
             'qrSvg' => $qrSvg,
-        ])->driver('gotenberg')->paperSize($paperWidth, $paperHeight, $paperUnit)->margins(.4, .4, .4, .4, 'in')->base64(), true);
+        ])->driver('gotenberg')->paperSize($paperWidth, $paperHeight, $paperUnit)->margins($marginTop, $marginRight, $marginBottom, $marginLeft, $marginUnit)->base64(), true);
     }
 }

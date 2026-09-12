@@ -17,6 +17,7 @@ class LedgerPdfTest extends TestCase
         ], 'form48');
 
         $this->assertSame(['width' => 8.5, 'height' => 14.0, 'unit' => 'in'], $pdf->paperSize);
+        $this->assertSame(['top' => 0.4, 'right' => 0.4, 'bottom' => 0.4, 'left' => 0.4, 'unit' => 'in'], $pdf->margins);
     }
 
     public function test_plain_uses_a4_paper(): void
@@ -26,5 +27,15 @@ class LedgerPdfTest extends TestCase
         app(LedgerPdf::class)->render([], 'plain');
 
         $this->assertSame(['width' => 210.0, 'height' => 297.0, 'unit' => 'mm'], $pdf->paperSize);
+        $this->assertSame(['top' => 12.0, 'right' => 12.0, 'bottom' => 12.0, 'left' => 12.0, 'unit' => 'mm'], $pdf->margins);
+    }
+
+    public function test_ledger_pdf_css_uses_tabular_numerals_and_does_not_force_zero_page_margins(): void
+    {
+        $css = file_get_contents(resource_path('css/ledger-pdf.css'));
+
+        $this->assertNotFalse($css);
+        $this->assertStringNotContainsString('@page { margin: 0; }', $css);
+        $this->assertStringContainsString('font-variant-numeric: tabular-nums;', $css);
     }
 }

@@ -1,7 +1,6 @@
-@page { margin: 0; }
 * { box-sizing: border-box; }
 :root { --ink: #172033; --muted: #667085; --line: #cfd5df; --line-dark: #8e99aa; --surface: #f5f7fa; --surface-strong: #e9edf3; --accent: #274c77; --accent-soft: #eaf1f8; --warning: #8a3b12; }
-body { margin: 0; color: var(--ink); background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+body { margin: 0; color: var(--ink); background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; font-variant-numeric: tabular-nums; }
 .page { display: flow-root; position: relative; break-after: page; overflow: hidden; }
 .page:last-child { break-after: auto; }
 .page + .page { break-before: page; page-break-before: always; }
