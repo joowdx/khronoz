@@ -15,6 +15,14 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    'document_store' => env('DOCUMENT_STORE', 'archive'),
+
+    'document_stores' => [
+        'archive' => [
+            'disk' => env('DOCUMENT_ARCHIVE_DISK', 's3'),
+        ],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
@@ -56,8 +64,9 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
-            'report' => false,
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => true,
         ],
 
     ],

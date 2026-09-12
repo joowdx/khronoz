@@ -6,6 +6,7 @@
             <p>{{ $verificationUrl }}</p>
             <p>Ledger {{ $snapshot['ledger']['id'] ?? '—' }} · revision {{ $snapshot['ledger']['revision'] ?? '—' }}</p>
             <p>Rendition {{ $snapshot['rendition']['id'] ?? '—' }} · completed {{ $snapshot['rendition']['completed_at'] ?? '—' }}</p>
+            <p>Generated {{ $snapshot['document']['generated_at'] ?? '—' }}</p>
             <p>Application attestations; no cryptographic digital signature.</p>
         </div>
     @else
