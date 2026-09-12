@@ -1,10 +1,12 @@
-import { Link } from '@inertiajs/react';
-import { login } from '@/routes';
+import { Link, usePage } from '@inertiajs/react';
+import type { SharedProps } from '@/types';
+import { dashboard, login } from '@/routes';
 import { BrandLink } from '@/components/marketing/brand';
 
 const LINK = 'text-muted-foreground hover:text-foreground rounded-lg py-0.5 text-[13px] leading-5 font-medium';
 
 export function SiteFooter({ demo }: { demo: string }) {
+    const { auth } = usePage<SharedProps>().props;
     return (
         <footer>
             <div className="mx-auto max-w-[1200px] border-t px-5 pt-[34px] pb-11 md:px-10">
@@ -26,8 +28,8 @@ export function SiteFooter({ demo }: { demo: string }) {
                         <a href="#how" className={LINK}>
                             How it works
                         </a>
-                        <Link href={login()} className={LINK}>
-                            Sign in
+                        <Link href={auth.user ? dashboard() : login()} className={LINK}>
+                            {auth.user ? 'Dashboard' : 'Sign in'}
                         </Link>
                         <a href={demo} className={LINK} aria-label="Contact us by email">
                             Contact

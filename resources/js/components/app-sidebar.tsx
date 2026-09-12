@@ -118,7 +118,7 @@ export function AppSidebar() {
         ...(insideAgency && can('ledgers.view')
             ? [
                   {
-                      label: 'Timesheets',
+                      label: 'Attendance',
                       items: [
                           { title: 'Workdays', href: workdaysIndex().url, icon: ClipboardList },
                           { title: 'Ledgers', href: ledgersIndex().url, icon: BookOpen },

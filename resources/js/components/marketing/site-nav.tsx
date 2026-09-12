@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from '@inertiajs/react';
-import { login } from '@/routes';
+import { Link, usePage } from '@inertiajs/react';
+import type { SharedProps } from '@/types';
+import { dashboard, login } from '@/routes';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { BrandLink } from '@/components/marketing/brand';
@@ -12,6 +13,7 @@ const SECTIONS = [
 ];
 
 export function SiteNav() {
+    const { auth } = usePage<SharedProps>().props;
     const sentinel = useRef<HTMLDivElement>(null);
     const [stuck, setStuck] = useState(false);
 
@@ -58,10 +60,10 @@ export function SiteNav() {
                     <span className="flex-1" />
                     <div className="flex items-center gap-[18px]">
                         <Link
-                            href={login()}
+                            href={auth.user ? dashboard() : login()}
                             className="text-acc-text rounded-lg py-0.5 text-sm leading-5 font-medium underline-offset-2 hover:underline"
                         >
-                            Sign in
+                            {auth.user ? 'Dashboard' : 'Sign in'}
                         </Link>
                         <Button
                             asChild
