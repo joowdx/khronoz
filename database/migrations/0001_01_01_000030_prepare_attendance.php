@@ -349,6 +349,7 @@ return new class extends Migration
                           FROM ledgers
                          WHERE ledgers.employee_id = OLD.employee_id
                            AND ledgers.locked_at IS NOT NULL AND ledgers.unlocked_at IS NULL
+                           AND ledgers.scope IN ('overtime', 'all')
                            AND daterange(OLD.starts::date, OLD.ends::date, '[]')
                                && daterange(ledgers.starts, ledgers.ends, '[]')
                     ) THEN
@@ -368,8 +369,9 @@ return new class extends Migration
 
                 IF EXISTS (
                     SELECT 1
-                      FROM ledgers
+                     FROM ledgers
                      WHERE ledgers.locked_at IS NOT NULL AND ledgers.unlocked_at IS NULL
+                       AND ledgers.scope IN ('overtime', 'all')
                        AND ledgers.employee_id IN (OLD.employee_id, NEW.employee_id)
                        AND (
                             (TG_OP = 'UPDATE'

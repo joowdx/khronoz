@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Models;
 
+use App\Enums\Work;
 use App\Models\Attestation;
 use App\Models\Deployment;
 use App\Models\Employee;
@@ -340,6 +341,25 @@ class LedgerTest extends TestCase
             'starts' => '2026-07-31 22:00:00',
             'ends' => '2026-08-01 02:00:00',
         ]), 'an overtime authority cannot change which locked months it covers');
+    }
+
+    public function test_a_regular_only_ledger_does_not_freeze_overtime_authorities(): void
+    {
+        [$agency, $employee, $ledger] = $this->august();
+        $ledger->scope = Work::Regular;
+        $this->lockIt($ledger);
+
+        $authority = Overtime::factory()->create([
+            'agency_id' => $agency,
+            'employee_id' => $employee,
+            'starts' => '2026-08-10 17:00:00',
+            'ends' => '2026-08-10 21:00:00',
+        ]);
+
+        $authority->update(['ends' => '2026-08-10 22:00:00']);
+        $authority->delete();
+
+        $this->assertDatabaseMissing('overtimes', ['id' => $authority->id]);
     }
 
     public function test_a_write_cannot_change_which_locked_months_a_deployment_covers(): void
