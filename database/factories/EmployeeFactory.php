@@ -12,11 +12,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class EmployeeFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
@@ -45,7 +41,6 @@ class EmployeeFactory extends Factory
         ];
     }
 
-    /** No DTR expected of this employee. */
     public function exempt(): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -53,7 +48,6 @@ class EmployeeFactory extends Factory
         ]);
     }
 
-    /** Carries exactly these tags. */
     public function tagged(string ...$tags): static
     {
         return $this->state(fn (array $attributes): array => [

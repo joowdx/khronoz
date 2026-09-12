@@ -256,7 +256,6 @@ export default function Index({ workgroups, employees }: { workgroups: Workgroup
                         <TableCaption className="sr-only mt-0">
                             Workgroups, indented under the workgroup each one sits in
                         </TableCaption>
-                        {/* Sticky: the head pins at `top: var(--bar-h)`, under the title bar. */}
                         <TableHeader sticky>
                             {/*
                               MEASURED: with only the last column sized, the

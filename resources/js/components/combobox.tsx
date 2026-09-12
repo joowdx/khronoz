@@ -212,8 +212,6 @@ export function Combobox({
                                         disabled={option.disabled}
                                         onSelect={() => choose(option.value)}
                                     >
-                                        {/* Always rendered, so choosing does
-                                            not shift the rows sideways. */}
                                         <CheckIcon
                                             aria-hidden
                                             className={cn(option.value === value ? 'opacity-100' : 'opacity-0')}

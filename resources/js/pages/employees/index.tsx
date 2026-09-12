@@ -449,7 +449,6 @@ export default function Index({
                     */}
                     <Table style={{ minWidth: TABLE_MIN_WIDTH }}>
                         <TableCaption className="sr-only mt-0">Employees</TableCaption>
-                        {/* Sticky: the head pins at `top: var(--bar-h)`, under the title bar. */}
                         <TableHeader sticky>
                             <TableRow>
                                 <TableHead>Employee</TableHead>

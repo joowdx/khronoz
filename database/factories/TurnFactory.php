@@ -14,8 +14,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class TurnFactory extends Factory
 {
     /**
-     * Define the model's default state.
-     *
      * schedule_id and shift_id are callbacks, not Schedule::factory() /
      * Shift::factory() directly, for the reason DeploymentFactory's are: the
      * paired FKs (schedule_id, agency_id) and (shift_id, agency_id) require

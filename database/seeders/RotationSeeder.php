@@ -68,7 +68,6 @@ class RotationSeeder extends Seeder
         'Team C' => '2026-09-21',
     ];
 
-    /** Nurses per team. */
     private const PER_TEAM = 4;
 
     /** When every roster and placement opens: well before the September the grid lands on. */

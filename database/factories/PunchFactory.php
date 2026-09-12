@@ -53,7 +53,6 @@ class PunchFactory extends Factory
         ];
     }
 
-    /** No timelog filled this slot side. */
     public function missed(): static
     {
         return $this->state(fn (array $attributes): array => [

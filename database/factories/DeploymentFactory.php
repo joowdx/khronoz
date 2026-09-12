@@ -15,8 +15,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class DeploymentFactory extends Factory
 {
     /**
-     * Define the model's default state.
-     *
      * employee_id and workgroup_id are callbacks, not Employee::factory() /
      * Workgroup::factory() directly: the paired FKs (employee_id, agency_id) and
      * (workgroup_id, agency_id) require the employee and workgroup to belong to the
@@ -67,7 +65,6 @@ class DeploymentFactory extends Factory
         ]);
     }
 
-    /** Currently active: no end date. The default already, named for readability at the call site. */
     public function open(): static
     {
         return $this->state(fn (array $attributes): array => [

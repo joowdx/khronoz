@@ -13,8 +13,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class TeamFactory extends Factory
 {
     /**
-     * Define the model's default state.
-     *
      * schedule_id is a callback for the same reason TurnFactory's is: the
      * paired FK (schedule_id, agency_id) requires the schedule to belong to
      * this team's agency.

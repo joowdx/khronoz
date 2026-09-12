@@ -37,10 +37,8 @@ enum AttlogState: int
 {
     use HasChoices;
 
-    /** Arrived. */
     case CheckIn = 0;
 
-    /** Left. */
     case CheckOut = 1;
 
     /** Left for a break the agency punches separately. */

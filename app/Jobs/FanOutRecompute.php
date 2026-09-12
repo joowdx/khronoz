@@ -64,11 +64,7 @@ class FanOutRecompute implements ShouldQueue
         public ?array $employeeIds = null,
     ) {}
 
-    /**
-     * Employees named outright.
-     *
-     * @param  iterable<int, string>  $employeeIds
-     */
+    /** @param iterable<int, string> $employeeIds */
     public static function forEmployees(iterable $employeeIds, string $from, ?string $to = null): void
     {
         $ids = array_values(array_unique(array_map('strval', [...$employeeIds])));

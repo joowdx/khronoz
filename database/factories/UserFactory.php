@@ -21,8 +21,6 @@ class UserFactory extends Factory
     protected static ?string $password;
 
     /**
-     * Define the model's default state.
-     *
      * email_verified_at defaults to a non-null time: routes behind the
      * `verified` middleware (Tasks 6, 8, 9, 10) must render for a plain
      * User::factory()->create() without every caller opting in. invited()
@@ -62,7 +60,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /** Belongs to a chosen agency instead of a fresh one. */
     public function forAgency(Agency $agency): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -95,7 +92,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /** Has not verified their email address. */
     public function unverified(): static
     {
         return $this->state(fn (array $attributes): array => [

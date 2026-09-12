@@ -136,8 +136,6 @@ function RowActions({ agency, entered }: { agency: AgencyRow; entered: boolean }
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[252px]">
-                {/* Disabled on the agency you are already in, exactly as the
-                    sidebar's switcher disables the current option. */}
                 <Form {...enter.form(agency)}>
                     {({ processing }) => (
                         <DropdownMenuItem asChild disabled={entered || processing}>
@@ -250,7 +248,6 @@ export default function Index({
 
                     <Table>
                         <TableCaption className="sr-only">Agencies</TableCaption>
-                        {/* Sticky: the head pins at `top: var(--bar-h)`, under the title bar. */}
                         <TableHeader sticky>
                             <TableRow>
                                 <SortHead column="code" label="Code" filters={filters} className="w-[140px]" />

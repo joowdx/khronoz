@@ -23,7 +23,6 @@ enum Period: string
     /** Day 16 to the last day of the ledger month. */
     case Second = 'second';
 
-    /** The whole month. */
     case Full = 'full';
 
     public function label(): string

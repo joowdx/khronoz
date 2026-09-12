@@ -31,9 +31,6 @@ use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         // Telescope is a development tool only. It is a dev dependency and is
@@ -49,9 +46,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(Tenant::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureDatabase();

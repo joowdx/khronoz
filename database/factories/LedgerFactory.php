@@ -13,8 +13,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class LedgerFactory extends Factory
 {
     /**
-     * Define the model's default state.
-     *
      * employee_id is a callback, not Employee::factory() directly: the paired
      * FK (employee_id, agency_id) requires the employee to belong to the same
      * agency as this ledger, so it is created under the agency_id resolved

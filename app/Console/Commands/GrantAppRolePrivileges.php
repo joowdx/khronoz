@@ -18,9 +18,6 @@ use Illuminate\Console\Command;
 #[Description("Re-issue the app role's row privileges on every table and sequence")]
 class GrantAppRolePrivileges extends Command
 {
-    /**
-     * Execute the console command.
-     */
     public function handle(): void
     {
         AppRoleGrants::apply();

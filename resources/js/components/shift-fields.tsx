@@ -43,18 +43,14 @@ export function ShiftFields({
     usedColors: number[];
     errors: Partial<Record<string, string>>;
 }) {
-    // Derive the initial kind from the model's own shape, falling back to
-    // `working` on create — that is the most common new shift.
     const initialKind = shift
         ? shift.kind
         : 'working';
 
     const [kind, setKind] = useState<'working' | 'off' | 'remote'>(initialKind);
 
-    // Colour state — only relevant when kind is `working`.
     const [color, setColor] = useState<number>(shift?.color ?? 1);
 
-    // Slot list — an array of editable ShiftSlot rows.
     const [slots, setSlots] = useState<ShiftSlot[]>(
         shift?.slots && shift.slots.length > 0
             ? shift.slots
@@ -112,10 +108,8 @@ export function ShiftFields({
 
     return (
         <>
-            {/* hidden inputs for kind-derived columns */}
             <input type="hidden" name="remote" value={kind === 'remote' ? '1' : '0'} />
 
-            {/* slots: send each slot as JSON-encoded field, or empty array */}
             {isWorking
                 ? slots.map((slot, i) => (
                       <input
@@ -164,7 +158,6 @@ export function ShiftFields({
 
             {isWorking && (
                 <>
-                    {/* Slot list */}
                     <div className="mt-6">
                         <div className="mb-2 flex items-center justify-between">
                             <Label>Time slots</Label>

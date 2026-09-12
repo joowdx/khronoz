@@ -125,7 +125,6 @@ export function RosterGrid({
         <div>
             <div className="relative max-h-[calc(100svh-260px)] overflow-auto" role="grid" aria-label="Roster">
                 <div style={{ width }}>
-                    {/* Head. Sticky at the top; its two frozen cells sticky sideways too. */}
                     <div className="bg-background sticky top-0 z-20 flex h-[38px]" role="row">
                         <div
                             role="columnheader"
