@@ -55,10 +55,10 @@ interface Figures {
 
 interface LedgerSplit {
     total: number;
-    open: number;
-    lockable: number;
-    locked: number;
-    attested: number;
+    awaiting: number;
+    preparing: number;
+    ready: number;
+    failed: number;
 }
 
 interface DayEvent {
@@ -340,11 +340,20 @@ export default function Dashboard({
                   },
               ]
             : []),
-        ...(ledgers && month && ledgers.lockable > 0
+        ...(ledgers && month && ledgers.awaiting > 0
             ? [
                   {
-                      label: 'Ledgers waiting to be locked',
-                      count: ledgers.lockable,
+                      label: 'Ledgers awaiting attestations',
+                      count: ledgers.awaiting,
+                      href: ledgersIndex({ query: { month: month.value } }).url,
+                  },
+              ]
+            : []),
+        ...(ledgers && month && ledgers.failed > 0
+            ? [
+                  {
+                      label: 'Ledger PDFs needing retry',
+                      count: ledgers.failed,
                       href: ledgersIndex({ query: { month: month.value } }).url,
                   },
               ]
@@ -428,10 +437,10 @@ export default function Dashboard({
                                 <>
                                     <SectionHead title="Ledgers" meta={monthName(month.value)} />
                                     <dl className="[&>div+div]:border-rule [&>div+div]:border-t">
-                                        <Fact label="Open" value={ledgers.open} />
-                                        <Fact label="Waiting for lock" value={ledgers.lockable} tone="attention" />
-                                        <Fact label="Locked" value={ledgers.locked} />
-                                        <Fact label="Attested" value={ledgers.attested} />
+                                        <Fact label="Awaiting attestations" value={ledgers.awaiting} tone="attention" />
+                                        <Fact label="Preparing PDF" value={ledgers.preparing} />
+                                        <Fact label="Ready to verify" value={ledgers.ready} />
+                                        <Fact label="PDF failed" value={ledgers.failed} tone="attention" />
                                     </dl>
                                     <More href={ledgersIndex({ query: { month: month.value } }).url}>
                                         Go to ledgers

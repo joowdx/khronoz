@@ -65,6 +65,7 @@ export interface Employee {
     position: string | null;
     tags: string[];
     exempt: boolean;
+    cadence_id: string | null;
     current_deployment?: Deployment | null;
     deployments?: Deployment[];
 }
@@ -230,6 +231,102 @@ export interface Ledger {
     employee?: Employee | null;
     month: string;
     locked_at: string | null;
+    starts: string;
+    ends: string;
+    scope: Choice;
+    revision: number;
+    cadence_id: string | null;
+    cadence?: Cadence | null;
+    locked_by: string | null;
+    unlocked_at: string | null;
+    unlocked_by: string | null;
+    identity: LedgerIdentity;
+    policy: LedgerPolicy;
+    signers: LedgerSigner[];
+    attestations?: Attestation[];
+    renditions?: Rendition[];
+}
+
+export interface Cadence {
+    id: string;
+    name: string;
+    kind: Choice;
+    rules: { starts?: number[] };
+    anchor: string | null;
+    preferred: boolean;
+    retired_at: string | null;
+}
+
+export type AttestationRole = 'employee' | 'supervisor' | 'head' | 'timekeeper';
+
+export interface LedgerPolicy {
+    id?: string;
+    employee_id?: string | null;
+    workgroup_id?: string | null;
+    template: 'form48' | 'plain' | null;
+    roles: AttestationRole[] | null;
+    supervisor: 'operative' | 'substantive' | null;
+    head_kind: string | null;
+}
+
+export interface LedgerSigner {
+    role: AttestationRole;
+    user_ids: string[];
+    names?: string[];
+}
+
+export interface Attestation {
+    id: string;
+    role: AttestationRole;
+    sequence: number;
+    user_id: string;
+    name: string;
+    at: string;
+    withdrawn_at?: string | null;
+    can_withdraw?: boolean;
+}
+
+export interface LedgerDocument {
+    id: string;
+    name: string;
+    mime: string;
+    bytes: number;
+    algorithm: string;
+    digest: string;
+}
+
+export interface Rendition {
+    id: string;
+    revision: number;
+    template: string;
+    status: 'unstored' | 'pending' | 'ready' | 'failed';
+    token: string;
+    verification_url: string;
+    requested_at: string | null;
+    generated_at: string | null;
+    failed_at: string | null;
+    superseded_at: string | null;
+    document?: LedgerDocument | null;
+}
+
+export interface LedgerIdentity {
+    agency?: { id: string; name: string; code: string };
+    employee?: { id: string; name: string; number: string; position: string | null };
+    workgroup?: { id: string; name: string; code: string } | null;
+}
+
+export interface LedgerSnapshot extends LedgerIdentity {
+    ledger: { id: string; starts: string; ends: string; scope: string; revision: number; locked_at: string };
+    workdays: Workday[];
+    totals: Omit<LedgerView, 'workdays'> & {
+        nightExcess?: number;
+        tardyOccurrences?: number;
+        undertimeOccurrences?: number;
+    };
+    policy: LedgerPolicy;
+    signers: LedgerSigner[];
+    attestations: Attestation[];
+    rendition?: { id: string; revision: number; token: string; completed_at: string; archiving: boolean };
 }
 
 export interface LedgerView {

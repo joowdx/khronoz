@@ -1,271 +1,261 @@
-import { router, usePage } from '@inertiajs/react';
+import { Form, usePoll } from '@inertiajs/react';
+import { useEffect } from 'react';
+import { Download, ExternalLink } from 'lucide-react';
+import { FormErrors } from '@/components/form-errors';
 import { LedgerLockControl } from '@/components/ledger-lock';
+import { LedgerRecord } from '@/components/ledger-record';
 import { PageHeader } from '@/components/page-header';
-import { MinuteCells, PunchChain, WorkdayStatus } from '@/components/workday-cells';
-import { Field } from '@/components/field';
+import { LedgerStatus, RenditionStatus } from '@/components/rendition-status';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import { addDay, formatDayWithWeekday } from '@/lib/dates';
-import { formatMinutes } from '@/lib/minutes';
-import { formatMonthTitle } from '@/components/month-stepper';
-import { index, show } from '@/routes/ledgers';
-import type { Choice, Ledger, LedgerView, Workday } from '@/types';
-
-const PARTIAL = ['view'];
-
-const COLUMNS = {
-    shift: 140,
-    status: 200,
-    chain: 240,
-    worked: 80,
-    tardy: 80,
-    undertime: 100,
-    excess: 80,
-    night: 80,
-} as const;
-
-const FLEX_MIN = 200;
-
-const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
-
-function paramsFromUrl(url: string): URLSearchParams {
-    const query = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
-
-    return new URLSearchParams(query);
-}
-
-function datesInPeriod(monthStart: string, period: string): string[] {
-    const last = lastDayOfMonth(monthStart);
-    let cursor = period === 'second' ? `${monthStart.slice(0, 8)}16` : monthStart;
-    const end = period === 'first' ? `${monthStart.slice(0, 8)}15` : last;
-    const dates: string[] = [];
-
-    if (cursor > end) {
-        return dates;
-    }
-
-    while (cursor <= end) {
-        dates.push(cursor);
-        cursor = addDay(cursor);
-    }
-
-    return dates;
-}
-
-function lastDayOfMonth(monthStart: string): string {
-    const [year, month] = monthStart.split('-').map(Number);
-
-    if (year === undefined || month === undefined || Number.isNaN(year + month)) {
-        return monthStart;
-    }
-
-    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-
-    return `${year}-${String(month).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
-}
-
+import { formatDay } from '@/lib/dates';
+import { download, index } from '@/routes/ledgers';
+import { store as attest, destroy as withdraw } from '@/routes/ledgers/attestations';
+import { download as renditionDownload, retry } from '@/routes/ledgers/renditions';
+import type { Ledger, LedgerView } from '@/types';
+const COLUMNS = { state: 210, generated: 200, actions: 340 };
+const TABLE_WIDTH = Object.values(COLUMNS).reduce((sum, value) => sum + value, 180);
 export default function Show({
     ledger,
     view,
-    periods,
-    works,
+    can,
 }: {
     ledger: Ledger;
     view: LedgerView;
-    periods: Choice[];
-    works: Choice[];
+    can: { lock: boolean; unlock: boolean; attest: boolean; retry: boolean };
 }) {
-    const { url } = usePage();
-    const params = paramsFromUrl(url);
-    const requestedPeriod = params.get('period') ?? '';
-    const requestedWork = params.get('work') ?? '';
-    const period =
-        periods.find((choice) => choice.value === requestedPeriod)?.value ??
-        periods.find((choice) => choice.value === 'full')?.value ??
-        periods[0]?.value ??
-        '';
-    const work = works.find((choice) => choice.value === requestedWork)?.value ?? '';
-
-    function go(next: { period?: string; work?: string }) {
-        const nextPeriod = next.period ?? period;
-        const nextWork = next.work === undefined ? work : next.work;
-        const query: Record<string, string> = {};
-
-        if (nextPeriod !== '' && nextPeriod !== 'full') {
-            query.period = nextPeriod;
+    const attestations = ledger.attestations ?? [];
+    const active = attestations.filter((item) => !item.withdrawn_at);
+    const renditions = ledger.renditions ?? [];
+    const next = ledger.signers[active.length];
+    const preparing = renditions.some((item) => item.status === 'pending' && !item.superseded_at);
+    const { start, stop } = usePoll(5000, { only: ['ledger', 'can'] }, { autoStart: false });
+    useEffect(() => {
+        if (preparing) {
+            start();
+        } else {
+            stop();
         }
-
-        if (nextWork !== '') {
-            query.work = nextWork;
-        }
-
-        router.get(show.url(ledger), query, {
-            only: PARTIAL,
-            preserveState: true,
-            preserveScroll: true,
-        });
-    }
-
-    const byDate = new Map(view.workdays.map((workday) => [workday.date, workday]));
-    const dates = datesInPeriod(ledger.month, period);
-    const monthLabel = formatMonthTitle(ledger.month.slice(0, 7));
-
+    }, [preparing, start, stop]);
     return (
         <AppLayout>
             <PageHeader
-                breadcrumb={{
-                    title: 'Ledgers',
-                    href: index.url({ query: { month: ledger.month.slice(0, 7) } }),
-                }}
-                title={ledger.employee?.name ?? 'Ledger'}
-                description={monthLabel}
-                actions={<LedgerLockControl ledger={ledger} />}
+                title={ledger.identity.employee?.name ?? ledger.employee?.name ?? 'Ledger'}
+                breadcrumb={{ title: 'Ledgers', href: index.url({ query: { month: ledger.starts.slice(0, 7) } }) }}
+                description={
+                    formatDay(ledger.starts) +
+                    ' – ' +
+                    formatDay(ledger.ends) +
+                    ' · ' +
+                    ledger.scope.label +
+                    ' · Revision ' +
+                    ledger.revision
+                }
+                actions={
+                    <Button asChild>
+                        <a href={download.url(ledger)}>
+                            <Download aria-hidden />
+                            Download PDF
+                        </a>
+                    </Button>
+                }
             />
-
-            <div className="mb-6 flex flex-wrap items-end gap-3">
-                <Field label="Period" htmlFor="period">
-                    {({ id }) => (
-                        <ToggleGroup
-                            id={id}
-                            type="single"
-                            value={period}
-                            onValueChange={(value) => {
-                                if (value !== '') {
-                                    go({ period: value });
-                                }
-                            }}
-                            variant="outline"
-                            aria-label="Period"
-                        >
-                            {periods.map((choice) => (
-                                <ToggleGroupItem key={choice.value} value={choice.value}>
-                                    {choice.label}
-                                </ToggleGroupItem>
-                            ))}
-                        </ToggleGroup>
-                    )}
-                </Field>
-                <Field label="Work" htmlFor="work">
-                    {({ id }) => (
-                        <ToggleGroup
-                            id={id}
-                            type="single"
-                            value={work === '' ? 'all' : work}
-                            onValueChange={(value) => {
-                                if (value !== '') {
-                                    go({ work: value === 'all' ? '' : value });
-                                }
-                            }}
-                            variant="outline"
-                            aria-label="Work"
-                        >
-                            {works.map((choice) => (
-                                <ToggleGroupItem key={choice.value} value={choice.value}>
-                                    {choice.label}
-                                </ToggleGroupItem>
-                            ))}
-                            <ToggleGroupItem value="all">All</ToggleGroupItem>
-                        </ToggleGroup>
-                    )}
-                </Field>
+            <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+                <LedgerStatus ledger={ledger} />
+                <LedgerLockControl ledger={ledger} allowed={can.unlock && active.length === 0} />
             </div>
-
-            <dl className="grid auto-cols-fr grid-flow-col pb-8">
-                <Figure value={view.worked} label="Worked" />
-                <Figure value={view.tardy} label="Tardy" />
-                <Figure value={view.undertime} label="Undertime" />
-                <Figure value={view.overtime} label="Overtime" />
-                <Figure value={view.night} label="Night" />
-            </dl>
-
-            <Card className="min-w-min overflow-visible">
-                <Table style={{ minWidth: TABLE_MIN_WIDTH }}>
-                    <TableCaption className="sr-only mt-0">
-                        Daily time record for {ledger.employee?.name ?? 'this employee'}, {monthLabel}. Every date in
-                        the period is a row, including days with no workday.
-                    </TableCaption>
-                    <TableHeader sticky>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead style={{ width: COLUMNS.shift }}>Shift</TableHead>
-                            <TableHead style={{ width: COLUMNS.status }}>Status</TableHead>
-                            <TableHead style={{ width: COLUMNS.chain }}>Chain</TableHead>
-                            <TableHead style={{ width: COLUMNS.worked }} numeric>
-                                Worked
-                            </TableHead>
-                            <TableHead style={{ width: COLUMNS.tardy }} numeric>
-                                Tardy
-                            </TableHead>
-                            <TableHead style={{ width: COLUMNS.undertime }} numeric>
-                                Undertime
-                            </TableHead>
-                            <TableHead style={{ width: COLUMNS.excess }} numeric>
-                                Excess
-                            </TableHead>
-                            <TableHead style={{ width: COLUMNS.night }} numeric>
-                                Night
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {dates.map((date) => (
-                            <DayRow key={date} date={date} workday={byDate.get(date) ?? null} />
-                        ))}
-                    </TableBody>
-                </Table>
-            </Card>
-
-            <dl className="mt-8 max-w-lg">
-                <Fact label="Tardy occurrences" value={view.tardy_occurrences} />
-                <Fact label="Undertime occurrences" value={view.undertime_occurrences} />
-                <Fact label="Absences" value={view.absences} />
-            </dl>
-        </AppLayout>
-    );
-}
-
-function DayRow({ date, workday }: { date: string; workday: Workday | null }) {
-    return (
-        <TableRow>
-            <TableCell className="tabular-nums">{formatDayWithWeekday(date)}</TableCell>
-            <TableCell>{workday?.shift_name ?? <span className="text-muted-foreground">—</span>}</TableCell>
-            <TableCell>
-                {workday ? (
-                    <WorkdayStatus status={workday.status} premium={workday.premium} />
-                ) : (
-                    <span className="text-muted-foreground">—</span>
+            {ledger.unlocked_at && (
+                <Alert className="mb-8">
+                    This revision was unlocked on {ledger.unlocked_at}. Its figures remain frozen for the historical
+                    record.
+                </Alert>
+            )}
+            <LedgerRecord starts={ledger.starts} ends={ledger.ends} view={view} />
+            <section className="mt-8 grid gap-5 border-t pt-8">
+                <h2 className="text-lg font-semibold">Certification policy</h2>
+                <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <dt className="text-muted-foreground">Cadence</dt>
+                        <dd className="pt-1 font-medium">{ledger.cadence?.name ?? 'Calendar month'}</dd>
+                    </div>
+                    <div>
+                        <dt className="text-muted-foreground">Template</dt>
+                        <dd className="pt-1 font-medium">
+                            {ledger.policy.template === 'plain' ? 'Plain time record' : 'CSC Form 48'}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt className="text-muted-foreground">Supervisor</dt>
+                        <dd className="pt-1 font-medium">
+                            {ledger.policy.supervisor === 'substantive'
+                                ? 'Substantive workgroup'
+                                : 'Operative workgroup'}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt className="text-muted-foreground">Head kind</dt>
+                        <dd className="pt-1 font-medium">{ledger.policy.head_kind ?? 'Not required'}</dd>
+                    </div>
+                </dl>
+            </section>
+            <section className="mt-8 grid gap-5 border-t pt-8">
+                <h2 className="text-lg font-semibold">Attestations</h2>
+                <p className="text-muted-foreground max-w-2xl text-sm">
+                    Each act certifies this revision. To correct attendance, withdraw attestations from the latest back
+                    to the first, then unlock.
+                </p>
+                <ol className="grid max-w-3xl gap-3">
+                    {ledger.signers.map((signer, position) => {
+                        const act = active.find((item) => item.sequence === position + 1);
+                        return (
+                            <li key={signer.role} className="flex flex-wrap items-center gap-4 border-b py-3">
+                                <span className="text-muted-foreground w-6 text-sm">{position + 1}</span>
+                                <div className="mr-auto">
+                                    <p className="text-sm font-semibold capitalize">{signer.role}</p>
+                                    <p className="text-muted-foreground mt-1 text-sm">
+                                        {act
+                                            ? act.name + ' · ' + act.at
+                                            : position === active.length
+                                              ? 'Next required role'
+                                              : 'Waiting for the preceding role'}
+                                    </p>
+                                </div>
+                                {act?.can_withdraw && (
+                                    <Form {...withdraw.form([ledger, act])} options={{ preserveScroll: true }}>
+                                        {({ errors, processing }) => (
+                                            <div className="grid gap-2">
+                                                <FormErrors errors={errors} />
+                                                <Button
+                                                    type="submit"
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    disabled={processing}
+                                                >
+                                                    Withdraw latest
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </Form>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ol>
+                {can.attest && next && !ledger.unlocked_at && (
+                    <Form
+                        {...attest.form(ledger)}
+                        className="grid max-w-lg gap-3"
+                        options={{ preserveScroll: true }}
+                        disableWhileProcessing
+                    >
+                        {({ errors, processing }) => (
+                            <>
+                                <input type="hidden" name="role" value={next.role} />
+                                <FormErrors errors={errors} />
+                                <Button type="submit" variant="outline" className="w-fit" disabled={processing}>
+                                    Attest as {next.role}
+                                </Button>
+                            </>
+                        )}
+                    </Form>
                 )}
-            </TableCell>
-            <TableCell>
-                <PunchChain punches={workday?.punches} date={workday?.date} />
-            </TableCell>
-            <MinuteCells workday={workday} />
-        </TableRow>
-    );
-}
-
-function Figure({ value, label }: { value: number; label: string }) {
-    return (
-        <div className="border-border flex flex-col-reverse border-l pt-3.5 pb-0.5 pl-5 first:border-l-0 first:pl-0">
-            <dt className="text-muted-foreground pt-[3px] text-[13px] leading-[18px]">{label}</dt>
-            <dd className="text-2xl leading-[30px] font-bold tracking-[-0.011em] tabular-nums">
-                {formatMinutes(value)}
-            </dd>
-        </div>
-    );
-}
-
-function Fact({ label, value }: { label: string; value: number }) {
-    return (
-        <div className="[&+&]:border-rule flex min-h-[38px] items-baseline gap-2 pt-[9px] [&+&]:border-t">
-            <dt className="shrink-0 text-sm leading-5">{label}</dt>
-            <span
-                aria-hidden
-                className="mx-0.5 h-px min-w-4 flex-1 self-center bg-[radial-gradient(circle_at_1px_1px,var(--dot)_1px,transparent_1.2px)] bg-[length:5px_2px] bg-repeat-x"
-            />
-            <dd className="text-right text-sm leading-5 font-semibold tabular-nums">{value}</dd>
-        </div>
+                {attestations.some((item) => item.withdrawn_at) && (
+                    <div className="text-muted-foreground grid gap-2 text-sm">
+                        {attestations
+                            .filter((item) => item.withdrawn_at)
+                            .map((item) => (
+                                <p key={item.id}>
+                                    {item.name} · {item.role} · withdrawn {item.withdrawn_at}
+                                </p>
+                            ))}
+                    </div>
+                )}
+            </section>
+            <section className="mt-8 grid gap-5 border-t pt-8">
+                <h2 className="text-lg font-semibold">PDF and verification history</h2>
+                {renditions.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                        Verification becomes available when the required attestations are complete. You can download
+                        this locked record now.
+                    </p>
+                ) : (
+                    <Card className="min-w-min overflow-visible">
+                        <Table style={{ minWidth: TABLE_WIDTH }}>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Rendition</TableHead>
+                                    <TableHead style={{ width: COLUMNS.state }}>Status</TableHead>
+                                    <TableHead style={{ width: COLUMNS.generated }}>Generated</TableHead>
+                                    <TableHead style={{ width: COLUMNS.actions }}>Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {renditions.map((rendition) => (
+                                    <TableRow key={rendition.id}>
+                                        <TableCell>
+                                            <p className="font-medium">Rendition {rendition.revision}</p>
+                                            {rendition.document && (
+                                                <p
+                                                    className="text-muted-foreground mt-1 max-w-56 text-xs break-all"
+                                                    title={rendition.document.digest}
+                                                >
+                                                    SHA-256 {rendition.document.digest}
+                                                </p>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <RenditionStatus rendition={rendition} />
+                                        </TableCell>
+                                        <TableCell>{rendition.generated_at ?? '—'}</TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button asChild variant="outline" size="sm">
+                                                    <a href={renditionDownload.url([ledger, rendition])}>
+                                                        <Download aria-hidden />
+                                                        {rendition.status === 'ready' ? 'Exact PDF' : 'Download PDF'}
+                                                    </a>
+                                                </Button>
+                                                <Button asChild variant="ghost" size="sm">
+                                                    <a
+                                                        href={rendition.verification_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                    >
+                                                        <ExternalLink aria-hidden />
+                                                        Verify
+                                                    </a>
+                                                </Button>
+                                                {can.retry &&
+                                                    rendition.status === 'failed' &&
+                                                    !rendition.superseded_at && (
+                                                        <Form {...retry.form([ledger, rendition])}>
+                                                            {({ errors, processing }) => (
+                                                                <div className="grid gap-2">
+                                                                    <FormErrors errors={errors} />
+                                                                    <Button
+                                                                        type="submit"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        disabled={processing}
+                                                                    >
+                                                                        Retry PDF
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </Form>
+                                                    )}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </Card>
+                )}
+            </section>
+        </AppLayout>
     );
 }

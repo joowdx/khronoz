@@ -13,6 +13,7 @@ import {
     LayoutGrid,
     Network,
     Repeat,
+    Settings2,
     ScanLine,
     SquareStack,
     Table2,
@@ -44,6 +45,8 @@ import { index as workdaysIndex } from '@/routes/workdays';
 import { index as ledgersIndex } from '@/routes/ledgers';
 import { index as workgroupsIndex } from '@/routes/workgroups';
 import { index as usersIndex } from '@/routes/users';
+import { index as cadencesIndex } from '@/routes/cadences';
+import { edit as settingsEdit } from '@/routes/agency/settings';
 import type { SharedProps } from '@/types';
 
 export function AppSidebar() {
@@ -119,6 +122,17 @@ export function AppSidebar() {
                       items: [
                           { title: 'Workdays', href: workdaysIndex().url, icon: ClipboardList },
                           { title: 'Ledgers', href: ledgersIndex().url, icon: BookOpen },
+                      ],
+                  },
+              ]
+            : []),
+        ...(insideAgency && can('agency.manage')
+            ? [
+                  {
+                      label: 'Agency',
+                      items: [
+                          { title: 'Cadences', href: cadencesIndex().url, icon: Repeat },
+                          { title: 'Settings', href: settingsEdit().url, icon: Settings2 },
                       ],
                   },
               ]

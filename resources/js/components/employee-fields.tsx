@@ -1,10 +1,11 @@
 import { type ReactNode, useState } from 'react';
 import { Field } from '@/components/field';
+import { ChoiceField } from '@/components/choice-field';
 import { TagInput } from '@/components/tag-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Choice, Employee } from '@/types';
+import type { Cadence, Choice, Employee } from '@/types';
 
 const UNRECORDED = 'unrecorded';
 
@@ -24,15 +25,18 @@ function Subject({ title, children }: { title: string; children: ReactNode }) {
 export function EmployeeFields({
     employee,
     sexes,
+    cadences,
     errors,
 }: {
     employee?: Employee;
     sexes: Choice[];
+    cadences: Cadence[];
     errors: Partial<Record<string, string>>;
 }) {
     const [sex, setSex] = useState<string>(employee?.sex?.value ?? '');
     const [tags, setTags] = useState<string[]>(employee?.tags ?? []);
     const [exempt, setExempt] = useState<boolean>(employee?.exempt ?? false);
+    const [cadence, setCadence] = useState(employee?.cadence_id ?? '');
 
     return (
         <>
@@ -198,6 +202,21 @@ export function EmployeeFields({
             </Subject>
 
             <Subject title="Employment">
+                <div className="mt-4">
+                    <ChoiceField
+                        label="Ledger cadence"
+                        name="cadence_id"
+                        value={cadence}
+                        onChange={setCadence}
+                        choices={cadences.map((item) => ({
+                            value: item.id,
+                            label: item.name + (item.retired_at ? ' (retired)' : ''),
+                        }))}
+                        emptyLabel="Agency default"
+                        error={errors.cadence_id}
+                        hint="Use the agency default unless this employee follows a different period."
+                    />
+                </div>
                 <Field className="mt-4" label="Position" htmlFor="position" error={errors.position}>
                     {({ id, invalid, describedBy }) => (
                         <Input

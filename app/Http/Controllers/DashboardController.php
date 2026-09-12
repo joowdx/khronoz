@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PunchKind;
+use App\Enums\RenditionStatus;
 use App\Enums\WorkdayStatus;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Agency;
@@ -214,29 +215,29 @@ class DashboardController extends Controller
         ];
     }
 
-    /**
-     * `lockable` exactly matches the database lock condition; the four states partition the total.
-     *
-     * @return array{total: int, open: int, lockable: int, locked: int, attested: int}
-     */
+    /** @return array{total: int, awaiting: int, preparing: int, ready: int, failed: int} */
     private function ledgers(CarbonImmutable $month): array
     {
-        $of = fn (): Builder => Ledger::query()->where('month', $month->toDateString());
+        $of = fn (): Builder => Ledger::query()
+            ->whereNull('unlocked_at')
+            ->where('starts', '<=', $month->endOfMonth()->toDateString())
+            ->where('ends', '>=', $month->toDateString());
+        $withRendition = fn (array $statuses): int => $of()->whereHas(
+            'renditions',
+            fn (Builder $query) => $query->whereNull('superseded_at')->whereIn('status', $statuses),
+        )->count();
 
         $total = $of()->count();
-        $attested = $of()->has('attestations')->count();
-        $locked = $of()->whereNotNull('locked_at')->doesntHave('attestations')->count();
-        $lockable = $of()
-            ->whereNull('locked_at')
-            ->whereDoesntHave('workdays.punches', fn (Builder $query) => $query->where('expected_at', '>', now()))
-            ->count();
+        $preparing = $withRendition([RenditionStatus::Pending]);
+        $ready = $withRendition([RenditionStatus::Unstored, RenditionStatus::Ready]);
+        $failed = $withRendition([RenditionStatus::Failed]);
 
         return [
             'total' => $total,
-            'open' => $total - $attested - $locked - $lockable,
-            'lockable' => $lockable,
-            'locked' => $locked,
-            'attested' => $attested,
+            'awaiting' => $total - $preparing - $ready - $failed,
+            'preparing' => $preparing,
+            'ready' => $ready,
+            'failed' => $failed,
         ];
     }
 

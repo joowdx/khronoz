@@ -1,5 +1,6 @@
 import { Form } from '@inertiajs/react';
 import { useState } from 'react';
+import { FormErrors } from '@/components/form-errors';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -9,78 +10,38 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { useCan } from '@/hooks/use-can';
-import { lock, unlock } from '@/routes/ledgers';
+import { unlock } from '@/routes/ledgers';
 import type { Ledger } from '@/types';
-
-export function LedgerLockControl({ ledger }: { ledger: Ledger }) {
-    const can = useCan();
-
-    if (!can('ledgers.manage')) {
-        return null;
-    }
-
-    if (ledger.locked_at !== null) {
-        return <UnlockButton ledger={ledger} />;
-    }
-
-    return (
-        <Form {...lock.form(ledger)} options={{ preserveScroll: true }} className="inline">
-            {({ processing }) => (
-                <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    disabled={processing}
-                    onClick={(event) => event.stopPropagation()}
-                >
-                    Lock
-                </Button>
-            )}
-        </Form>
-    );
-}
-
-function UnlockButton({ ledger }: { ledger: Ledger }) {
+export function LedgerLockControl({ ledger, allowed }: { ledger: Ledger; allowed: boolean }) {
     const [open, setOpen] = useState(false);
-
+    if (!allowed || ledger.unlocked_at) return null;
     return (
         <>
-            <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={(event) => {
-                    event.stopPropagation();
-                    setOpen(true);
-                }}
-            >
-                Unlock
+            <Button type="button" variant="destructive" onClick={() => setOpen(true)}>
+                Unlock ledger
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="sm:max-w-[420px]" showCloseButton={false}>
+                <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Unlock this ledger?</DialogTitle>
                         <DialogDescription>
-                            Unlocking reopens frozen numbers, so a later recompute can move what this month already
-                            locked.
+                            Workdays can be recomputed after unlocking. This revision remains available, and locking
+                            again creates a new revision.
                         </DialogDescription>
                     </DialogHeader>
-                    <Form
-                        {...unlock.form(ledger)}
-                        options={{ preserveScroll: true }}
-                        onSuccess={() => setOpen(false)}
-                        disableWhileProcessing
-                    >
-                        {({ processing }) => (
-                            <DialogFooter className="pt-2">
-                                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button type="submit" variant="destructive" disabled={processing}>
-                                    Unlock ledger
-                                </Button>
-                            </DialogFooter>
+                    <Form {...unlock.form(ledger)} onSuccess={() => setOpen(false)} disableWhileProcessing>
+                        {({ errors, processing }) => (
+                            <div className="grid gap-4">
+                                <FormErrors errors={errors} />
+                                <DialogFooter>
+                                    <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" variant="destructive" disabled={processing}>
+                                        Unlock ledger
+                                    </Button>
+                                </DialogFooter>
+                            </div>
                         )}
                     </Form>
                 </DialogContent>

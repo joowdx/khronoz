@@ -4,6 +4,7 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\Permission;
 use App\Enums\PunchKind;
+use App\Enums\RenditionStatus;
 use App\Models\Agency;
 use App\Models\Deployment;
 use App\Models\Employee;
@@ -11,6 +12,7 @@ use App\Models\Exemption;
 use App\Models\Ledger;
 use App\Models\Overtime;
 use App\Models\Punch;
+use App\Models\Rendition;
 use App\Models\Roster;
 use App\Models\Schedule;
 use App\Models\Shift;
@@ -161,12 +163,11 @@ class DashboardControllerTest extends TestCase
             'starts' => '2026-09-01',
         ]);
 
-        // One ledger for the month, shared by both days: ledgers are unique
-        // per (employee, month), so a second factory call would be refused.
-        $ledger = Ledger::factory()->create([
+        Ledger::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'month' => '2026-09-01',
+            'starts' => '2026-09-01',
+            'ends' => '2026-09-07',
         ]);
 
         // Yesterday, standing in for the night shift: tardy, and an out side
@@ -174,7 +175,6 @@ class DashboardControllerTest extends TestCase
         $yesterday = Workday::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'ledger_id' => $ledger->id,
             'date' => '2026-09-08',
             'tardy' => 12,
         ]);
@@ -192,7 +192,6 @@ class DashboardControllerTest extends TestCase
         $todaysWorkday = Workday::factory()->create([
             'agency_id' => $agency->id,
             'employee_id' => $employee->id,
-            'ledger_id' => $ledger->id,
             'date' => '2026-09-09',
         ]);
 
@@ -268,6 +267,51 @@ class DashboardControllerTest extends TestCase
             ->where('duty.lanes.0.bars.0.label', '08:00 – 12:00')
             ->where('counts.without_roster', 0)
             ->where('counts.unresolved_timelogs', 0));
+    }
+
+    public function test_ledger_counts_report_active_rendition_states_without_waiting_for_lock(): void
+    {
+        $agency = Agency::factory()->create();
+        $actor = $this->actingAsAgency($agency, Permission::ViewLedgers);
+        $ledger = fn (): Ledger => Ledger::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => Employee::factory()->create(['agency_id' => $agency->id])->id,
+            'starts' => '2026-09-01',
+            'ends' => '2026-09-12',
+        ]);
+
+        $ledger();
+        Rendition::factory()->create(['agency_id' => $agency->id, 'ledger_id' => $ledger()->id]);
+        Rendition::factory()->create([
+            'agency_id' => $agency->id,
+            'ledger_id' => $ledger()->id,
+            'status' => RenditionStatus::Pending,
+            'requested_at' => now(),
+        ]);
+        Rendition::factory()->create([
+            'agency_id' => $agency->id,
+            'ledger_id' => $ledger()->id,
+            'status' => RenditionStatus::Failed,
+            'requested_at' => now(),
+            'failed_at' => now(),
+            'error' => 'Generation failed.',
+        ]);
+        Ledger::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => Employee::factory()->create(['agency_id' => $agency->id])->id,
+            'starts' => '2026-09-01',
+            'ends' => '2026-09-12',
+            'unlocked_at' => now(),
+            'unlocked_by' => $actor->id,
+        ]);
+
+        $this->get(route('dashboard', ['month' => '2026-09']))->assertInertia(fn (Assert $page) => $page
+            ->where('ledgers.total', 4)
+            ->where('ledgers.awaiting', 1)
+            ->where('ledgers.preparing', 1)
+            ->where('ledgers.ready', 1)
+            ->where('ledgers.failed', 1)
+            ->missing('ledgers.lockable'));
     }
 
     public function test_the_dashboard_omits_every_month_scoped_section_for_the_platform_tenant(): void
