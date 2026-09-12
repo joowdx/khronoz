@@ -28,7 +28,7 @@ class LedgerFactory extends Factory
             'unlocked_by' => null,
             'calculation' => [
                 'workdays' => [],
-                'totals' => ['worked' => 0, 'credited' => 0, 'tardy' => 0, 'undertime' => 0, 'excess' => 0, 'night' => 0, 'nightExcess' => 0, 'overtime' => 0, 'tardyOccurrences' => 0, 'undertimeOccurrences' => 0, 'absences' => 0],
+                'totals' => ['worked' => 0, 'credited' => 0, 'tardy' => 0, 'undertime' => 0, 'excess' => 0, 'night' => 0, 'nightExcess' => 0, 'overtime' => 0, 'overtimeByDate' => [], 'tardyOccurrences' => 0, 'undertimeOccurrences' => 0, 'absences' => 0],
                 'settings' => ['night_from' => '18:00', 'overtime_after_weekly_minutes' => null, 'occurrences' => true, 'suspension_charge' => true, 'premium_hours' => false, 'overtime_gates' => true, 'missing_side' => 'void'],
             ],
             'identity' => function (array $attributes): array {

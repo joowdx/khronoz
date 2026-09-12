@@ -141,12 +141,21 @@ class Ledger extends Model
                 ->get()
             : collect();
 
-        $overtime = 0;
+        $overtimeByDate = [];
 
         if ($includeOvertime) {
-            $overtime = $this->compensableDaily($workdays, $authorities, $settings->overtimeGates())
-                + $this->weeklyOnly($loaded, $from, $to, $ceiling);
+            $overtimeByDate = $this->compensableByDate($workdays, $authorities, $settings->overtimeGates());
+
+            foreach ($this->weeklyOnlyByDate($loaded, $from, $to, $ceiling) as $date => $minutes) {
+                $overtimeByDate[$date] = ($overtimeByDate[$date] ?? 0) + $minutes;
+            }
         }
+
+        $workdays->each(function (Workday $workday) use ($overtimeByDate): void {
+            $workday->setAttribute('overtime', $overtimeByDate[$workday->date->toDateString()] ?? 0);
+        });
+
+        $overtime = array_sum($overtimeByDate);
 
         if ($settings->occurrences()) {
             $tardyOccurrences = $workdays->filter(fn (Workday $workday): bool => $workday->tardy > 0)->count();
@@ -171,6 +180,7 @@ class Ledger extends Model
             night: (int) $workdays->sum('night'),
             nightExcess: (int) $workdays->sum('night_excess'),
             overtime: $overtime,
+            overtimeByDate: $overtimeByDate,
             tardyOccurrences: $tardyOccurrences,
             undertimeOccurrences: $undertimeOccurrences,
             absences: $absences,
@@ -194,11 +204,15 @@ class Ledger extends Model
     /**
      * @param  Collection<int, Workday>  $workdays
      * @param  Collection<int, Overtime>  $authorities
+     * @return array<string, int>
      */
-    private function compensableDaily(Collection $workdays, Collection $authorities, bool $gated): int
+    private function compensableByDate(Collection $workdays, Collection $authorities, bool $gated): array
     {
         if (! $gated) {
-            return (int) $workdays->sum('excess');
+            return $workdays
+                ->filter(fn (Workday $workday): bool => $workday->excess > 0)
+                ->mapWithKeys(fn (Workday $workday): array => [$workday->date->toDateString() => (int) $workday->excess])
+                ->all();
         }
 
         $windows = $authorities
@@ -209,7 +223,7 @@ class Ledger extends Model
             ->values()
             ->all();
 
-        $overtime = 0;
+        $overtime = [];
 
         foreach ($workdays as $workday) {
 
@@ -228,9 +242,13 @@ class Ledger extends Model
                 $windows,
             );
 
-            $overtime += $workday->premium !== null
+            $minutes = $workday->premium !== null
                 ? min($authorised, 720)
                 : $authorised;
+
+            if ($minutes > 0) {
+                $overtime[$workday->date->toDateString()] = $minutes;
+            }
         }
 
         return $overtime;
@@ -238,14 +256,15 @@ class Ledger extends Model
 
     /**
      * @param  Collection<int, Workday>  $loaded
+     * @return array<string, int>
      */
-    private function weeklyOnly(Collection $loaded, CarbonImmutable $from, CarbonImmutable $to, ?int $ceiling): int
+    private function weeklyOnlyByDate(Collection $loaded, CarbonImmutable $from, CarbonImmutable $to, ?int $ceiling): array
     {
         if ($ceiling === null) {
-            return 0;
+            return [];
         }
 
-        $overtime = 0;
+        $overtime = [];
         $monday = Week::bounds($from)[0];
         $lastMonday = Week::bounds($to)[0];
 
@@ -264,7 +283,7 @@ class Ledger extends Model
                 return $date >= $start && $date <= $end;
             });
 
-            $overtime += Week::of(
+            $minutes = Week::of(
                 $days->map(fn (Workday $workday): array => [
                     'worked' => $workday->worked,
                     'credited' => $workday->credited,
@@ -272,6 +291,10 @@ class Ledger extends Model
                 ])->values()->all(),
                 $ceiling,
             )->weeklyOnly();
+
+            if ($minutes > 0) {
+                $overtime[$weekEnd->toDateString()] = $minutes;
+            }
         }
 
         return $overtime;

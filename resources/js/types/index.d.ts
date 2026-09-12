@@ -213,8 +213,10 @@ export interface Workday {
     excess: number;
     night: number;
     night_excess: number;
+    overtime?: number;
     punches?: Punch[];
     exemption?: { id: string; type: Choice; reference: string | null } | null;
+    holidays: { id: string; name: string; type: Choice }[];
     shift_name: string | null;
     computed_at: string;
 }
@@ -322,6 +324,7 @@ export interface LedgerSnapshot extends LedgerIdentity {
     workdays: Workday[];
     totals: Omit<LedgerView, 'workdays'> & {
         nightExcess?: number;
+        overtimeByDate?: Record<string, number>;
         tardyOccurrences?: number;
         undertimeOccurrences?: number;
     };

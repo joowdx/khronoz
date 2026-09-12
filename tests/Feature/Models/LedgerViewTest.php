@@ -327,6 +327,8 @@ class LedgerViewTest extends TestCase
 
         $this->assertSame(480, $view->worked);
         $this->assertSame(180, $view->overtime);
+        $this->assertSame(['2026-09-01' => 180], $view->overtimeByDate);
+        $this->assertSame(180, $view->workdays->first()->overtime);
     }
 
     public function test_regular_work_reports_overtime_as_zero(): void
@@ -341,6 +343,8 @@ class LedgerViewTest extends TestCase
         $this->assertSame(480, $view->worked);
         $this->assertSame(180, $view->excess);
         $this->assertSame(0, $view->overtime);
+        $this->assertSame([], $view->overtimeByDate);
+        $this->assertSame(0, $view->workdays->first()->overtime);
     }
 
     public function test_overtime_work_includes_compensable_overtime(): void
@@ -603,7 +607,10 @@ class LedgerViewTest extends TestCase
         $this->workday($ledger, '2026-09-03', ['worked' => 720]);
         $this->workday($ledger, '2026-09-04', ['worked' => 480]);
 
-        $this->assertSame(480, $ledger->view(Period::Full)->overtime);
+        $view = $ledger->view(Period::Full);
+
+        $this->assertSame(480, $view->overtime);
+        $this->assertSame(['2026-09-06' => 480], $view->overtimeByDate);
         $this->assertSame(0, $august->view(Period::Full)->overtime);
         $this->assertSame(0, $ledger->view(Period::Full, Work::Regular)->overtime);
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\HolidayType;
 use App\Models\Employee;
 use App\Models\Exemption;
 use App\Models\Workday;
@@ -40,6 +41,7 @@ class WorkdayResource extends JsonResource
             'excess' => $this->excess,
             'night' => $this->night,
             'night_excess' => $this->night_excess,
+            'overtime' => $this->whenHas('overtime'),
             'punches' => $this->whenLoaded(
                 'punches',
                 fn (Collection $punches) => PunchResource::collection($punches)->resolve(),
@@ -52,6 +54,18 @@ class WorkdayResource extends JsonResource
                     'reference' => $exemption->reference,
                 ],
             ),
+            'holidays' => collect($this->shift['holidays'] ?? [])
+                ->map(function (array $holiday): array {
+                    $type = HolidayType::from($holiday['type']);
+
+                    return [
+                        'id' => $holiday['id'],
+                        'name' => $holiday['name'],
+                        'type' => ['value' => $type->value, 'label' => $type->label()],
+                    ];
+                })
+                ->values()
+                ->all(),
             'shift_name' => $this->shift['shift']['name'] ?? null,
             'computed_at' => $this->computed_at->toDateTimeString(),
         ];

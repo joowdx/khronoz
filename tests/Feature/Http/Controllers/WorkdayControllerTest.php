@@ -67,6 +67,31 @@ class WorkdayControllerTest extends TestCase
         );
     }
 
+    public function test_the_index_exposes_frozen_holiday_names_and_types(): void
+    {
+        $agency = Agency::factory()->create();
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+
+        $workday = Workday::factory()->create([
+            'agency_id' => $agency->id,
+            'date' => '2026-09-15',
+        ]);
+        $snapshot = $workday->shift;
+        $snapshot['holidays'] = [[
+            'id' => '01K5HOLIDAY0000000000000000',
+            'name' => 'City Foundation Day',
+            'type' => 'local',
+        ]];
+        $workday->update(['shift' => $snapshot]);
+
+        $this->get(route('workdays.index', ['month' => '2026-09']))->assertInertia(
+            fn (Assert $page) => $page
+                ->where('workdays.0.holidays.0.name', 'City Foundation Day')
+                ->where('workdays.0.holidays.0.type.value', 'local')
+                ->where('workdays.0.holidays.0.type.label', 'Local holiday')
+        );
+    }
+
     public function test_the_index_is_scoped_to_the_requested_month(): void
     {
         $agency = Agency::factory()->create();

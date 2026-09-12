@@ -9,6 +9,7 @@ final readonly class LedgerView
 {
     /**
      * @param  Collection<int, Workday>  $workdays
+     * @param  array<string, int>  $overtimeByDate
      */
     public function __construct(
         public Collection $workdays,
@@ -20,6 +21,7 @@ final readonly class LedgerView
         public int $night,
         public int $nightExcess,
         public int $overtime,
+        public array $overtimeByDate,
         public int $tardyOccurrences,
         public int $undertimeOccurrences,
         public int $absences,
