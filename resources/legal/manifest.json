@@ -1,12 +1,17 @@
 {
     "privacy-policy": {
         "title": "Privacy Policy",
-        "current": "draft-2026-09-12",
+        "current": "draft-2026-09-12-accounts",
         "versions": {
             "draft-2026-09-12": {
                 "status": "draft",
                 "effective_at": null,
                 "sha256": "ac6a59d51847d7a6c5969810f9570cf03a39f4bf09467636d4d79cd0930c5f4a"
+            },
+            "draft-2026-09-12-accounts": {
+                "status": "draft",
+                "effective_at": null,
+                "sha256": "3e648118ca017a40312a9799809b764d961bfc74591b4b56946de140320827fe"
             }
         }
     },

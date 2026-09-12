@@ -48,3 +48,36 @@ npm run format && npm run types && npm run build
 ## Documentation
 
 Design docs live under `docs/design/` (start with `00-principles.md`), reference material the design answers to under `docs/reference/`, and durable coding conventions under `.ai/rules/` (start with `index.md`).
+
+## Account security and social sign-in
+
+Account settings live at `/settings/profile`, `/settings/security`, and `/settings/connections`. They manage the signed-in account even when a platform user has entered another agency. Account email changes use a one-hour signed link; the old email remains active until confirmation. Credential changes require reauthentication within five minutes. Keep the queue worker and SMTP delivery running for verification and change notifications; use Mailpit locally, never a logging mailer for authentication links.
+
+Fortify and the official Laravel passkey packages provide security primitives through application-owned routes. Package routes are disabled; registration remains invitation-only. Activating an invitation and acknowledging current legal documents precede business access. An existing password remains the recovery option. Password resets preserve authenticator 2FA.
+
+### Provider configuration
+
+Each provider is independently enabled only when all three configuration values are nonblank. Configure these existing variables and rebuild the configuration cache after a deployment change:
+
+| Provider | Required variables | Callback route |
+| --- | --- | --- |
+| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | `GET /auth/google/callback` |
+| Apple | `APPLE_CLIENT_ID`, `APPLE_CLIENT_SECRET`, `APPLE_REDIRECT_URI` | `POST /auth/apple/callback` |
+
+Use the exact registered callback URI and production HTTPS domain. Apple uses the generated client-secret JWT; arrange renewal before it expires. Its Services ID/application setup and Google consent-screen/application setup remain operator tasks. See [Google's server-flow setup](https://developers.google.com/identity/protocols/oauth2/web-server) and [Apple's web authentication setup](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web/).
+
+Users must first sign in with their activated account and explicitly connect a provider in Account settings. There is no public registration or automatic email matching. Changing or removing provider configuration hides sign-in/connect controls; existing connections can still be disconnected locally. Unlinking does not revoke permissions at Google or Apple.
+
+Apple's POST callback deliberately has no web/session middleware. It caches an encrypted payload for two minutes and redirects to a same-origin completion GET, where the original session's single-use state, linking owner, and token nonce are checked. Keep global CSRF and SameSite cookie defaults intact. Use a shared cache supporting atomic locks and a server-side session driver (database/Redis); do not use the cookie session driver. Provider state and pending 2FA expire in five minutes. No provider access/refresh tokens or raw profiles are persisted.
+
+### Passkey deployment
+
+Set `APP_URL` to the canonical HTTPS origin. `config/fortify.php` derives the exact allowed origin and relying-party hostname from it; scheme and port are part of the origin. Localhost can be used for local development. Do not casually change the relying-party domain after enrollment. Set a stable, secret `PASSKEYS_USER_HANDLE_SECRET` before initial enrollment, and preserve it across app-key rotations; it falls back to `APP_KEY` if absent. Passkey user verification and resident credentials are required; ceremonies expire after one minute and are single-use. The server stores public verification material, never private keys or biometrics.
+
+Keep `APP_KEY` and previous decryption keys available according to the deployment's key-rotation policy: authenticator secrets, recovery codes, encrypted notification jobs and Apple relays need decryption. Limit access to session/cache stores, backups and queued mail. Telescope excludes authentication paths, credential queries and account-verification notifications, and masks authentication session state. Configure reverse proxies/APM/access logs to redact callback query parameters and signed verification URLs; avoid request/response body capture for authentication endpoints.
+
+Automated coverage uses simulated provider HTTP responses, signed Apple test JWTs and software WebAuthn authenticators. It does not substitute for a live Google/Apple credential test or a physical-device/browser interoperability check before release.
+
+### Legal publication
+
+Current documents and hashes live in `resources/legal/manifest.json`. The account-security privacy revision is a new draft; the previous version and its acknowledgments remain intact. Run `php artisan legal:check` to verify every version, and `php artisan legal:check --published` before launch. Operator/contact/location/effective-date placeholders, retention/disposal procedures and the agency processing agreement remain launch dependencies; drafts do not unlock production business access. The detailed cross-check is in `docs/reference/privacy-rules.md`.

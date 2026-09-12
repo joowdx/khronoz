@@ -22,9 +22,7 @@ export default function Connections({
             </p>
             {!confirmed && (
                 <Button asChild className="w-fit">
-                    <Link href={confirm({ query: { return: index.url() } })}>
-                        Confirm your identity to manage connections
-                    </Link>
+                    <Link href={confirm({ query: { return: index.url() } })}>Confirm your identity</Link>
                 </Button>
             )}
             {(['google', 'apple'] as const).map((provider) => {

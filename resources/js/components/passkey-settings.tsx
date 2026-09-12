@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Form, router } from '@inertiajs/react';
+import { Form, Link, router } from '@inertiajs/react';
 import { usePasskeyRegister } from '@laravel/passkeys/react';
 import { AccountInput } from '@/components/account-input';
 import { Button } from '@/components/ui/button';
 import { options, store, update, destroy } from '@/routes/settings/passkeys';
+import { confirm as reauthenticate } from '@/routes/password';
+import { edit as security } from '@/routes/settings/security';
 import type { Passkey } from '@/types';
 
 export function PasskeySettings({ passkeys }: { passkeys: Passkey[] }) {
@@ -48,7 +50,10 @@ export function PasskeySettings({ passkeys }: { passkeys: Passkey[] }) {
                 )}
                 {error && (
                     <p role="alert" className="text-destructive text-sm">
-                        {error} You can try again.
+                        {error} You can try again.{' '}
+                        <Link href={reauthenticate({ query: { return: security.url() } })} className="underline">
+                            Confirm identity again
+                        </Link>
                     </p>
                 )}
             </form>
@@ -81,8 +86,12 @@ export function PasskeySettings({ passkeys }: { passkeys: Passkey[] }) {
                     </Form>
                     <Form {...destroy.form(passkey.id)} disableWhileProcessing>
                         {({ processing }) => (
-                            <Button variant="destructive" disabled={processing}>
-                                Remove {passkey.name}
+                            <Button
+                                variant="destructive"
+                                disabled={processing}
+                                aria-label={`Remove passkey ${passkey.name}`}
+                            >
+                                Remove passkey
                             </Button>
                         )}
                     </Form>

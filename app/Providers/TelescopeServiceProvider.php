@@ -19,7 +19,13 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
         $isLocal = $this->app->environment('local');
 
         Telescope::filter(function (IncomingEntry $entry) use ($isLocal) {
-            if (request()->is('settings/*', 'confirm-password', '*password*', 'auth/*', 'two-factor-challenge', 'passkeys/*')) {
+            if (request()->is('login', 'settings/*', 'confirm-password', '*password*', 'auth/*', 'two-factor-challenge', 'passkeys/*')) {
+                return false;
+            }
+
+            $content = json_encode($entry->content, JSON_UNESCAPED_SLASHES);
+            if (str_contains($content, '/settings/email/verify/') || str_contains($content, 'EmailChangeNotification') || str_contains($content, 'EmailChangedNotification')
+                || ($entry->isQuery() && preg_match('/\b(sessions|passkeys|identities)\b/i', $entry->content['sql'] ?? ''))) {
                 return false;
             }
 
@@ -34,7 +40,7 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
 
     protected function hideSensitiveRequestDetails(): void
     {
-        Telescope::hideRequestParameters(['_token', 'password', 'password_confirmation', 'current_password', 'token', 'code', 'recovery_code', 'credential']);
+        Telescope::hideRequestParameters(['_token', 'password', 'password_confirmation', 'current_password', 'token', 'code', 'recovery_code', 'credential', 'oauth', 'passkey', 'login', 'auth', 'password_hash_web', 'id_token', 'access_token', 'refresh_token', 'state']);
 
         Telescope::hideRequestHeaders([
             'cookie',

@@ -40,7 +40,27 @@ All authenticated business routes require both current acknowledgments after ema
 
 Local draft rehearsal is supported, but production business access remains unavailable until current versions are published. Draft-prefixed versions and unresolved placeholders cannot be promoted as published documents. Login, invitation activation, recovery, verification, logout, public legal pages and the existing self-identity API remain reachable; the acknowledgment is neither employment-processing consent nor a substitute for notice to employees without accounts.
 
-The retention/disposal system, operational request process, contractual arrangements and deployment safeguards above remain launch work. This change does not implement OAuth, self-service account deletion, attendance erasure, or a blanket compliance certification.
+The retention/disposal system, operational request process, contractual arrangements and deployment safeguards above remain launch work. OAuth and account security are covered by the newer integration assessment below. Self-service account deletion, attendance erasure and compliance certification remain outside this implementation.
+
+## Account security integration assessment — 2026-09-12
+
+The new `draft-2026-09-12-accounts` Privacy Policy retains the original draft unchanged and adds social connections, passkeys, authenticator 2FA, staged email changes and temporary authentication challenges. The User Agreement version is unchanged. Existing acknowledgments retain their recorded version/hash; current-document enforcement continues for every sign-in method.
+
+| Added data | Purpose and minimization | Controls and remaining work |
+| --- | --- | --- |
+| Pending login email, hashed verification token and expiry | Confirm address control before replacing a verified login address | Cancellation/resend replace or remove the pending request; confirmation rechecks conflicts; password change cancels it; old address receives notice. Expired state is unusable but is not automatically purged yet. |
+| Provider subject, optional identifying email, connection/use timestamps | Recognize an explicitly connected Google/Apple identity | No automatic email linking, new accounts, stored access/refresh tokens, avatars or raw profiles. Provider processing and permission revocation remain separate. |
+| Named passkey, credential ID, public key and WebAuthn verification metadata; creation/use dates | Device-verified authentication | Required user verification, exact origins/RP checks, one-minute single-use ceremonies. No device PIN, biometric material or private keys reach Khronoz. Physical authenticator/browser interoperability remains a release check. |
+| Encrypted authenticator secret/recovery codes and activation time | Optional second factor and recovery | Setup is pending until verified. Recovery consumption is atomic; password reset preserves 2FA. Secret material uses protected no-store JSON, not Inertia props/history. |
+| Session-bound provider/passkey/2FA/reauthentication state and encrypted Apple relay | Resist replay and bind credential changes to the initiating user | Five-minute OAuth/2FA/confirmation windows, one-minute passkey window and two-minute relay TTL. Apply session/cache/backups retention and purge policies; logical expiry does not prove physical erasure. |
+
+Rechecked [RA 10173 §§11–13, 16, 20–21](https://privacy.gov.ph/data-privacy-act/) and [IRR §§18–19, 25–29, 43–45](https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/) on 2026-09-12. These additions apply purpose limitation and proportionality to account authentication, make optional methods explicit, and preserve rights and controller/processor responsibilities. This is an implementation assessment, not a finding of universal compliance. Operator-specific lawful grounds, security governance, incident handling, cross-border arrangements and retention criteria still need completion before publication.
+
+Connected accounts and passkeys belong to the user's owning agency even during platform agency switching. Their cascades run only when a user deletion is otherwise permitted; historical attendance restrictions remain. Disconnect/remove controls delete the active credential association, not employer records, exported copies or backups. Account/employee erasure remains an assisted future workflow, never a waiver of employee rights.
+
+The previous collection concerns remain unresolved: enrollment privilege needs a platform-purpose decision, and free-text employment fields must avoid unnecessary sensitive details. No additional employee fields were removed in this account-security work.
+
+Operational release checks: provision and test live provider applications; test physical authenticator/browser behavior; supply the working privacy contacts and provider/location details; publish completed immutable versions; agree the agency processing contract; establish credential/session/log/backup retention and disposal; redact signed links and OAuth callback parameters in infrastructure logs. Automated tests cover provider fakes, Apple JWT claims/nonce and relay, cryptographic WebAuthn fixtures, cross-agency ownership, challenge expiry/replay, 2FA recovery, staged email conflicts and legal gates.
 
 ## Historical research — 2026-09-11
 
