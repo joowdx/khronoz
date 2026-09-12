@@ -1,0 +1,24 @@
+{
+    "privacy-policy": {
+        "title": "Privacy Policy",
+        "current": "draft-2026-09-12",
+        "versions": {
+            "draft-2026-09-12": {
+                "status": "draft",
+                "effective_at": null,
+                "sha256": "ac6a59d51847d7a6c5969810f9570cf03a39f4bf09467636d4d79cd0930c5f4a"
+            }
+        }
+    },
+    "user-agreement": {
+        "title": "User Agreement",
+        "current": "draft-2026-09-12",
+        "versions": {
+            "draft-2026-09-12": {
+                "status": "draft",
+                "effective_at": null,
+                "sha256": "ee49bc17b35185318303f75f44dce4705203ece56f60995c880fe6848bd0f650"
+            }
+        }
+    }
+}

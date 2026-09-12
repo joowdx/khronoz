@@ -1,6 +1,7 @@
-import { Form, usePage } from '@inertiajs/react';
+import { Form, Link, usePage } from '@inertiajs/react';
 import { ChevronDown, LogOut, Sun } from 'lucide-react';
 import { useId } from 'react';
+import { show as legalDocument } from '@/routes/legal';
 import { destroy } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
 import { Avatar, AvatarFallback, avatarTint, initials } from '@/components/ui/avatar';
 import {
@@ -82,6 +83,13 @@ export function UserMenu() {
                         ))}
                     </DropdownMenuSegmented>
                 </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                    <Link href={legalDocument({ document: 'privacy-policy' })}>Privacy Policy</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link href={legalDocument({ document: 'user-agreement' })}>User Agreement</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <Form {...destroy.form()}>
                     {({ processing }) => (

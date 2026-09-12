@@ -13,6 +13,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LedgerAttestationController;
 use App\Http\Controllers\LedgerController;
 use App\Http\Controllers\LedgerPdfController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LockLedgerController;
 use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\Platform\AgencyController;
@@ -44,6 +45,12 @@ Route::get('/', HomeController::class)->name('home')
         title: 'Scheduling and daily time records',
         description: 'khronoz is scheduling, biometric timelogs and CS Form 48 for Philippine government agencies and private offices, computed under Civil Service Commission rules.',
     )
+    ->metadata(['ssr' => true]);
+
+Route::get('{document}/{version?}', LegalController::class)
+    ->whereIn('document', ['privacy-policy', 'user-agreement'])
+    ->where('version', '[a-z0-9][a-z0-9.-]*')
+    ->name('legal.show')
     ->metadata(['ssr' => true]);
 
 Route::get('verify/ledgers/{token}', VerifyLedgerController::class)

@@ -18,4 +18,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/pages/** | .ai/rules/pages.md |
 | app/Http/Requests/** | .ai/rules/requests.md |
 | app/Http/Resources/** | .ai/rules/resources.md |
+| app/Support/** | .ai/rules/support.md |
 | tests/** | .ai/rules/tests.md |

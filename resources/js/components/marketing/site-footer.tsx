@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import type { SharedProps } from '@/types';
 import { dashboard, login } from '@/routes';
+import { LegalLinks } from '@/components/legal-links';
 import { BrandLink } from '@/components/marketing/brand';
 
 const LINK = 'text-muted-foreground hover:text-foreground rounded-lg py-0.5 text-[13px] leading-5 font-medium';
@@ -39,6 +40,9 @@ export function SiteFooter({ demo }: { demo: string }) {
                 <p className="border-rule text-muted-foreground mt-[26px] border-t pt-4 text-xs leading-[17px] tabular-nums">
                     &copy; 2026 khronoz
                 </p>
+                <div className="mt-4">
+                    <LegalLinks />
+                </div>
             </div>
         </footer>
     );

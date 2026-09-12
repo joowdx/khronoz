@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { LegalLinks } from '@/components/legal-links';
 
 function Mark({ className }: { className?: string }) {
     return (
@@ -343,6 +344,9 @@ export default function AuthLayout({
                     <h1 className="text-2xl leading-[30px] font-semibold tracking-[-0.008em]">{title}</h1>
                     {description && <p className="text-muted-foreground pt-2 pb-7 text-sm leading-5">{description}</p>}
                     {children}
+                    <div className="mt-8 border-t pt-5">
+                        <LegalLinks />
+                    </div>
                 </div>
             </main>
         </div>
