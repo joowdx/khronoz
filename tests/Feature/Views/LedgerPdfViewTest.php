@@ -30,7 +30,7 @@ class LedgerPdfViewTest extends TestCase
         $html = view('pdf.ledgers.form48', compact('snapshot', 'verificationUrl', 'qrSvg') + ['preview' => false])->render();
 
         $this->assertSame(2, substr_count($html, 'class="page form48"'));
-        $this->assertSame(2, substr_count($html, 'alt="Verify attested ledger"'));
+        $this->assertSame(2, substr_count($html, 'alt="Verify this ledger"'));
         $this->assertSame(55, substr_count($html, 'class="outside"'));
         $this->assertStringContainsString('January 2026', $html);
         $this->assertStringContainsString('February 2026', $html);
@@ -94,7 +94,10 @@ class LedgerPdfViewTest extends TestCase
         ])->render();
 
         $this->assertSame(2, substr_count($html, 'class="page plain"'));
-        $this->assertStringContainsString('<strong>26</strong><span>Sat</span>', $html);
+        $this->assertMatchesRegularExpression('/<strong>26<\\/strong>\\s*<span>Sat<\\/span>/', $html);
+        $this->assertSame(2, substr_count($html, '<p class="certification">'));
+        $this->assertSame(2, substr_count($html, 'class="verification-brand"'));
+        $this->assertSame(1, substr_count($html, 'class="attestation-panel"'));
         $this->assertStringNotContainsString('<img ', $html);
     }
 
@@ -109,6 +112,7 @@ class LedgerPdfViewTest extends TestCase
 
         $this->assertSame(1, substr_count($html, 'class="page plain"'));
         $this->assertStringContainsString('No attestations recorded.', $html);
+        $this->assertStringContainsString('<p class="certification">', $html);
     }
 
     public function test_extra_form48_slots_and_overnight_times_are_preserved(): void
@@ -203,7 +207,10 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringContainsString('class="metric-cell">00:07', $html);
         $this->assertStringContainsString('class="metric-cell">01:05', $html);
         $this->assertStringContainsString('class="metric-cell">01:12', $html);
-        $this->assertStringContainsString('<span>Deficit</span><strong>01:12</strong>', $html);
+        $this->assertMatchesRegularExpression(
+            '/<span>Deficit<\\/span>\\s*<strong>01:12<\\/strong>/',
+            $html
+        );
         $this->assertStringContainsString('00:07', $html);
         $this->assertStringContainsString('01:05', $html);
         $this->assertStringContainsString('01:12', $html);
@@ -222,13 +229,16 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringContainsString('border-bottom-color: #111827;', $css);
     }
 
-    public function test_plain_form_shows_frozen_duty_times_and_vertical_attestations(): void
+    public function test_plain_form_stacks_multiword_headings_and_calculates_deficit_totals(): void
     {
         $snapshot = [
             'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-01'],
             'workdays' => [[
                 'date' => '2026-09-01',
                 'shift_name' => 'Standard duty',
+                'tardy' => 7,
+                'undertime' => 65,
+                'worked' => 500,
                 'punches' => [
                     ['slot' => 1, 'kind' => ['value' => 'in'], 'expected_at' => '2026-09-01 08:00:00', 'actual_at' => '2026-09-01 08:03:00'],
                     ['slot' => 1, 'kind' => ['value' => 'out'], 'expected_at' => '2026-09-01 12:00:00', 'actual_at' => '2026-09-01 12:00:00'],
@@ -236,6 +246,7 @@ class LedgerPdfViewTest extends TestCase
                     ['slot' => 2, 'kind' => ['value' => 'out'], 'expected_at' => '2026-09-01 17:00:00', 'actual_at' => '2026-09-01 17:02:00'],
                 ],
             ]],
+            'totals' => ['worked' => 500, 'tardy' => 7, 'undertime' => 65],
             'attestations' => [[
                 'role' => 'employee',
                 'name' => 'Ana Example',
@@ -252,9 +263,98 @@ class LedgerPdfViewTest extends TestCase
             'qrSvg' => null,
         ])->render();
 
-        $this->assertStringContainsString('Standard duty 08:00-12:00 / 13:00-17:00', $html);
+        $this->assertSame(1, preg_match('/<tr>\\s*<th rowspan="2" class="plain-date-col"[^>]*>DATE<\\/th>\\s*<th rowspan="2" class="plain-status-col"[^>]*>\\s*<span>STATUS<\\/span>\\s*<span>DUTY<\\/span>\\s*<\\/th>\\s*<th rowspan="2" class="plain-punches-col"[^>]*>\\s*<span>ACTUAL<\\/span>\\s*<span>PUNCHES<\\/span>\\s*<\\/th>/s', $html));
+        $this->assertMatchesRegularExpression(
+            '/rowspan="2" class="plain-hours-col"[^>]*>\\s*<span>HOURS<\\/span>\\s*<span>WORKED<\\/span>\\s*<\\/th>/s',
+            $html
+        );
+        $this->assertMatchesRegularExpression(
+            '/rowspan="2" class="plain-notes-col"[^>]*>\\s*<span>REMARKS<\\/span>\\s*<span>ADJUSTMENTS<\\/span>\\s*<\\/th>/s',
+            $html
+        );
+        $this->assertStringNotContainsString('Status / duty', $html);
+        $this->assertStringNotContainsString('Actual punches (24-hour)', $html);
+        $this->assertStringNotContainsString('Adjustment / remarks', $html);
+        $this->assertMatchesRegularExpression('/<th colspan="3">DEFICIT<\\/th>/', $html);
+        $this->assertMatchesRegularExpression('/<th class="metric-col">TARDINESS<\\/th>\\s*<th class="metric-col">UNDERTIME<\\/th>\\s*<th class="metric-col">TOTAL<\\/th>/', $html);
+        $this->assertStringContainsString('<td class="plain-metric">01:12</td>', $html);
+        $this->assertMatchesRegularExpression('/<span>Deficit<\\/span>\\s*<strong>01:12<\\/strong>/', $html);
+        $this->assertStringContainsString('<td class="plain-metric attention">00:07</td>', $html);
+        $this->assertStringContainsString('<td class="plain-metric attention">01:05</td>', $html);
         $this->assertStringContainsString('class="attestation-step"', $html);
         $this->assertStringContainsString('Administrative Officer II', $html);
         $this->assertStringContainsString('Sep 2, 2026 09:00', $html);
+        $this->assertStringContainsString('khronoz', $html);
+
+        $plainHeadStart = strpos($html, '<thead>');
+        $plainHeadEnd = strpos($html, '</thead>');
+        $this->assertNotFalse($plainHeadStart);
+        $this->assertNotFalse($plainHeadEnd);
+        $plainHeadingText = preg_replace('/<[^>]+>/', ' ', substr($html, $plainHeadStart, $plainHeadEnd - $plainHeadStart));
+        $this->assertIsString($plainHeadingText);
+        $this->assertStringNotContainsString('/', $plainHeadingText);
+
+        $plainColgroupStart = strpos($html, '<colgroup>');
+        $plainColgroupEnd = strpos($html, '</colgroup>');
+        $this->assertNotFalse($plainColgroupStart);
+        $this->assertNotFalse($plainColgroupEnd);
+        $plainColgroup = substr($html, $plainColgroupStart, $plainColgroupEnd - $plainColgroupStart);
+        $this->assertSame(1, preg_match_all('/class="plain-date-col"/', $plainColgroup));
+        $this->assertSame(1, preg_match_all('/class="plain-status-col"/', $plainColgroup));
+        $this->assertSame(1, preg_match_all('/class="plain-punches-col"/', $plainColgroup));
+        $this->assertSame(3, preg_match_all('/class="plain-deficit-col"/', $plainColgroup));
+        $this->assertSame(1, preg_match_all('/class="plain-hours-col"/', $plainColgroup));
+        $this->assertSame(1, preg_match_all('/class="plain-notes-col"/', $plainColgroup));
+        $this->assertStringContainsString('Page 1 of 1', $html);
+
+        $css = file_get_contents(resource_path('css/ledger-pdf.css'));
+        $this->assertNotFalse($css);
+        $this->assertStringContainsString('.plain .verification-brand { color: #6d28d9; }', $css);
+        $this->assertStringContainsString('.form48 .verification-brand { color: #111827; }', $css);
+        $this->assertStringContainsString('.plain-table col.plain-date-col { width: 11mm; }', $css);
+        $this->assertStringContainsString('.plain-table col.plain-status-col { width: 26mm; }', $css);
+        $this->assertStringContainsString('.plain-table col.plain-punches-col { width: 44mm; }', $css);
+        $this->assertStringContainsString('.plain-table col.plain-deficit-col { width: 16mm; }', $css);
+        $this->assertStringContainsString('.plain-table col.plain-hours-col { width: 16mm; }', $css);
+        $this->assertStringContainsString('.plain-table col.plain-notes-col { width: 41mm; }', $css);
+        $this->assertStringContainsString('.plain .totals-panel.plain-totals { grid-template-columns: repeat(7, 1fr); }', $css);
+    }
+
+    public function test_plain_footer_has_branded_preview_and_verified_official_metadata(): void
+    {
+        $snapshot = [
+            'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-01', 'id' => 'PLAIN-01', 'revision' => 1],
+            'document' => ['id' => 'PLAIN-DOC', 'generated_at' => '2026-09-01T08:00:00Z'],
+            'rendition' => ['id' => 'REND-1', 'completed_at' => '2026-09-01T07:50:00Z'],
+            'workdays' => [['date' => '2026-09-01']],
+        ];
+        config(['app.timezone' => 'Asia/Manila']);
+        $verificationUrl = 'https://example.test/verify/plain';
+
+        $official = view('pdf.ledgers.plain', [
+            'snapshot' => $snapshot,
+            'preview' => false,
+            'verificationUrl' => $verificationUrl,
+            'qrSvg' => (new SvgWriter)->write(new QrCode(data: $verificationUrl))->getString(),
+        ])->render();
+
+        $this->assertStringContainsString('Scan to verify this record', $official);
+        $this->assertStringContainsString('Document PLAIN-DOC | Rendition REND-1', $official);
+        $this->assertStringContainsString('Ledger PLAIN-01 | revision 1', $official);
+        $this->assertStringContainsString('Completed Sep 1, 2026 15:50', $official);
+        $this->assertStringContainsString('Generated Sep 1, 2026 16:00', $official);
+        $this->assertStringContainsString('Page 1 of 1', $official);
+        $this->assertStringContainsString('khronoz', $official);
+        $this->assertStringContainsString('alt="Verify this ledger"', $official);
+
+        $preview = view('pdf.ledgers.plain', [
+            'snapshot' => $snapshot,
+            'preview' => true,
+            'verificationUrl' => null,
+            'qrSvg' => null,
+        ])->render();
+
+        $this->assertStringContainsString('<div class="preview-footer">PREVIEW - NOT ATTESTED</div>', $preview);
+        $this->assertStringNotContainsString('alt="Verify this ledger"', $preview);
     }
 }
