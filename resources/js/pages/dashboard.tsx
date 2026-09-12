@@ -22,66 +22,24 @@ import { create as inviteUser, index as usersIndex } from '@/routes/users';
 import { index as workdaysIndex } from '@/routes/workdays';
 import type { Choice, Employee, SharedProps } from '@/types';
 
-/**
- * The signed-in landing page, composed for the data that exists.
- *
- * It is the artboard (docs/design/mockups/03-dashboard.html): what needs
- * attention beside where the month's ledgers stand, the five-figure strip
- * against the same days of the month before, the lane chart of who is on duty
- * now, today's events beside the pending night outs and tardiness by
- * workgroup. Sections are separated by a rule and never chopped into cards
- * (§1 rule 3); the only bordered panel on the page is the lane chart's.
- *
- * **Every section is optional, and an absent one is absent from the props.**
- * `DashboardController` gates each on the right that owns its screen and drops
- * it entirely for the platform tenant, whose agency may hold no employees at
- * all — so a section this page does not render is one the viewer either may
- * not see or could not have. That is different from a section reporting zero,
- * which means measured and empty, and the two must never look alike.
- *
- * **Per-page shapes live here**, not in `types/index.d.ts`: the counts, the
- * figure pairs and the lane data are this page's payload and no resource's
- * (.ai/rules/resources.md). `Employee` and `Choice` are shared and come from
- * there.
- *
- * The page is month-scoped, so §5.2's stepper replaces the heading-row title
- * and the month lives in the query string — the dashboard is a link, and the
- * current month is dropped from it.
- */
 interface DashboardCounts {
     users: number;
     active: number;
     invited: number;
-    /** Platform tenant only; see DashboardController. */
     agencies?: number;
     agency_users?: number;
     empty_agencies?: number;
-    /**
-     * An agency tenant, and only where the viewer holds the right that owns
-     * the screen behind the row — `terminals.view` and `scheduling.view`
-     * respectively. Absent means "not yours to see", never zero.
-     *
-     * The other two attention rows have no count here on purpose: the pending
-     * night outs are `night_outs.length` and the lockable ledgers are
-     * `ledgers.lockable`, both of which this page is already sent. A second
-     * copy of a number is a number that can disagree with itself.
-     */
     unresolved_timelogs?: number;
     without_roster?: number;
 }
 
-/** The window every figure below is measured over. `through` is null for a month that has not started. */
 interface MonthWindow {
-    /** `YYYY-MM`. */
     value: string;
-    /** `YYYY-MM`, the month the comparison is against. */
     previous: string;
-    /** `YYYY-MM-DD`, the last day that has happened. */
     through: string | null;
     days: number;
 }
 
-/** One headline figure and the same days of the month before. */
 interface Comparison {
     value: number;
     previous: number;
@@ -95,27 +53,19 @@ interface Figures {
     overtime: Comparison;
 }
 
-/** The month's ledgers as a partition: the four add up to `total`. */
 interface LedgerSplit {
     total: number;
-    /** Not locked, and a punch of the month is still due — `ledgers_lock_complete` would refuse it. */
     open: number;
-    /** Not locked, and nothing due: the lock button will accept these right now. */
     lockable: number;
     locked: number;
     attested: number;
 }
 
-/**
- * One thing that happened today. `kind` carries its own words from PHP, so
- * this page holds no vocabulary of its own and colours by the value alone.
- */
 interface DayEvent {
     id: string;
     kind: Choice;
     employee: Employee | null;
     detail: string | null;
-    /** `08:21`, or `17:00 – 20:00`, or `Whole day` — already read for the screen. */
     time: string;
 }
 
@@ -124,11 +74,9 @@ interface Today {
     events: DayEvent[];
 }
 
-/** A night shift that should have clocked out this morning and has not. */
 interface NightOut {
     id: string;
     employee: Employee | null;
-    /** `22:00 – 06:00`, from the workday's frozen snapshot; null if it had no slots. */
     shift: string | null;
     since: string;
 }
@@ -138,13 +86,7 @@ interface Tardiness {
     workgroups: { id: string; name: string; count: number }[];
 }
 
-/**
- * The lane chart's data (§5.22). Bars are **minutes from 06:00** on the
- * 06:00 → 30:00 window, so the drawing divides by 1440 at whatever width it
- * has and nothing was rounded on the wire. `slot` is `shifts.color`, 1 to 8.
- */
 interface Duty {
-    /** `YYYY-MM-DD` — the open day window's date, not necessarily the calendar date. */
     date: string;
     lanes: {
         id: string;
@@ -155,17 +97,10 @@ interface Duty {
     }[];
 }
 
-/** Sections are separated by a rule with 32 either side, never by a box (§1 rule 3). */
 function Stack({ children }: { children: ReactNode }) {
     return <div className="[&>*+*]:border-border [&>*+*]:mt-8 [&>*+*]:border-t [&>*+*]:pt-8">{children}</div>;
 }
 
-/**
- * Two subjects side by side in one section (§6.3, `.split`): a 48 gutter, and
- * the right column carries the rule and the padding. It stacks below `lg`,
- * where 420 beside anything leaves neither column readable — and then the rule
- * would be drawn on the wrong edge, so it is scoped to the same breakpoint.
- */
 function Split({ width, children, right }: { width: number; children: ReactNode; right: ReactNode }) {
     return (
         <div
@@ -189,11 +124,6 @@ function SectionHead({ title, meta }: { title: string; meta?: string }) {
     );
 }
 
-/**
- * The leader between a label and its figure (§6.3, `.kv .dots`). A repeating
- * radial gradient rather than a border-dotted rule, which draws squares at 1px
- * and cannot be spaced.
- */
 function Dots() {
     return (
         <span
@@ -203,13 +133,6 @@ function Dots() {
     );
 }
 
-/**
- * A figure that is a link to the work behind it: 44 high, a dot leader, the
- * count at 18/24/600, and a chevron that takes the accent on hover (§6.3,
- * `.kv--nav`). The negative margins let the hover tint bleed past the column,
- * and the hairline between rows is a pseudo-element rather than a border so
- * the first row does not carry one.
- */
 function AttentionRow({
     label,
     count,
@@ -242,20 +165,6 @@ function AttentionRow({
     );
 }
 
-/**
- * A label and one figure, read as a list (§6.3, `.kv`): 38 min-height, the
- * hairline drawn by the list between rows so the first carries none, and the
- * value right at 14/20/600 `tabular-nums`.
- *
- * Not a link, unlike `AttentionRow`. Four rows of one subject pointing at one
- * destination read as four invitations to do the same thing; the section's own
- * link below says it once.
- *
- * The leader lives **inside the `<dt>`** rather than between it and the `<dd>`:
- * a `<div>` group in a `<dl>` may hold only `dt`s followed by `dd`s, so a bare
- * `<span>` in the middle is invalid markup for the sake of a decoration that
- * says nothing.
- */
 function Fact({ label, value, tone }: { label: string; value: number; tone?: 'attention' }) {
     return (
         <div className="flex min-h-[38px] items-baseline gap-2 pt-[9px]">
@@ -272,21 +181,6 @@ function Fact({ label, value, tone }: { label: string; value: number; tone?: 'at
     );
 }
 
-/**
- * Up to five headline figures across a section, divided by rules and not by
- * cards (§6.3, `.figs`).
- *
- * The third line is the delta against the same days of the month before, and
- * its colour is **not sentiment about the direction** — §6.3 puts `.up` in
- * fault and `.down` in positive because the figures that carry a delta are
- * counts of things going wrong, and more tardiness is worse. A figure that is
- * merely volume (how many workdays were computed, how much overtime was
- * authorised) takes `tone="neutral"` and stays muted: reading more work done
- * as a failure would be a lie the palette told by itself.
- *
- * No delta at all when `previous` is absent — the platform strip has no month
- * to compare against, and a month that has not started has no days.
- */
 function Figure({
     value,
     label,
@@ -303,14 +197,6 @@ function Figure({
     const delta = previous === undefined ? null : value - previous;
 
     return (
-        // A name/value pair, so it is marked up as one, and the DOM order is
-        // the reading order: "Tardy occurrences, 36, 8 fewer than August" is
-        // what a screen reader should hear. A <dl> group may not put a <dd>
-        // before its <dt>, so the visual order — figure on top, then the
-        // label, then the delta — is `order`, not source order. (This was
-        // `flex-col-reverse` while there were only two lines; a third at the
-        // bottom cannot be expressed by reversing, and putting the delta
-        // first in source to fake it is exactly the invalid <dl> above.)
         <div className="border-border flex flex-col border-l pt-3.5 pb-0.5 pl-5 first:border-l-0 first:pl-0">
             <dt className="text-muted-foreground order-2 pt-[3px] text-[13px] leading-[18px]">{label}</dt>
             <dd className="order-1 text-2xl leading-[30px] font-bold tracking-[-0.011em] tabular-nums">{value}</dd>
@@ -336,11 +222,6 @@ function Figure({
     );
 }
 
-/**
- * A count that has people in it (§6.3, `.nite`): the person as the shell draws
- * them everywhere else, and the fact right-aligned with its qualifier beneath
- * in `--attn`.
- */
 function NightOutRow({ row }: { row: NightOut }) {
     return (
         <div className="flex min-h-[52px] items-center gap-2.5 py-2">
@@ -355,15 +236,6 @@ function NightOutRow({ row }: { row: NightOut }) {
     );
 }
 
-/**
- * A distribution across named buckets (§6.3, `.byu`): a 148 label, an 8px
- * trough filled in `--acc-text`, and the count at the right.
- *
- * The bar is scaled against the **largest** bucket rather than the total, so
- * the leading row always fills the trough and the shape of the distribution is
- * what the eye compares. The number beside it is the value; the bar is
- * `aria-hidden` because it says nothing the number does not.
- */
 function MeterRow({ label, count, largest }: { label: string; count: number; largest: number }) {
     return (
         <div className="flex min-h-[34px] items-center gap-3">
@@ -381,7 +253,6 @@ function MeterRow({ label, count, largest }: { label: string; count: number; lar
     );
 }
 
-/** The plain `Go to …` link under a section's own list (§6.2). */
 function More({ href, children }: { href: string; children: ReactNode }) {
     return (
         <p className="pt-4">
@@ -395,12 +266,10 @@ function More({ href, children }: { href: string; children: ReactNode }) {
     );
 }
 
-/** `2026-09` as `September`, through the one place month names are written. */
 function monthName(value: string): string {
     return formatMonthTitle(value).replace(/\s\d{4}$/, '');
 }
 
-/** The event kinds, coloured by what they mean (§7): a fault, something waiting, a fact, a grant. */
 const EVENT_TONE: Record<string, string> = {
     late_in: 'text-destructive',
     missed_out: 'text-attention',
@@ -425,11 +294,6 @@ export default function Dashboard({
     today?: Today;
     night_outs?: NightOut[];
     tardiness?: Tardiness;
-    /**
-     * Read twice: by the lane chart below, and by `components/day-strip.tsx`
-     * through `usePage()` — the sidebar is outside this component and takes no
-     * props of its own.
-     */
     duty?: Duty;
 }) {
     const { agency } = usePage<SharedProps>().props;
@@ -439,14 +303,8 @@ export default function Dashboard({
     const platform = agency?.platform ?? false;
     const manageUsers = can('users.manage');
 
-    // Null once the day window this was computed for has closed — a dashboard
-    // left open past 06:00 would otherwise draw this morning's marker across
-    // last night's roster. Called unconditionally because it is a hook; with
-    // no `duty` the dates cannot match and it answers null, which is correct.
     const now = useNowOn(duty?.date ?? '');
 
-    // The month is a filter, so it lives in the query string and the default
-    // is dropped: an unfiltered dashboard is `/dashboard` and nothing else.
     function goToMonth(next: string) {
         router.get(dashboard.url(), next === manilaToday().slice(0, 7) ? {} : { month: next }, {
             preserveState: true,
@@ -454,14 +312,6 @@ export default function Dashboard({
         });
     }
 
-    // Only rows the viewer can actually follow: a row that leads to a 403 is
-    // worse than no row (§5.20, "nothing you may see"), and the controller
-    // makes that decision by omitting the count outright rather than sending a
-    // zero. Here the two collapse into one guard on purpose — a section the
-    // viewer may not see and a count of nothing both mean *no row*, because
-    // this list is what is waiting on somebody and nothing is. Where the
-    // difference does matter, it is the section that shows it: the figure
-    // strip reports its zeros and is absent when it may not be read.
     const attention = [
         ...(counts.unresolved_timelogs
             ? [
@@ -486,9 +336,6 @@ export default function Dashboard({
                   {
                       label: 'Workdays waiting for a night shift to clock out',
                       count: nightOuts.length,
-                      // The workdays list's own attention filter is exactly
-                      // this shape of day: a status of absent, or a punch with
-                      // no side yet.
                       href: workdaysIndex({ query: { attention: '1' } }).url,
                   },
               ]
@@ -533,8 +380,6 @@ export default function Dashboard({
         </>
     );
 
-    // A tenant that has barely started gets one sentence and the one action
-    // that matters, instead of a screen of zeros.
     const barelyStarted = platform ? counts.agencies === 0 : counts.users <= 1;
     const nextStep = platform ? (
         <EmptyState
@@ -562,15 +407,8 @@ export default function Dashboard({
         )
     );
 
-    // The meters are scaled against the biggest bucket, read rather than
-    // assumed: the controller does order them, but a chart whose first bar is
-    // only full because of an ORDER BY somewhere else is a chart that breaks
-    // silently when that ordering changes.
     const largestTardiness = Math.max(0, ...(tardiness?.workgroups.map((workgroup) => workgroup.count) ?? []));
 
-    // No delta on a month that has not started: every figure would report zero
-    // against the whole of the month before and five "same as" lines would be
-    // saying nothing five times.
     const comparison = month !== undefined && month.through !== null ? monthName(month.previous) : undefined;
 
     return (

@@ -7,50 +7,13 @@ use Generator;
 use InvalidArgumentException;
 use SplFileObject;
 
-/**
- * Streaming parser for biometric "attlog" punch files: one punch per line,
- * tab- or comma-delimited, in either the four-column standard layout or the
- * device layout that inserts a device number after the timestamp.
- *
- * A malformed line must never abort the file — payroll ingestion cannot afford
- * to drop the rest of a day's punches because one row is junk — so every bad
- * line yields `[null, $rawLine]` and parsing continues. The only exception is an
- * unreadable path, which is an operator error rather than bad punch data.
- *
- * Memory stays flat regardless of file size: the predecessor system blew up a
- * queue worker by loading the whole file (and a dedupe set) at once.
- *
- * `uid` is kept as a string exactly as written so that `007`, `7` and `A17`
- * remain three different device users; casting to int would collapse the
- * first two.
- *
- * `state` and `mode` are matched against `/^\d+$/` before casting because
- * `is_numeric` accepts `1.5` and `1e3`, which then blow up at the database after
- * earlier rows have already committed.
- *
- * `device` is **returned, never discarded**. An attlog carries no ULID, so that
- * column is the file's one and only statement of which scanner produced these
- * punches — there is no other indicator anywhere in it. A parser that reads
- * past it leaves the caller trusting whichever terminal a human happened to
- * pick, and a file imported into the wrong one attributes every punch to the
- * wrong device without a single complaint. It is null under LAYOUT_STANDARD,
- * where the file genuinely does not say.
- */
 final class AttlogParser
 {
     public const LAYOUT_STANDARD = 'standard';
 
     public const LAYOUT_DEVICE = 'device';
 
-    /**
-     * The `!` prefix resets unspecified fields to zero, so `Y-m-d H:i` gets
-     * seconds of 00 rather than the current second. Tried in order; the first
-     * that parses with zero errors and zero warnings wins. Unpadded hours are
-     * accepted by `Y-m-d H:i:s` itself — a raw-string round-trip would reject
-     * them, because the object reformats `8:01:23` as `08:01:23`.
-     *
-     * @var list<string>
-     */
+    /** @var list<string> */
     private const TIME_FORMATS = [
         '!Y-m-d H:i:s',
         '!Y-m-d H:i',
@@ -141,12 +104,6 @@ final class AttlogParser
         return null;
     }
 
-    /**
-     * `createFromFormat` can return an object for impossible dates such as
-     * `2024-13-45 99:99:99` by rolling them over. Zero errors *and* zero
-     * warnings is the gate that rejects that rollover. `getLastErrors()` is
-     * `false` (not an empty array) when there were no errors at all.
-     */
     private function parsedCleanly(): bool
     {
         $errors = DateTimeImmutable::getLastErrors();

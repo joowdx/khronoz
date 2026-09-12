@@ -12,22 +12,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-/**
- * `timelogs_resolve` and `enrollments_reresolve` — 03-terminals.md rule 3.
- *
- * Who a punch belongs to is the database's answer, not the application's. The
- * predecessor re-derived it on every read through a four-way manual join
- * rewritten in four places, one of which joined on the calendar date and broke
- * on overnight shifts. Here it is written once, at insert, in SQL the app role
- * cannot bypass — and re-applied by trigger when an enrollment moves.
- *
- * Every assertion goes through `fresh()`. `create()` does not re-select, so a
- * model returned by the factory still reports the nulls that were *sent*, not
- * what the trigger wrote.
- */
 class TimelogResolutionTest extends TestCase
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function rawTimelog(Enrollment $enrollment, array $overrides = []): array
     {
         return [
@@ -50,7 +39,6 @@ class TimelogResolutionTest extends TestCase
         ];
     }
 
-    /** The happy path: an enrolled uid, a date inside the range, both columns filled. */
     public function test_a_punch_on_an_enrolled_uid_resolves_to_that_employee(): void
     {
         $enrollment = Enrollment::factory()->create();
@@ -62,11 +50,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertSame($enrollment->id, $resolved->enrollment_id);
     }
 
-    /**
-     * Outside every enrollment the row is **unresolved and still there**. Not
-     * an error and not hidden: a punch by somebody not yet enrolled is real
-     * data, and rejecting it is how a day goes missing without anyone noticing.
-     */
     public function test_a_punch_outside_every_enrollment_stays_unresolved_and_visible(): void
     {
         $enrollment = Enrollment::factory()->closed('+1 month')->create();
@@ -82,14 +65,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertDatabaseHas('timelogs', ['id' => $timelog->id]);
     }
 
-    /**
-     * **The application may not say who punched.** Whatever arrives in those
-     * two columns is overwritten by the trigger — here with the correct
-     * employee, not the impostor the caller named.
-     *
-     * This is the property that lets the next commit revoke the app role's
-     * UPDATE on them entirely.
-     */
     public function test_the_database_overwrites_whatever_the_client_claims(): void
     {
         $enrollment = Enrollment::factory()->create();
@@ -109,13 +84,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertNotSame($impostor->id, $row->employee_id);
     }
 
-    /**
-     * A uid reissued after its first holder left resolves **by date**, each
-     * punch to whoever held the uid that day.
-     *
-     * This is the case the predecessor's schema could not represent at all,
-     * and the reason `enrollments` is a range rather than a flag.
-     */
     public function test_a_reissued_uid_resolves_each_punch_to_its_own_holder(): void
     {
         $leaver = Enrollment::factory()->closed('+1 month')->create();
@@ -137,14 +105,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertNotSame($early->fresh()->employee_id, $late->fresh()->employee_id);
     }
 
-    /**
-     * Decision 42, asserted through the trigger rather than argued in a
-     * comment: `007` and `7` are two device users, and the join is on the raw
-     * string.
-     *
-     * The predecessor cast this to an integer in two places, which merged them
-     * into one person — and raised outright on an alphanumeric uid.
-     */
     public function test_a_leading_zero_uid_is_a_different_person(): void
     {
         $enrollment = Enrollment::factory()->create(['uid' => '007']);
@@ -160,7 +120,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertNull($punch->fresh()->employee_id);
     }
 
-    /** An alphanumeric device user id is data, not a crash (decision 42). */
     public function test_an_alphanumeric_uid_resolves_like_any_other(): void
     {
         $enrollment = Enrollment::factory()->create(['uid' => 'A17']);
@@ -169,14 +128,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertSame($enrollment->employee_id, $timelog->fresh()->employee_id);
     }
 
-    /**
-     * `enrollments_reresolve`, insert branch: punches ingested **before**
-     * anybody was enrolled are picked up the moment the enrollment is created.
-     *
-     * That is what makes an unresolved timelog a recoverable state rather than
-     * a dead one — the timekeeper enrolls the person and the history attaches
-     * itself.
-     */
     public function test_creating_an_enrollment_resolves_punches_already_ingested(): void
     {
         $terminal = Terminal::factory()->create();
@@ -198,15 +149,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertSame($enrollment->id, $orphan->fresh()->enrollment_id);
     }
 
-    /**
-     * The second UPDATE in `enrollments_reresolve` — the branch a happy-path
-     * test never reaches.
-     *
-     * Narrowing an enrollment so it no longer covers a punch must null that
-     * punch back out. Without it the row stays attributed to somebody the
-     * database no longer believes was enrolled that day, which is a wrong
-     * answer that looks exactly like a right one.
-     */
     public function test_moving_an_enrollment_off_a_punch_unresolves_it(): void
     {
         $enrollment = Enrollment::factory()->create();
@@ -221,7 +163,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertNull($timelog->fresh()->enrollment_id);
     }
 
-    /** Re-pointing an enrollment at another employee re-attributes its punches. */
     public function test_changing_an_enrollments_employee_reattributes_its_punches(): void
     {
         $enrollment = Enrollment::factory()->create();
@@ -233,22 +174,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertSame($successor->id, $timelog->fresh()->employee_id);
     }
 
-    /**
-     * **Correcting a mistyped device user id**, which is the mutation the
-     * OLD-pair pass in `enrollments_reresolve` exists for — and the reason
-     * `timelogs_enrollment_foreign` defers its update check.
-     *
-     * A timekeeper enrolls somebody as `1102`; the device actually reports
-     * `01102`. Punches arrive under both at different times, and correcting
-     * the enrollment has to move attribution in **both directions at once**:
-     * the rows the device reported as `1102` must let go, and the ones it
-     * reported as `01102` must attach.
-     *
-     * `timelogs.uid` itself never changes — it is what the device said, and
-     * rewriting it is the predecessor's single worst defect (decision 42). So
-     * the old rows cannot be dragged along by a cascade; they have to be
-     * released, which only the OLD-pair pass does.
-     */
     public function test_correcting_a_mistyped_uid_moves_attribution_both_ways(): void
     {
         $enrollment = Enrollment::factory()->create(['uid' => '1102', 'starts' => '2026-03-01']);
@@ -272,11 +197,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertSame('01102', $underTruth->fresh()->uid);
     }
 
-    /**
-     * The same OLD-pair pass, reached through `terminal_id` instead: an
-     * enrollment recorded against the wrong device releases the punches that
-     * device captured.
-     */
     public function test_moving_an_enrollment_to_another_terminal_releases_the_old_devices_punches(): void
     {
         $enrollment = Enrollment::factory()->create(['starts' => '2026-03-01']);
@@ -297,39 +217,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertNull($captured->fresh()->employee_id);
     }
 
-    /**
-     * **A SECURITY DEFINER function must not resolve table names through the
-     * caller's search path.**
-     *
-     * Both resolvers run as the owner so they can write columns the app role
-     * cannot. That privilege is worthless if the caller chooses which tables
-     * they read. The app role holds `TEMP` on the database — the default — so
-     * it can create a temporary table named `enrollments`, and Postgres
-     * searches the temporary schema **first** for relation names unless
-     * `pg_temp` is explicitly listed in the path.
-     *
-     * Measured before the fix, on both paths: a punch dated outside every real
-     * enrollment was attributed to a real employee. The forged temp row copied
-     * a genuine enrollment's `(id, employee_id, terminal_id, uid)` exactly and
-     * widened only its dates, so `timelogs_enrollment_foreign` — which does
-     * not include the date — waved it through. That is an app-role user
-     * assigning arbitrary punches to arbitrary people.
-     *
-     * The fix is two measures, and mutation testing settled which one carries
-     * the weight — the answer is not the one the docblock first claimed.
-     *
-     * **Schema-qualifying every table the bodies touch is what defeats this.**
-     * Removing `public.` from either function reinstates the attack, and that
-     * mutation is killed by this test. `SET search_path = pg_catalog, pg_temp`
-     * is the documented convention and is kept, but it is not sufficient on
-     * its own: `pg_temp` listed last stops it being searched *first*, yet an
-     * unqualified `enrollments` still resolves there, because `public` is no
-     * longer on the path at all and `pg_catalog` has no such table. Setting
-     * the path to `pg_catalog, public` instead also holds — but only because
-     * the references are qualified, which was measured rather than assumed.
-     *
-     * Found by an adversarial review on 2026-09-11.
-     */
     public function test_a_temporary_table_cannot_hijack_resolution(): void
     {
         $enrollment = Enrollment::factory()->create([
@@ -375,32 +262,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertNull($this->storedEmployee($probe), 'timelogs_resolve read the shadowed table');
     }
 
-    /**
-     * `timelogs_resolve` must take a share lock on the enrollment it reads.
-     *
-     * A catalog assertion, because the behaviour it guards needs two committed
-     * sessions and this suite runs inside a single transaction on a single
-     * connection — a second session cannot see fixtures the first has not
-     * committed. The proof is a two-process harness, kept in the scratchpad as
-     * `race_{setup,a,b}.php`, and it is worth restating what it showed.
-     *
-     * Without `FOR SHARE`: session A opens a transaction and ends an
-     * enrollment on 31 January — its AFTER trigger scans the timelogs existing
-     * *at that moment* and finds none — while session B, under READ COMMITTED,
-     * inserts a punch dated 1 February and resolves it against the pre-A
-     * snapshot in which the enrollment is still open. B commits, A commits,
-     * and a February punch is attributed through an enrollment that ended in
-     * January. Neither transaction sees the other, and the paired FK accepts
-     * it because it does not constrain the date.
-     *
-     * With it: B's insert blocked for exactly as long as A held its
-     * transaction open (measured: 3.0s against a 4s hold), then READ COMMITTED
-     * re-evaluated the predicate against the committed row and left the punch
-     * unresolved.
-     *
-     * Found by an adversarial review on 2026-09-11, which reported it from
-     * static tracing; it was reproduced before being believed.
-     */
     public function test_the_resolver_locks_the_enrollment_it_reads(): void
     {
         $body = DB::selectOne(
@@ -410,19 +271,6 @@ class TimelogResolutionTest extends TestCase
         $this->assertStringContainsString('FOR SHARE', $body);
     }
 
-    /**
-     * Both resolvers must carry an explicit `search_path`.
-     *
-     * A catalog assertion, for the reason the partial index on
-     * `terminals.serial` gets one: removing this setting changes no behaviour
-     * a test can observe *while every reference stays schema-qualified*, and
-     * mutation testing confirmed the removal survives. It is kept anyway — it
-     * is the documented convention for `SECURITY DEFINER`, and it is what
-     * stops the next unqualified reference somebody adds from silently
-     * resolving into the caller's temporary schema.
-     *
-     * Pinning it on the catalog is the only way to notice it going missing.
-     */
     public function test_both_resolvers_pin_their_search_path(): void
     {
         $configured = DB::table('pg_proc')
@@ -439,25 +287,11 @@ class TimelogResolutionTest extends TestCase
         }
     }
 
-    /**
-     * Read `employee_id` back through the **owner** connection.
-     *
-     * The test above leaves a temp table named `enrollments` in this session,
-     * and Eloquent queries that name unqualified, so reading through the app
-     * connection could hit the shadow rather than the table under test.
-     */
     private function storedEmployee(string $id): ?string
     {
         return DB::connection('owner')->table('timelogs')->where('id', $id)->value('employee_id');
     }
 
-    /**
-     * Resolution survives the upsert. `ON CONFLICT DO NOTHING` still fires the
-     * BEFORE INSERT trigger for the row it then discards — one index lookup
-     * per duplicate and nothing else — and `RETURNING` yields only the rows
-     * actually inserted, which is exactly how the importer will count
-     * `accepted` against `duplicates`.
-     */
     public function test_the_upsert_returns_only_rows_it_actually_inserted(): void
     {
         $enrollment = Enrollment::factory()->create();

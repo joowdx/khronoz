@@ -53,7 +53,6 @@ class CalendarTest extends TestCase
         return Employee::factory()->create(['agency_id' => $this->agency->id]);
     }
 
-    /** Agency-wide suspensions reach only the deployed. */
     private function deployed(): Employee
     {
         $employee = $this->employee();
@@ -70,8 +69,6 @@ class CalendarTest extends TestCase
     }
 
     /**
-     * Standard week, anchored Monday 7 September 2026.
-     *
      * @return array{employee: Employee, roster: Roster, standard: Shift, off: Shift}
      */
     private function standardWeek(?Employee $employee = null): array
@@ -93,8 +90,6 @@ class CalendarTest extends TestCase
     }
 
     /**
-     * CWW Mon–Thu: Long ×4, Off ×3, fallback Standard (04-scheduling.md).
-     *
      * @return array{employee: Employee, roster: Roster, long: Shift, off: Shift, standard: Shift}
      */
     private function compressedWeek(?Employee $employee = null): array
@@ -163,16 +158,14 @@ class CalendarTest extends TestCase
         return $calendar->apply($this->resolutions($employee, $date), $date);
     }
 
-    /** @param  list<array{slot: int, kind: string, at: mixed, grace: int, window: array{0: int, 1: int}}>  $sides */
+    /**
+     * @param  list<array{slot: int, kind: string, at: mixed, grace: int, window: array{0: int, 1: int}}>  $sides
+     */
     private function assertAt(array $sides, int $index, string $at): void
     {
         $this->assertSame($at, $sides[$index]['at']->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * Rule a / decision 63: a missing roster is off with no premium — an
-     * absence of data, not a declared rest day. Exemptions still apply.
-     */
     public function test_no_resolution_is_off_with_no_premium(): void
     {
         $employee = $this->employee();
@@ -195,11 +188,6 @@ class CalendarTest extends TestCase
         $this->assertSame('2026-09-10 00:00:00', $day->excused[0][1]->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * Rule b: holiday on an Off turn of a compressed week. The Off day
-     * stays off; every other date after declared_at resolves to Standard.
-     * A declaration dated the 10th must not retroject onto the 10th.
-     */
     public function test_the_compressed_week_reverts_other_days_to_the_fallback_shift(): void
     {
         ['employee' => $employee, 'long' => $long, 'off' => $off, 'standard' => $standard] = $this->compressedWeek();
@@ -232,10 +220,6 @@ class CalendarTest extends TestCase
         $this->assertAt($sunday->sides, 0, '2026-09-13 08:00:00');
     }
 
-    /**
-     * Acceptance: a silently absent week is a compressed-week revert that
-     * never happens. Name the missing date.
-     */
     public function test_apply_requires_the_whole_iso_week(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -251,10 +235,6 @@ class CalendarTest extends TestCase
             ->apply($resolutions, $date);
     }
 
-    /**
-     * Rule c: any holiday with expectsWork() false empties sides. A working
-     * holiday alone changes nothing.
-     */
     public function test_a_non_working_holiday_removes_the_expectation(): void
     {
         ['employee' => $employee, 'standard' => $standard] = $this->standardWeek();
@@ -294,10 +274,6 @@ class CalendarTest extends TestCase
         $this->assertNull($day->premium);
     }
 
-    /**
-     * Rule d: whole-day empties; a windowed suspension truncates at starts
-     * built from the date plus the raw clock string.
-     */
     public function test_a_whole_day_suspension_empties_sides_and_is_not_premium(): void
     {
         $employee = $this->deployed();
@@ -333,7 +309,6 @@ class CalendarTest extends TestCase
         $this->assertNull($day->premium);
     }
 
-    /** Rule e: an Off turn is rest. */
     public function test_an_off_turn_is_premium_rest(): void
     {
         ['employee' => $employee, 'off' => $off] = $this->standardWeek();
@@ -346,10 +321,6 @@ class CalendarTest extends TestCase
         $this->assertSame(Premium::Rest, $day->premium);
     }
 
-    /**
-     * Decision 49: local is special throughout, and expectsWork() is the
-     * one place that decides — never a branch on the type here.
-     */
     public function test_a_local_holiday_classifies_as_special(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -366,7 +337,6 @@ class CalendarTest extends TestCase
         $this->assertSame(Premium::Special, $day->premium);
     }
 
-    /** Rule 10: coincident causes take the stronger: regular > special > rest. */
     public function test_coincident_causes_take_the_stronger_premium(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -389,11 +359,6 @@ class CalendarTest extends TestCase
         $this->assertSame(Premium::Regular, $day->premium);
     }
 
-    /**
-     * The pair that proves status and premium are separate: a regular
-     * holiday on a rest day is off (weaker expectation) and regular
-     * (stronger cause). One derived from the other cannot satisfy both.
-     */
     public function test_a_regular_holiday_on_a_rest_day_is_status_off_and_premium_regular(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -409,10 +374,6 @@ class CalendarTest extends TestCase
         $this->assertSame(Premium::Regular, $day->premium);
     }
 
-    /**
-     * Decision 51: premium is classified even when premium_hours is false.
-     * That setting gates credited in the deriver, not the class here.
-     */
     public function test_premium_is_classified_when_premium_hours_is_false(): void
     {
         $this->agency->update(['settings' => ['premium_hours' => false]]);
@@ -429,11 +390,6 @@ class CalendarTest extends TestCase
         $this->assertSame(Premium::Regular, $day->premium);
     }
 
-    /**
-     * Rule f / decision 50: every covering exemption contributes a window
-     * when excused(); the stamp is one, and a whole-day leave beats a
-     * two-hour pass. Travel zeroes excess (the deriver reads the flag).
-     */
     public function test_exemptions_collect_every_window_and_stamp_one(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -475,10 +431,6 @@ class CalendarTest extends TestCase
         $this->assertSame(WorkdayStatus::Exempt, $day->status);
     }
 
-    /**
-     * A personal slip excuses nothing but is still a candidate for the
-     * stamp (decision 19, 50). A day with only that slip still stamps it.
-     */
     public function test_a_personal_slip_stamps_but_does_not_excuse(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -515,7 +467,6 @@ class CalendarTest extends TestCase
         $this->assertSame(WorkdayStatus::Exempt, $day->status);
     }
 
-    /** Rule g: remote is told from Off by the flag, never the name. */
     public function test_a_remote_shift_is_status_remote(): void
     {
         $employee = $this->employee();
@@ -539,10 +490,6 @@ class CalendarTest extends TestCase
         $this->assertNull($day->premium);
     }
 
-    /**
-     * An ordinary working day: status null means the punches decide.
-     * Calendar itself issues no queries — Almanac already loaded.
-     */
     public function test_an_ordinary_working_day_leaves_status_null(): void
     {
         ['employee' => $employee, 'standard' => $standard] = $this->standardWeek();

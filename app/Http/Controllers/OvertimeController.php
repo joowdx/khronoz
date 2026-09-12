@@ -18,15 +18,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Work authorised beyond the shift (05-calendar.md).
- *
- * `starts`/`ends` are timestamps rather than a date and two clock times,
- * because an authorisation routinely crosses midnight and 22:00–02:00 is one
- * stretch of work. `overtimes_no_overlap` indexes `tsrange(starts, ends)` for
- * exactly that reason, and it is the one rule here no validation can express —
- * so the 23P01 is translated rather than restated.
- */
 class OvertimeController extends Controller
 {
     private const PER_PAGE = 50;
@@ -49,9 +40,7 @@ class OvertimeController extends Controller
             ->with('employee')
             ->when($employee !== null, fn (Builder $query) => $query->where('employee_id', $employee->id))
             ->when($mode !== '', fn (Builder $query) => $query->where('mode', $mode))
-            // Against the generated `date` column, which is `starts::date` —
-            // an overnight stretch belongs to the day it began on, which is
-            // how a DTR reads it.
+
             ->when($from !== '', fn (Builder $query) => $query->where('date', '>=', $from))
             ->when($to !== '', fn (Builder $query) => $query->where('date', '<=', $to))
             ->orderByDesc('starts')
@@ -137,17 +126,6 @@ class OvertimeController extends Controller
         return to_route('overtimes.index')->with('success', 'Authorisation withdrawn.');
     }
 
-    /**
-     * The refusal as a message, or null when it is not one of ours.
-     *
-     * P0001 is `overtimes_frozen_month` (decision 81): an authority may not
-     * change which locked months it covers, because `Ledger::view()` reads
-     * this table live and a slip filed after the fact would move a figure
-     * somebody has signed. It arrived with the freeze and nothing here
-     * translated it, so withdrawing a September authority in October
-     * answered a 500 — the trigger was doing its job and the screen made it
-     * look like a bug in the application.
-     */
     private function refused(QueryException $e): ?RedirectResponse
     {
         return match ($e->getCode()) {
@@ -163,12 +141,6 @@ class OvertimeController extends Controller
     }
 
     /**
-     * How authorised hours may be compensated. **Two values, not three** —
-     * `overtimes_mode_valid` allows `pay` and `cto` and nothing else, and
-     * `EnumCheckContractTest` holds the enum to that CHECK. Shipping the
-     * cases rather than restating them in TypeScript is what keeps the picker
-     * from offering a third the database refuses.
-     *
      * @return array<int, array{value: string, label: string}>
      */
     private function modes(): array

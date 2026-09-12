@@ -38,22 +38,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Person column needs for a full Filipino name. */
 const FLEX_MIN = 260;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * The screen that makes ingestion mean anything.
- *
- * `timelogs_resolve` matches a punch to the one enrollment covering
- * `(terminal, uid, date)`. With no rows here every imported punch lands
- * unresolved and stays there — so this page, not the import dialog, is what an
- * operator has to visit first.
- *
- * Ended rows stay. The range is the history every past punch resolves
- * through, and deleting one is refused by the paired FK anyway (decision 41).
- */
 export default function Index({
     terminal,
     enrollments,
@@ -63,7 +51,6 @@ export default function Index({
     terminal: Terminal;
     enrollments: Enrollment[];
     employees: Employee[];
-    /** EnrollmentPrivilege, labelled by the enum that holds the CHECK's cases. */
     privileges: Choice[];
 }) {
     const can = useCan();
@@ -124,45 +111,15 @@ export default function Index({
                         </TableHeader>
                         <TableBody>
                             {enrollments.map((enrollment) => (
-                                // **No tint on current rows**, unlike the open
-                                // placement on an employee's profile. There the
-                                // open row is one among a history and the tint
-                                // marks the exception; here "current" is the
-                                // norm — a device with thirty people enrolled
-                                // and five past ones would be thirty tinted rows
-                                // and the cue would mean nothing. Ordering puts
-                                // current first and the Until column says
-                                // "Present", which is the cue that scales.
                                 <TableRow key={enrollment.id}>
                                     <TableCell className="tabular-nums">{enrollment.uid}</TableCell>
                                     <TableCell className="max-w-0">
                                         <span className="block truncate">
-                                            {/*
-                                              "Removed", not "Unknown".
-                                              `employee_id` is NOT NULL, so a
-                                              null relation has exactly one
-                                              cause: the employee was
-                                              offboarded and `Employee`'s
-                                              soft-delete scope hides them.
-                                              The system knows who this was;
-                                              saying "Unknown" would claim it
-                                              does not.
-                                            */}
                                             {enrollment.employee?.name ?? (
                                                 <span className="text-muted-foreground">Removed</span>
                                             )}
                                         </span>
                                     </TableCell>
-                                    {/*
-                                      The enum's words, which is what the
-                                      enrol dialog on this same page already
-                                      offered. `capitalize` on the raw value
-                                      printed "Admin" and "Superadmin" in
-                                      this column while the dropdown three
-                                      hundred lines below said "Administrator"
-                                      and "Super administrator" — one screen,
-                                      two names for one privilege.
-                                    */}
                                     <TableCell>{enrollment.privilege.label}</TableCell>
                                     <TableCell className="tabular-nums">{formatDay(enrollment.starts)}</TableCell>
                                     <TableCell className="tabular-nums">
@@ -195,15 +152,6 @@ export default function Index({
     );
 }
 
-/**
- * Ending is the only edit offered here.
- *
- * An enrollment's `uid` and `employee_id` *can* be changed — decision 43 made
- * that possible so a mistyped device user id is correctable — but doing so
- * re-attributes every punch that resolved through it. That is a heavier act
- * than "this person stopped using this device" and does not belong on the row
- * that also holds the everyday verb.
- */
 function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enrollment }) {
     const [ending, setEnding] = useState(false);
 
@@ -242,18 +190,6 @@ function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enr
                     >
                         {({ errors, processing }) => (
                             <>
-                                {/*
-                                  `expects` is the row's `ends` as this page
-                                  saw it — empty for an open enrollment. The
-                                  controller's UPDATE carries
-                                  `ends IS NOT DISTINCT FROM :expects`, so a
-                                  form opened before somebody else closed this
-                                  enrollment refuses rather than silently
-                                  moving an end date already on the record.
-                                  An enrollment's range is what attributes
-                                  punches to a person, so that rewrite
-                                  reattributes pay.
-                                */}
                                 <input type="hidden" name="expects" value={enrollment.ends ?? ''} />
 
                                 <Field label="Last day" htmlFor="ends" error={errors.ends}>
@@ -286,13 +222,6 @@ function EndMenu({ terminal, enrollment }: { terminal: Terminal; enrollment: Enr
     );
 }
 
-/**
- * The device user id is the field that matters and the one nothing else can
- * check: it must be exactly what the device assigned, because
- * `timelogs_resolve` joins on the raw string (decision 42). `007` is not `7`,
- * and an employee number is not a device user id — the hint says both, because
- * confusing them is the mistake that leaves a month of punches unattributed.
- */
 function EnrolDialog({
     terminal,
     employees,

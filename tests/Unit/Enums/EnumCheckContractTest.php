@@ -17,20 +17,6 @@ use App\Enums\WorkdayStatus;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-/**
- * `.ai/rules/enums.md`: a backed enum exists "one per varchar column + CHECK
- * (... IN (...)) constraint". Nothing enforced that pairing, so an enum and
- * its CHECK could drift — a case added to the enum and not the DDL writes a
- * value the database refuses at runtime, and a value added to the DDL and not
- * the enum comes back as a cast error on read.
- *
- * This parses the CHECK out of the migration and compares it to the enum's
- * own values, the same technique PermissionContractTest uses on the
- * TypeScript union. Add an enum mirroring a CHECK, add a row here.
- *
- * Sets, not lists: the order of an `IN (...)` says nothing, and neither does
- * the declaration order of the cases.
- */
 class EnumCheckContractTest extends TestCase
 {
     /** @return array<string, array{0: class-string, 1: string, 2: string}> */
@@ -82,7 +68,6 @@ class EnumCheckContractTest extends TestCase
         $this->assertSame($declared, $cases, "{$enum} and {$constraint} have drifted");
     }
 
-    /** Every case must answer label(), and no two may answer the same thing. */
     #[DataProvider('enums')]
     public function test_every_case_has_a_distinct_label(string $enum): void
     {

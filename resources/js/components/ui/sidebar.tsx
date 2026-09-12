@@ -16,8 +16,6 @@ const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = '16rem';
 const SIDEBAR_WIDTH_MOBILE = '18rem';
-// 64, not shadcn's 48: §4.3's `--rail-w`. The nav's icons are 16 in a 32
-// button, and the rail has to hold that centred with 16 either side.
 const SIDEBAR_WIDTH_ICON = '4rem';
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 
@@ -176,18 +174,17 @@ function Sidebar({
                       and the agency switcher inside it portal to
                       document.body at z-50 like every other Radix menu. At 55
                       the surface won the stacking contest and covered them
-                      both: MEASURED — sign out, the product's only appearance
-                      control, and the agency switcher were all unreachable on
-                      any viewport under 768, and `grep -rln "Sign out"` finds
-                      exactly one file, so there was no other way out.
+                      both: sign out, the product's only appearance control,
+                      and the agency switcher are then all unreachable on any
+                      viewport under 768, and there is no other way out.
 
                       55 is right for a sheet holding a form whose picker must
                       float above it (the move sheet, popover.tsx's note); it
                       is wrong for a sheet that IS the navigation and whose own
                       children are menus. §4.4's full ladder — raising
                       dialog/menu/select/tooltip to 60 — is the real fix and is
-                      deliberately deferred: it would need every Milestone 1
-                      overlay pairing re-verified.
+                      deliberately deferred: it would need every overlay
+                      pairing re-verified.
                     */
                     className="bg-sidebar text-sidebar-foreground z-50 w-(--sidebar-width) p-0 [&>button]:hidden"
                     style={

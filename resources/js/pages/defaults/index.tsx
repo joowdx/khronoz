@@ -13,15 +13,6 @@ import { formatMinutes } from '@/lib/minutes';
 import { copy, refresh } from '@/routes/defaults';
 import type { Schedule, Shift } from '@/types';
 
-/**
- * One default and what this agency has of it.
- *
- * `copy` is the agency's own row for the default — the linked copy when there
- * is one, otherwise the row that merely shares the name, which is why
- * `linked` is separate. `differs` is only ever true for a linked row: an
- * unlinked namesake was never claimed to match the default, so calling it
- * changed would be a verdict on somebody else's work (DefaultController).
- */
 interface Row<T> {
     default: T;
     copy: T | null;
@@ -29,7 +20,6 @@ interface Row<T> {
     differs: boolean;
 }
 
-/** The four states a row can be in, in the order the list resolves them. */
 type State = 'missing' | 'own' | 'changed' | 'current';
 
 const STATES: Record<State, { label: string; variant: 'outline' | 'secondary' | 'attention' | 'positive' }> = {
@@ -46,7 +36,6 @@ const SHIFT_COLUMNS = {
     actions: 110,
 } as const;
 
-/** What the flexible Shift column needs for a real default name. */
 const SHIFT_FLEX_MIN = 220;
 
 const SHIFT_MIN_WIDTH = Object.values(SHIFT_COLUMNS).reduce((sum, width) => sum + width, 0) + SHIFT_FLEX_MIN;
@@ -58,25 +47,12 @@ const SCHEDULE_COLUMNS = {
     actions: 110,
 } as const;
 
-/** What the flexible Cycle column needs for a week of chips and its overflow note. */
 const SCHEDULE_FLEX_MIN = 260;
 
 const SCHEDULE_MIN_WIDTH = Object.values(SCHEDULE_COLUMNS).reduce((sum, width) => sum + width, 0) + SCHEDULE_FLEX_MIN;
 
-/** Chips past this are counted rather than drawn; a 21-day rotation is a legal cycle. */
 const CYCLE_SHOWN = 14;
 
-/**
- * The platform's shifts and schedules, and what this agency has of each
- * (04-scheduling.md rule 7).
- *
- * Copy is one action for the whole set and sits in the heading row, because
- * that is what it is: a schedule cannot be copied without the shifts its
- * turns name, so a per-row copy would silently drag other rows along.
- * Refresh is per row, and only offered where it can succeed — a linked copy
- * that has drifted. Everything else states a fact instead of inviting an
- * action that would do nothing.
- */
 export default function Index({ shifts, schedules }: { shifts: Row<Shift>[]; schedules: Row<Schedule>[] }) {
     const can = useCan();
     const manage = can('scheduling.manage');
@@ -204,11 +180,6 @@ export default function Index({ shifts, schedules }: { shifts: Row<Shift>[]; sch
     );
 }
 
-/**
- * The page's one primary action. It says how many rows it will bring over, so
- * pressing it is not a guess — and it is absent altogether once nothing is
- * missing, rather than sitting there doing nothing.
- */
 function CopyButton({ missing }: { missing: number }) {
     return (
         <Form {...copy.form()} options={{ preserveScroll: true }} disableWhileProcessing>
@@ -222,11 +193,6 @@ function CopyButton({ missing }: { missing: number }) {
     );
 }
 
-/**
- * Refresh, and only where it can succeed: a copy that points back at this
- * default and has drifted from it. A row that is up to date, unlinked or not
- * copied at all gets nothing — the state beside it already says why.
- */
 function RefreshButton({
     type,
     row,
@@ -256,7 +222,6 @@ function RefreshButton({
     );
 }
 
-/** The row's state as a word on a tint — never the tint alone (§5.13). */
 function StateBadge({ row }: { row: Row<unknown> }) {
     const { label, variant } = STATES[stateOf(row)];
 
@@ -267,11 +232,6 @@ function StateBadge({ row }: { row: Row<unknown> }) {
     );
 }
 
-/**
- * A shift's mark: the ramp chip for a working day, the hatch for a rest day,
- * the dashed box for a remote one — the same three marks the roster grid
- * draws (§5.23), so a default is recognisable before its name is read.
- */
 function Mark({ shift }: { shift: Shift }) {
     if (shift.kind === 'off') {
         return <OffBox className="h-[22px] w-[21px]" />;
@@ -288,14 +248,6 @@ function Mark({ shift }: { shift: Shift }) {
     );
 }
 
-/**
- * A schedule's cycle drawn as its turns, in order.
- *
- * The marks are decoration over a name list a screen reader gets in full, so
- * the whole strip is `aria-hidden` and the names sit beside it in an sr-only
- * span. A long rotation is counted rather than drawn past `CYCLE_SHOWN`: a
- * cycle may legally run to 366 days, and a row is not the place to read one.
- */
 function Cycle({ schedule }: { schedule: Schedule }) {
     const turns = schedule.turns ?? [];
     const names = turns.map((turn) => turn.shift?.name).filter((name): name is string => name !== undefined);
@@ -321,7 +273,6 @@ function Cycle({ schedule }: { schedule: Schedule }) {
     );
 }
 
-/** Which of the four states a row is in. Resolved once, here, for both tables. */
 function stateOf(row: Row<unknown>): State {
     if (row.copy === null) {
         return 'missing';
@@ -334,11 +285,6 @@ function stateOf(row: Row<unknown>): State {
     return row.differs ? 'changed' : 'current';
 }
 
-/**
- * What a default day expects, as words rather than a slot dump: the in/out
- * pairs for a working shift, and a plain statement for the two shifts that
- * have no slots at all and are told apart by `remote`.
- */
 function describe(shift: Shift): string {
     if (shift.kind === 'off') {
         return 'Nothing expected';

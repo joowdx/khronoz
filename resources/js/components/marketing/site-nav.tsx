@@ -11,12 +11,6 @@ const SECTIONS = [
     { href: '#agencies', label: 'For agencies' },
 ];
 
-/**
- * The 64px sticky nav. It takes its 1px rule only once the page has scrolled,
- * which a 1px sentinel above it reports: an IntersectionObserver costs nothing
- * per frame, where a scroll listener runs on every one. The colour change is
- * held back from anyone who asked for less motion.
- */
 export function SiteNav() {
     const sentinel = useRef<HTMLDivElement>(null);
     const [stuck, setStuck] = useState(false);
@@ -41,7 +35,6 @@ export function SiteNav() {
 
     return (
         <>
-            {/* Out of flow, so watching the scroll costs the page no pixel. */}
             <div ref={sentinel} aria-hidden="true" className="absolute top-0 size-px" />
             <header
                 className={cn(

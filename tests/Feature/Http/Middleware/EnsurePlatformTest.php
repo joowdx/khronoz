@@ -9,18 +9,7 @@ use Tests\TestCase;
 
 class EnsurePlatformTest extends TestCase
 {
-    /**
-     * Every route inside the `platform` middleware group. Only `index`'s 403
-     * was previously pinned directly (AgencyControllerTest); the other six
-     * were protected only because they share the group, so moving one of
-     * them out of it would have gone uncaught. `edit`, `update` and `enter`
-     * bind {agency} — the test supplies a real, non-platform agency's id, so
-     * a middleware-ordering regression (binding resolving before the
-     * `platform` middleware runs) would surface as something other than this
-     * test's own 403 rather than being silently absorbed by a 404.
-     *
-     * @return array<string, array{0: string, 1: string, 2: bool}>
-     */
+    /** @return array<string, array{0: string, 1: string, 2: bool}> */
     public static function platformRouteCases(): array
     {
         return [

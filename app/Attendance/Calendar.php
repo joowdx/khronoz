@@ -18,18 +18,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
-/**
- * Apply the calendar to a resolved roster day: holidays, work
- * suspensions, exemptions and the compressed-week revert
- * (05-calendar.md, 06-attendance.md daily rules 1, 7, 8 and 10).
- *
- * No queries. The Almanac loaded what applies; this class says what
- * that does to the day. Matching and minute arithmetic are later.
- *
- * `schedule.fallbackShift` must already be loaded when
- * `fallback_shift_id` is set — Resolver does not eager-load it, and
- * Model::shouldBeStrict() will throw rather than N+1.
- */
 final class Calendar
 {
     public function __construct(

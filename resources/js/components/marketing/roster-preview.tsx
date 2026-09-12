@@ -1,27 +1,8 @@
 import { AVATAR, OFF_HATCH, RAMP, ShiftChip, type Slot, type Tint } from '@/components/marketing/shift-chip';
 import { cn } from '@/lib/utils';
 
-/**
- * The product as the hero: a roster fragment and the on-duty lane strip, in one
- * bordered 12px panel.
- *
- * This is deliberately static presentational markup. Nothing in Milestone 1 or
- * 2 can produce a roster — Shift, Schedule, Turn, Roster and Workday all arrive
- * in Milestone 3 (docs/design/08-interface.md §10) — and a public marketing
- * page must not query for one either. Milestone 3 replaces the constants below
- * with real props; this component is the whole seam, so nothing outside it has
- * to change when that happens.
- *
- * Its geometry is the roster screen's own (§4.3, §5.23): 200px of employee
- * column and 120px of schedule, 27px a day, 34px rows, a night run drawn as one
- * band that opens 12px into its own first day and closes 15px into the day after
- * its last. On a phone the schedule column drops out, the employee column
- * narrows to 152px, and the grid scrolls sideways inside its own frame.
- */
-
 type Turn = 'M' | 'A' | 'N' | 'S' | 'O';
 
-/** Morning x5, off x2, Afternoon x5, off x2, Night x5, off x2. */
 const CYCLE: Turn[] = [
     'M',
     'M',
@@ -53,7 +34,6 @@ const SHIFT: Record<Exclude<Turn, 'O'>, { slot: Slot; letter: string; hours: str
     S: { slot: 'c6', letter: 'S', hours: '08:00 to 17:00' },
 };
 
-/** 1 to 21 September 2026: a Tuesday to a Monday. */
 const WEEKDAYS = [
     'T',
     'W',
@@ -104,7 +84,6 @@ const ROWS: { name: string; number: string; initials: string; tint: Tint; schedu
     },
 ];
 
-/** Where each run of night turns starts and how many days it covers. */
 function nightRuns(turns: Turn[]): { start: number; nights: number }[] {
     const runs: { start: number; nights: number }[] = [];
 
@@ -293,7 +272,6 @@ function Legend() {
     );
 }
 
-/** Hours to a percentage of the 24-hour track. */
 const pct = (hours: number) => (hours / 24) * 100;
 
 const LANES: { name: string; slot: Slot; bars: { left: number; width: number; label: string }[]; count: number }[] = [

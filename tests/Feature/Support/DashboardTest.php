@@ -18,10 +18,6 @@ class DashboardTest extends TestCase
         $this->assertFalse(Dashboard::allows(null));
     }
 
-    /**
-     * The local branch is an independent OR arm: proven separately from the
-     * platform-only branch above so either half can regress on its own.
-     */
     public function test_the_local_environment_admits_everyone(): void
     {
         $this->app->detectEnvironment(fn () => 'local');
@@ -30,3 +26,4 @@ class DashboardTest extends TestCase
         $this->assertTrue(Dashboard::allows(User::factory()->preset(Preset::Viewer)->create()));
     }
 }
+/** @return void */

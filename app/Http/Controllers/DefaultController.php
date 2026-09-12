@@ -23,40 +23,6 @@ use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * The platform agency's default shifts and schedules, and the two things an
- * agency may do with them: copy them, and later refresh a copy from the
- * default it came from (04-scheduling.md rule 7).
- *
- * **This is the one screen that reads another agency's rows on purpose.**
- * `Shift` and `Schedule` use the plain `AgencyScope` — unlike `Holiday`,
- * which overrides `agencyScope()` to `AgencyOrPlatformScope` — so a tenant
- * query cannot see a default at all, and the models must stay that way:
- * mixing platform rows into `shifts.index` would put rows nobody may edit in
- * front of every timekeeper. So the scope is dropped **here**, in this
- * controller's own queries, and `agency_id` is named explicitly. The turns of
- * a platform schedule are fetched by their own query for the same reason: an
- * eager load is a fresh query on `Turn`, `AgencyScope` applies to it too, and
- * a platform schedule would come back with an empty cycle rather than an
- * error.
- *
- * **What a row shows.** For each default, whether this agency has the copy,
- * whether the copy is *linked* (its `origin_id` names this default) and
- * whether it has diverged. "Diverged" is `slots`, `required`, `flex`,
- * `remote` and `trust` for a shift; `length` and the ordered turn shift names
- * for a schedule — names, because the two cycles point at different agencies'
- * shifts by construction and only the names are comparable across them.
- *
- * A row may also match by **name** without being linked: the agency had its
- * own `Standard` before it ever copied anything, and `CopyDefaults` leaves
- * such a row alone rather than overwriting or suffixing it (UNIQUE
- * (agency_id, name)). That is shown as its own state, with no Refresh offered
- * — there is no origin to refresh from — so the list never invites an action
- * that cannot succeed.
- *
- * Both writes are POSTs that redirect back with a flash, never JSON: they
- * change rows the page is listing, and the page re-renders them.
- */
 class DefaultController extends Controller
 {
     public function index(Request $request): Response
@@ -71,9 +37,6 @@ class DefaultController extends Controller
 
         $this->attachCycles($defaultSchedules, $defaultShifts);
 
-        // The agency's own rows, under the ordinary tenant scope — this half
-        // needs no special handling, and reading it the normal way is what
-        // keeps the exception above confined to the platform half.
         $ownShifts = Shift::query()->get();
         $ownSchedules = Schedule::query()->with('turns.shift')->get();
 
@@ -97,22 +60,6 @@ class DefaultController extends Controller
         ]);
     }
 
-    /**
-     * Copy every default this agency does not have yet.
-     *
-     * One endpoint for the whole set rather than one per row, because that is
-     * what the operation is: the schedules cannot be copied without the
-     * shifts their turns name, so a per-row copy of a schedule would silently
-     * drag its shifts along. `CopyDefaults` is idempotent, so pressing this
-     * again after the platform adds a default copies only the addition.
-     *
-     * The 23505 catch is for the race the pre-check inside the action cannot
-     * close: two administrators pressing Copy at the same moment, or a shift
-     * created under a default's name between the read and the insert. It
-     * needs no `DB::transaction` of its own here — the action already runs
-     * inside one, so Postgres has rolled back to before the failed statement
-     * and the redirect's own queries are not answering 25P02 (controllers.md).
-     */
     public function copy(Request $request, Tenant $tenant, CopyDefaults $defaults): RedirectResponse
     {
         Gate::authorize('create', Shift::class);
@@ -135,14 +82,6 @@ class DefaultController extends Controller
         return back()->with('success', $this->copied($summary));
     }
 
-    /**
-     * Put one copy back to its default.
-     *
-     * The row is named in the body rather than in the path because the route
-     * is one POST for both tables — `type` says which — and the id is the
-     * **agency's own** row, so the tenant scope answers 404 for another
-     * agency's copy without this controller having to check anything.
-     */
     public function refresh(Request $request, RefreshFromOrigin $action): RedirectResponse
     {
         $validated = $request->validate([
@@ -168,8 +107,6 @@ class DefaultController extends Controller
     }
 
     /**
-     * The platform agency's rows of $query's model.
-     *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  Builder<TModel>  $query
@@ -185,14 +122,6 @@ class DefaultController extends Controller
     }
 
     /**
-     * Hang each platform schedule's turns, and each turn's shift, on the
-     * models by hand.
-     *
-     * `with('turns.shift')` cannot be used: both relations are fresh queries
-     * under `AgencyScope`, so under an agency's tenant every platform
-     * schedule would render with an empty cycle. The shifts are already in
-     * hand from the same page, so this costs one query and no lookup.
-     *
      * @param  EloquentCollection<int, Schedule>  $schedules
      * @param  EloquentCollection<int, Shift>  $shifts
      */
@@ -214,14 +143,6 @@ class DefaultController extends Controller
     }
 
     /**
-     * This agency's row for $default: the linked copy if there is one, else
-     * the row that merely shares its name.
-     *
-     * The name fallback is not a convenience — it is the other half of
-     * `CopyDefaults`' collision rule. A default whose name the agency had
-     * already used is never copied, so without this the row would read "not
-     * copied" forever while Copy went on doing nothing about it.
-     *
      * @template TModel of Shift|Schedule
      *
      * @param  TModel  $default
@@ -235,13 +156,6 @@ class DefaultController extends Controller
     }
 
     /**
-     * One list row: the default, this agency's row for it if any, whether
-     * that row is really a copy of *this* default, and whether it diverged.
-     *
-     * `differs` is only asked of a linked row. An unlinked namesake is the
-     * agency's own work and was never claimed to match, so calling it
-     * "changed" would be a verdict on something nobody copied.
-     *
      * @template TModel of Shift|Schedule
      *
      * @param  TModel  $default
@@ -262,18 +176,6 @@ class DefaultController extends Controller
         ];
     }
 
-    /**
-     * The five columns rule 7's "has diverged" is about.
-     *
-     * `name` and `color` are deliberately not among them: an agency may
-     * rename its copy or move it to a free ramp slot without that being a
-     * divergence it should be invited to undo, and `RefreshFromOrigin`
-     * restores exactly this set for the same reason.
-     *
-     * `slots` compares with `!=` rather than `!==`: both sides come back from
-     * `jsonb`, which normalises object key order, so the arrays are equal by
-     * key and value while their key *order* is nobody's guarantee.
-     */
     private function shiftDiffers(Shift $copy, Shift $default): bool
     {
         return $copy->slots != $default->slots
@@ -297,7 +199,9 @@ class DefaultController extends Controller
             || $this->cycle($copy) !== $this->cycle($default);
     }
 
-    /** @return list<string|null> */
+    /**
+     * @return list<string|null>
+     */
     private function cycle(Schedule $schedule): array
     {
         return $schedule->turns

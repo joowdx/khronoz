@@ -12,35 +12,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * An employee's placement in a workgroup over a date range
- * (docs/design/01-organization.md rules 2 and 7): the history of where a
- * person has worked.
- *
- * `parent_id` null means this row is the employee's *substantive* placement,
- * where the plantilla item sits; `parent_id` set means it is a
- * *reassignment* — the person works elsewhere for a period while the
- * substantive placement stays open, because the item never left. There is no
- * type column: `parent_id IS NOT NULL` is the whole fact (decision 31).
- *
- * At most one open row *of each class* per employee, enforced by the two
- * partial exclusion constraints deployments_no_overlap and
- * deployments_no_overlapping_movements, not by application code. A
- * reassignment may overlap the placement it departs from and never another
- * reassignment.
- *
- * **This model must never use SoftDeletes** (decision 35). Correcting a
- * wrongly recorded deployment is a delete and re-create, because the row was
- * never true and principle 2's "a change is a new range" does not apply to a
- * mistake. A soft delete is an UPDATE: the row would keep its `starts` and
- * `ends` and go on occupying the timeline those two exclusion constraints
- * index, so the corrected row replacing it would be refused with 23P01 by the
- * very row it corrects.
- */
 #[Fillable(['agency_id', 'employee_id', 'workgroup_id', 'parent_id', 'starts', 'ends'])]
 class Deployment extends Model
 {
-    /** @use HasFactory<DeploymentFactory> */
+    /**
+     * @use HasFactory<DeploymentFactory>
+     */
     use BelongsToAgency, CoversDates, HasFactory, HasUlids;
 
     protected function casts(): array
@@ -61,17 +38,11 @@ class Deployment extends Model
         return $this->belongsTo(Workgroup::class);
     }
 
-    /** The substantive placement this row is a reassignment from; null on a placement itself. */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
     }
 
-    /**
-     * The reassignments nested under this placement. Never more than one per
-     * date, and each sits inside this row's own range — both enforced by
-     * deployments_no_overlapping_movements and deployments_nested.
-     */
     public function movements(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');

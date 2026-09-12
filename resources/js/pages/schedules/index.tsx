@@ -35,22 +35,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Cycle column needs for a fortnight of 18px marks. */
 const FLEX_MIN = 340;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * Every cycle the agency has, drawn.
- *
- * The strip is why this list is a table rather than a set of names: a schedule
- * is only legible as its days in order, and the marks are the same ones the
- * roster grid paints, so what is read here is what will be worked. Long cycles
- * are cut off with a count — the whole of a 21-day rotation is on its own edit
- * screen, and this is the shape of it at a glance.
- *
- * No pagination and no filters: an agency has schedules in single figures.
- */
 export default function Index({ schedules }: { schedules: Schedule[] }) {
     const can = useCan();
     const manage = can('scheduling.manage');
@@ -131,10 +119,6 @@ export default function Index({ schedules }: { schedules: Schedule[] }) {
                                                 <span className="truncate">{schedule.fallback_shift.name}</span>
                                             </span>
                                         ) : (
-                                            // The week stands as written. An em
-                                            // dash, because the column says
-                                            // "nothing" the way every other
-                                            // empty figure on the product does.
                                             <span className="text-muted-foreground">—</span>
                                         )}
                                     </TableCell>
@@ -151,15 +135,6 @@ export default function Index({ schedules }: { schedules: Schedule[] }) {
     );
 }
 
-/**
- * Remove is offered on every schedule, unlike a workgroup's.
- *
- * What stands in the way is a team or a roster following it — rows this list
- * does not carry a count of — so the honest arrangement is to let the database
- * answer: `(schedule_id, agency_id)` is RESTRICT on both, and
- * ScheduleController::destroy translates the 23001 into a message naming what
- * still follows it rather than a 500.
- */
 function RowMenu({ schedule, manage }: { schedule: Schedule; manage: boolean }) {
     if (!manage) {
         return null;

@@ -24,9 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
         ]);
 
-        // Appended middleware would run after SubstituteBindings, so route models
-        // would resolve before the tenant exists. The priority list puts SetTenant
-        // right before SubstituteBindings, after StartSession and Authenticate.
+        // Resolve the tenant before route bindings.
         $middleware->prependToPriorityList(SubstituteBindings::class, SetTenant::class);
 
         $middleware->alias([
@@ -34,12 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'platform' => EnsurePlatform::class,
         ]);
 
-        // The framework default is `fn () => route('login')`, which Authenticate
-        // evaluates while constructing the AuthenticationException. With no login
-        // route yet that throws RouteNotFoundException from inside the middleware,
-        // so guests got a 500 instead of a 401. Returning null lets the handler
-        // answer 401 (as JSON for api/*, see withExceptions below); once a `login`
-        // route exists, web requests redirect to it again.
+        // Avoid resolving a missing login route while handling API guests.
         $middleware->redirectGuestsTo(
             fn () => Route::has('login') ? route('login') : null,
         );

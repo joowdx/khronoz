@@ -26,20 +26,12 @@ class HolidayTypeTest extends TestCase
         ];
     }
 
-    /**
-     * True only for `working` (decision 49, 05-calendar.md rule 1). A local
-     * holiday is one declared by ordinance and behaves as special: no work
-     * expected, worked time premium-rated at the special rate. A deriver
-     * written from 05-calendar.md rule 1 before this method existed either
-     * raised on the fourth value or silently ran an ordinary day.
-     */
     #[DataProvider('types')]
     public function test_only_a_working_holiday_keeps_the_shift(HolidayType $type, bool $expectsWork): void
     {
         $this->assertSame($expectsWork, $type->expectsWork(), $type->value);
     }
 
-    /** Every case is covered by the table above — no case may be added without a row. */
     public function test_every_case_is_swept(): void
     {
         $this->assertSame(

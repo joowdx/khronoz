@@ -37,21 +37,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Reason column needs for a real memorandum line. */
 const FLEX_MIN = 300;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * A year at a time, newest first — a suspension is looked up after the fact
- * ("were we closed that Tuesday?") far more often than it is browsed.
- *
- * **A date may carry several**, deliberately: a morning window and an
- * afternoon one, or a division extending an agency-wide closure for its own
- * reason. The schema has no key over `(agency_id, workgroup_id, date)` and the
- * list does not group by date either — the deriver takes the union, and so
- * does the reader.
- */
 export default function Index({
     suspensions,
     filters,
@@ -140,11 +129,6 @@ export default function Index({
                         </TableHeader>
                         <TableBody>
                             {suspensions.map((suspension, position) => {
-                                // The same suppression holidays/index makes, for
-                                // the same reason: a morning and an afternoon
-                                // window on one date are two rows, and writing
-                                // the date once makes them read as one day
-                                // carrying two rather than as a duplicate.
                                 const sameDay =
                                     position > 0 && suspensions[position - 1]?.date === suspension.date;
 
@@ -167,12 +151,6 @@ export default function Index({
                                             )}
                                         </span>
                                     </TableCell>
-                                    {/*
-                                      Agency-wide is the commonest shape and is
-                                      stated, not dashed: a null workgroup means
-                                      "everyone", which is the opposite of
-                                      "nothing recorded".
-                                    */}
                                     <TableCell className="max-w-0">
                                         <span className="block truncate">
                                             {suspension.workgroup?.name ?? 'The whole agency'}

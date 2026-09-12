@@ -16,12 +16,6 @@ class HomeControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('home'));
     }
 
-    /**
-     * Server rendering is opt-in per route: AppServiceProvider::configureInertia()
-     * disables SSR for every route that does not carry `ssr` metadata, so the
-     * flag on the route *is* the switch. Losing it would silently hand crawlers
-     * and link previews an empty div instead of the page.
-     */
     public function test_the_home_route_opts_into_server_rendering(): void
     {
         $this->assertTrue(Route::getRoutes()->getByName('home')?->getMetadata('ssr'));
@@ -35,11 +29,6 @@ class HomeControllerTest extends TestCase
             ->assertSee('property="og:description"', false);
     }
 
-    /**
-     * The page names no mailbox of its own: the one address on it is the
-     * mailbox this deployment already sends from, so an install cannot
-     * publish an address nobody reads.
-     */
     public function test_the_demo_action_is_a_mailto_built_from_the_configured_sender(): void
     {
         Config::set('mail.from.address', 'hr@agency.example.ph');

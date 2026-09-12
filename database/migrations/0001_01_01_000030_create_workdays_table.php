@@ -8,18 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * One employee-day: the DTR line, with the shift it was computed against
-     * frozen into it (docs/design/06-attendance.md Workday rules 1–3).
-     *
-     * Nothing computes yet — this table is the receipt the pipeline will
-     * write. `shift` is the json snapshot; `shift_id` is only provenance.
-     *
-     * There is a `created_at` and deliberately **no `updated_at`**: a workday
-     * is fully derived and rewritten wholesale by each recompute, so "when
-     * was this row last written" and "when was it last computed" are one
-     * fact. `computed_at` is that fact. A second column holding the same
-     * instant is the mixed-concern defect docs/reference/clockwork-audit.md
-     * records.
+     * Workdays retain a shift snapshot; `computed_at` is their sole update timestamp.
      */
     public function up(): void
     {
@@ -29,11 +18,7 @@ return new class extends Migration
             $table->ulid('ledger_id');
             $table->ulid('employee_id');
             $table->date('date');
-            // Generated from `date`, so it cannot disagree with the day it
-            // summarises, and STORED rather than left to the default:
-            // Postgres 18 defaults a generated column to VIRTUAL, and a
-            // virtual column can be neither indexed nor referenced by a
-            // foreign key — `month` is half of the three-column ledger FK.
+            // STORED supports the ledger foreign key and cannot disagree with `date`.
             $table->date('month')->storedAs('make_date(extract(year from date)::int, extract(month from date)::int, 1)');
             $table->ulid('shift_id')->nullable();
             $table->jsonb('shift')->nullable();
@@ -84,8 +69,7 @@ return new class extends Migration
         DB::statement('ALTER TABLE workdays ADD CONSTRAINT workdays_credited_needs_premium CHECK (credited = 0 OR premium IS NOT NULL)');
         DB::statement("ALTER TABLE workdays ADD CONSTRAINT workdays_shift_is_object CHECK (shift IS NULL OR jsonb_typeof(shift) = 'object')");
 
-        // Function created in 0001_01_01_000028_prepare_attendance.
-        // Decision 70: a locked month refuses workday writes in the database.
+        // Locked months refuse workday writes at the database boundary.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER workdays_ledger_open
                 BEFORE INSERT OR UPDATE OR DELETE ON workdays

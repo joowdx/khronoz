@@ -20,9 +20,7 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
-    // Apple's "secret" is a short-lived ES256 JWT signed with the private key
-    // downloaded from the developer portal, not a static string. Regenerate it
-    // before it expires (six months maximum).
+    // Apple's client secret is a short-lived signed JWT; regenerate it before expiry.
     'apple' => [
         'client_id' => env('APPLE_CLIENT_ID'),
         'client_secret' => env('APPLE_CLIENT_SECRET'),

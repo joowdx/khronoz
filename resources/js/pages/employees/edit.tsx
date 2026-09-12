@@ -6,14 +6,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, show, update } from '@/routes/employees';
 import type { Choice, Employee } from '@/types';
 
-/**
- * The add form's column and fields again, against a person who already
- * exists — so the title is their name and the primary action is Save changes.
- *
- * Cancel goes back to their profile, not to the list: this screen is reached
- * from the profile as often as from the row menu, and the profile is where
- * everything the form does not hold — the deployment history — is read.
- */
 export default function Edit({ employee, sexes }: { employee: Employee; sexes: Choice[] }) {
     return (
         <AppLayout>

@@ -30,40 +30,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Three months of two working offices — June to August 2026, ending before
- * `today()` so every month is complete and lockable.
- *
- * **Not called by `DatabaseSeeder`.** It writes roughly forty thousand
- * timelogs and computes thirteen thousand workdays, which is minutes rather
- * than seconds, and a `db:seed` that slow makes resetting the database
- * something you avoid doing. Run it deliberately:
- *
- *     php artisan db:seed --class=AttendanceSeeder
- *
- * **It seeds facts and then runs the engine over them**, rather than writing
- * `workdays` and `punches` directly. A hand-written workday is a fixture of a
- * shape the code owns, and `.ai/rules/factories.md` records what that costs:
- * `WorkdayFactory` invented a flat `shift` json, every assertion passed
- * against the fiction, and the column was empty on every real row. So the
- * timelogs go in through `ImportTimelogs` — the actual ingestion path, which
- * leaves real `syncs` rows behind — and `Computer` derives everything else.
- * What comes out is a database indistinguishable from one a device filled.
- *
- * **The two offices differ in both halves of the question.** Their
- * *schedules* differ: the health office is a plain five-day week with a
- * flexitime group, and general services runs a compressed four-day week and a
- * three-shift rotation whose night turn crosses midnight, so night
- * differential, the 72-hour slot cap and cross-month attribution all get
- * exercised. Their *attendance* differs by person: each employee is given one
- * of six habits and keeps it, so the ledgers show a spread of tardiness,
- * undertime, absence and overtime instead of one uniform office. Three
- * employees also start or leave mid-window, which is decision 82's employment
- * gate seen from the data side.
- *
- * Guarded on the agency code, like the sample organization in
- * `DatabaseSeeder`: running it twice touches nothing the second time.
- */
 class AttendanceSeeder extends Seeder
 {
     private const FROM = '2026-06-01';
@@ -96,22 +62,7 @@ class AttendanceSeeder extends Seeder
         }
     }
 
-    /**
-     * The offices to build, as `[code, name, headcount]`.
-     *
-     * Twenty and a hundred and twenty by default, which is the shape asked
-     * for and runs in under four minutes. Both sizes are overridable, because
-     * most of that time is the second office and most days you do not need
-     * it:
-     *
-     *     SEED_OFFICES=20,15 php artisan db:seed --class=AttendanceSeeder
-     *
-     * `getenv()` rather than `env()`: `env()` returns null once the config is
-     * cached, and a seeder that silently ignores its own knob is worse than
-     * one without it.
-     *
-     * @return list<array{0: string, 1: string, 2: int}>
-     */
+    /** @return list<array{0: string, 1: string, 2: int}> */
     private function offices(): array
     {
         $sizes = array_values(array_filter(
@@ -125,22 +76,6 @@ class AttendanceSeeder extends Seeder
         ];
     }
 
-    /**
-     * Stop Telescope recording for the duration.
-     *
-     * It buffers every query as an entry in memory and flushes at the end of
-     * the command, and this seeder issues something like eighty thousand:
-     * `db:seed` died on the default 128M `memory_limit` inside the first
-     * office's compute, with a fatal error that leaves a half-built agency
-     * the guard above then skips forever. `stopRecording()` is the documented
-     * remedy for bulk console work, and a seeder is not something anybody
-     * wants to read back entry by entry.
-     *
-     * `class_exists`, and the name as a string: Telescope is a dev dependency
-     * (`AppServiceProvider` registers it only outside production) and this
-     * file ships either way. The test suite never met this — `phpunit.xml`
-     * sets `TELESCOPE_ENABLED=false`.
-     */
     private function quieten(): void
     {
         /** @var class-string $telescope */
@@ -151,15 +86,6 @@ class AttendanceSeeder extends Seeder
         }
     }
 
-    /**
-     * The three national holidays that actually fall in the window, owned by
-     * the platform agency so both offices inherit them through
-     * `AgencyOrPlatformScope`.
-     *
-     * Created **before** any tenant is set: `BelongsToAgency` refuses an
-     * explicit `agency_id` that disagrees with a set tenant, which is the
-     * ordering trap `HolidayFactory::national()` documents.
-     */
     private function national(): void
     {
         $platform = Agency::platform();
@@ -201,10 +127,7 @@ class AttendanceSeeder extends Seeder
 
         $agency = Agency::factory()->create(['code' => $code, 'name' => $name]);
 
-        // Set as tenant *and* pass agency_id explicitly on every row below.
-        // The tenant is what ImportTimelogs and Computer read; the explicit
-        // column is factories.md's rule, and a seeded row gets no free pass
-        // around it just because a seeder is creating it.
+        // Set tenant context and explicit agency IDs for fixture consistency.
         app(Tenant::class)->set($agency);
 
         try {
@@ -232,10 +155,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * A two-level tree. Deep enough that a workgroup-scoped suspension has
-     * descendants to reach, which is the only structural thing the engine
-     * asks of an org chart.
-     *
      * @return list<Workgroup>
      */
     private function workgroups(Agency $agency): array
@@ -261,14 +180,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * The cycles an office runs, as `[schedule, shifts by position]`.
-     *
-     * The shifts are carried alongside the schedule because the punch
-     * generator has to know what a given date expects, and asking the
-     * pipeline would be circular — the pipeline is the thing this data
-     * exists to feed. Position is `(date − anchor) mod length`, the same
-     * arithmetic `Cycle` does.
-     *
      * @return list<array{schedule: Schedule, shifts: list<Shift>, share: int}>
      */
     private function cycles(Agency $agency, string $code): array
@@ -363,20 +274,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * One schedule and its complete run of turns.
-     *
-     * Written out rather than reached through `ScheduleFactory::withTurns()`,
-     * which hard-codes five working days and two off — true of a standard
-     * week and of neither of the other two shapes here.
-     *
-     * **In a transaction, and it has to be.** `turns_complete` is DEFERRABLE
-     * INITIALLY DEFERRED, so it is checked at COMMIT — and outside an explicit
-     * transaction every statement commits on its own, which means the bare
-     * `schedules` insert is a complete unit of work with no turns in it and
-     * raises P0001 before the first turn is written. The test suite never sees
-     * this because `RefreshDatabase` holds one transaction open around each
-     * test; a seeder is the first caller that runs without one.
-     *
      * @param  list<Shift>  $shifts  One per position, and `count()` is the length.
      * @return array{schedule: Schedule, shifts: list<Shift>, share: int}
      */
@@ -405,14 +302,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * The people, each with a placement, a device enrollment, a roster and a
-     * habit they keep for the whole quarter.
-     *
-     * Three of them move: two are hired on 1 July and one leaves on 31 July.
-     * Their days outside the placement must come out of the engine as no
-     * workday at all (decision 82), and a seeder that hires everybody on the
-     * same distant Monday never shows whether that holds.
-     *
      * @param  list<Workgroup>  $workgroups
      * @param  list<array{schedule: Schedule, shifts: list<Shift>, share: int}>  $cycles
      * @return list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>
@@ -469,10 +358,7 @@ class AttendanceSeeder extends Seeder
                 'ends' => $to?->toDateString(),
             ]);
 
-            // The id, not the model. `compute()` loads each employee on its
-            // own and lets it go again: an office of 120 held here is 120
-            // object graphs alive for the whole run, and the compute is the
-            // phase with no memory to spare.
+            // Pass IDs so computation does not retain employee models.
             $people[] = [
                 'employee_id' => $employee->id,
                 'uid' => $uid,
@@ -487,10 +373,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * A flat list of indices repeated by share, so `$wheel[$n % count]` deals
-     * the mix out round-robin instead of by a random draw that can miss a
-     * whole cycle in a twenty-person office.
-     *
      * @param  array<array-key, array{share: int}>  $weighted
      * @return list<int>
      */
@@ -506,9 +388,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * The calendar the office writes for itself: a local holiday, two
-     * suspensions, leave slips and overtime authorities.
-     *
      * @param  list<Workgroup>  $workgroups
      * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
      */
@@ -531,11 +410,7 @@ class AttendanceSeeder extends Seeder
             'user_id' => $clerk->id,
         ]);
 
-        // Noon to five, one division only — so the truncated-slot path and
-        // the workgroup subtree both get walked. A *pair*: `starts` without
-        // `ends` is refused by suspensions_hours_paired, because "suspended
-        // from noon until nothing" is something the deriver would have to
-        // guess at.
+        // The paired time window exercises truncated slots and subtree coverage.
         Suspension::factory()->create([
             'agency_id' => $agency->id,
             'workgroup_id' => $workgroups[0]->id,
@@ -582,9 +457,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * Every nth person, reindexed from zero so the caller can space their
-     * dates by the offset.
-     *
      * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
      * @return list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>
      */
@@ -598,14 +470,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * Write the quarter as a device attlog and feed it to the real importer.
-     *
-     * A file and `ImportTimelogs`, not `Timelog::factory()`: the factory
-     * makes a `Sync` per row, which is forty thousand runs of a device that
-     * ran twice; the importer chunks, dedupes on the attlog natural key and
-     * leaves one honest `syncs` row behind. It is also the path a bug would
-     * actually be in.
-     *
      * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
      */
     private function attendance(Agency $agency, Terminal $terminal, array $people): void
@@ -642,13 +506,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * One day of one person's punches, as `[timestamp, state]` pairs.
-     *
-     * The habit is the whole point: an office where everybody arrives at
-     * 07:59 produces ninety-two identical workdays and a DTR that proves
-     * nothing. `state` is the device's own in/out byte — 0 and 1 — which the
-     * three-shift rotation's `trust` shifts read and the rest ignore.
-     *
      * @param  array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}  $person
      * @return list<array{0: string, 1: int}>
      */
@@ -658,11 +515,7 @@ class AttendanceSeeder extends Seeder
         $shift = $shifts[$anchor->diffInDays($date) % count($shifts)];
         $slots = $shift->slots;
 
-        // A rest day nobody was called in on, which is most of them. When
-        // somebody is, the day has no expectation at all: the taps become
-        // transits and every minute falls to `excess` (daily rule 10,
-        // decision 78), which is the premium-day path and the one an office
-        // of pure Mondays never walks.
+        // This fixture exercises the premium-day excess path.
         if ($slots === []) {
             if ($person['habit'] !== 'overtime' || ! fake()->boolean(8)) {
                 return [];
@@ -706,11 +559,6 @@ class AttendanceSeeder extends Seeder
         return $punches;
     }
 
-    /**
-     * A slot's clock time on `$date`, where an hour past 24 is the next day —
-     * `30:00` is 06:00 tomorrow, which is how a night shift is written and
-     * what `slots_valid()`'s 72-hour ceiling is for.
-     */
     private function at(CarbonImmutable $date, string $clock): CarbonImmutable
     {
         [$hours, $minutes] = array_map('intval', explode(':', $clock));
@@ -737,13 +585,6 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * Run the engine over the whole window, one employee at a time.
-     *
-     * Directly rather than through `RecomputeWorkdays`, and the reason is
-     * determinism: the job's outcome depends on `QUEUE_CONNECTION`, so on a
-     * `database` queue the seeder would finish having computed nothing and
-     * report success. `Computer` is what the job calls anyway.
-     *
      * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
      */
     private function compute(Agency $agency, array $people): void
@@ -768,15 +609,6 @@ class AttendanceSeeder extends Seeder
         $output?->progressFinish();
     }
 
-    /**
-     * Lock June for the smaller office, so the demo has a signed month as
-     * well as open ones — the freeze triggers of decisions 55, 80 and 81 are
-     * invisible until something is actually locked.
-     *
-     * `LockLedger`, not an `update()`: `ledgers_lock_complete` refuses a lock
-     * while a punch is still due, and going through the action means the
-     * seeder finds that out the same way a user would.
-     */
     private function close(Agency $agency, string $code): void
     {
         if ($code !== 'CHO') {
@@ -797,3 +629,4 @@ class AttendanceSeeder extends Seeder
         $this->command?->getOutput()->writeln("  <info>{$agency->code}</info>: locked {$ledgers->count()} June ledgers.");
     }
 }
+/** @return void */

@@ -9,19 +9,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Matches the `Overtime` interface in resources/js/types/index.d.ts.
  *
- * `starts`/`ends` are full timestamps rather than a date and two clock times,
- * because an authorisation routinely crosses midnight — 22:00 to 02:00 is one
- * stretch of work, not two — and `overtimes_no_overlap` indexes
- * `tsrange(starts, ends)` precisely so that stretch is one interval.
- *
- * `date` is a **generated** column (`starts::date`) and is sent for grouping,
- * never for writing: Postgres refuses an insert into it with 428C9.
- *
  * @mixin Overtime
  */
 class OvertimeResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

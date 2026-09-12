@@ -1,17 +1,8 @@
 <?php
 
 /**
- * Only the messages the interface actually shows, overriding the framework's.
- * Laravel's FileLoader merges this file over its own defaults
- * (TranslationServiceProvider registers the loader with both paths and
- * array_replace_recursive's them), so anything absent here keeps Laravel's
- * wording.
- *
- * These are the short forms. A field error renders on the label row beside its
- * label (resources/js/components/field.tsx), which holds exactly one line —
- * so the message never repeats the field's name (":attribute" is deliberately
- * gone) and never explains the rule. What happened, in as few words as read at
- * a glance; how to fix it is the label plus the control.
+ * Unlisted keys retain Laravel's defaults.
+ * Field errors share a one-line label, so these messages omit the attribute name.
  */
 
 return [

@@ -10,23 +10,11 @@ use App\Models\Turn;
 use Tests\TestCase;
 
 /**
- * Smoke cover for the two things about this action that are not obvious from
- * reading it: the remap, and idempotence. The rest of the matrix — name
- * collisions, a fallback shift, a default added after the first copy — is a
- * later hardening wave's.
+ * Smoke cover for the two things about this action that are not obvious from reading it: the remap,
+ * and idempotence.
  */
 class CopyDefaultsTest extends TestCase
 {
-    /**
-     * The remap is the whole point.
-     *
-     * `turns` carries a paired FK `(shift_id, agency_id) REFERENCES shifts
-     * (id, agency_id)`, so an agency's turn *cannot* name a platform shift —
-     * a copy that forgot to remap would be refused by the database rather
-     * than merely wrong. What this proves is the positive: every turn of the
-     * copied schedule points at the shift this agency now owns, in the
-     * order the origin had them, and every copy carries `origin_id` back.
-     */
     public function test_a_copy_carries_its_origin_and_its_turns_point_at_this_agencys_own_shifts(): void
     {
         [$working, $off, $default] = $this->defaults();
@@ -65,7 +53,6 @@ class CopyDefaultsTest extends TestCase
         );
     }
 
-    /** Copying twice is copying once: `origin_id` is what makes the second run a no-op. */
     public function test_copying_twice_copies_nothing_the_second_time(): void
     {
         $this->defaults();
@@ -84,16 +71,7 @@ class CopyDefaultsTest extends TestCase
         $this->assertSame(7, Turn::query()->count());
     }
 
-    /**
-     * Two platform shifts and one seven-day schedule using both — the shape
-     * `DefaultsSeeder` publishes, written here so the test owns its data.
-     *
-     * Built before any tenant is set: `BelongsToAgency` refuses an explicit
-     * `agency_id` that disagrees with a tenant already in force, so a
-     * platform row cannot be written from inside an agency.
-     *
-     * @return array{0: Shift, 1: Shift, 2: Schedule}
-     */
+    /** @return array{0: Shift, 1: Shift, 2: Schedule} */
     private function defaults(): array
     {
         $platform = $this->platform();

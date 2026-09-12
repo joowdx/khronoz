@@ -17,38 +17,14 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Manage the colleagues of the current tenant. Every action here is reached
- * only by an authenticated, verified user; UserPolicy (via Gate) is the
- * actual authority on whether they may see or change anything below.
- */
 class UserController extends Controller
 {
-    /**
-     * A users list is an office's timekeeping staff, not its headcount, so a page
-     * holds every row an agency is likely to have and the pager is usually
-     * disabled — but the query is paged anyway, because a platform user who
-     * enters a large agency must not be handed the whole table.
-     */
     private const PER_PAGE = 25;
 
-    /** The sortable columns, each mapped to what it actually orders by. */
     private const SORTS = ['name', 'access', 'status'];
 
     public function __construct(private Tenant $tenant) {}
 
-    /**
-     * List the current tenant's users. Always through the tenant's own
-     * agency relation, never User::query() — User carries no tenant scope
-     * (authentication must resolve a user before any tenant exists to scope
-     * by, see User::agency()), so a bare query would list every user in
-     * every agency instead of just this one.
-     *
-     * Search, both filters and the sort are server side and travel in the
-     * query string, so the list a user is looking at is a link they can
-     * send to a colleague. The dashboard's "Invitations not yet accepted"
-     * row links straight to ?status=invited.
-     */
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', User::class);
@@ -61,9 +37,6 @@ class UserController extends Controller
             'direction' => $this->oneOf($request->string('direction')->toString(), ['asc', 'desc'], 'asc'),
         ];
 
-        // getQuery() hands back the relation's own Eloquent builder, already
-        // constrained to this agency, so every helper below can be typed
-        // against a Builder instead of a HasMany.
         $query = $this->tenant->agency()->users()->getQuery();
 
         $this->search($query, $filters['search']);
@@ -74,7 +47,7 @@ class UserController extends Controller
         $users = $query->paginate(self::PER_PAGE)->withQueryString();
 
         return Inertia::render('users/index', [
-            // The row's permission set is a jsonb column on the row itself,
+
             // so a page of users is one query however many rows it holds.
             'users' => UserResource::collection($users->getCollection())->resolve(),
             'pagination' => [
@@ -124,9 +97,8 @@ class UserController extends Controller
     }
 
     /**
-     * Milestone 7 adds a foreign key from signed attestations to users that
-     * will refuse this delete at the database for anyone who has signed one;
-     * nothing here needs to anticipate that beyond leaving the delete plain.
+     * The delete is left plain: a foreign key from signed attestations to users refuses it at the
+     * database for anyone who has signed one, so nothing here needs to anticipate that.
      */
     public function destroy(User $user): RedirectResponse
     {
@@ -156,14 +128,6 @@ class UserController extends Controller
     }
 
     /**
-     * Two states, because two are all this application can produce: an
-     * invitation that has not been accepted yet, and an account that has.
-     * The artboard also draws "Locked out", which needs a lockout the
-     * product does not have — it is left out rather than faked.
-     *
-     * `email_verified_at` is the whole test, and deliberately the same one
-     * UserInviteController::store() uses to refuse a pointless re-send.
-     *
      * @return array<int, array{value: string, label: string}>
      */
     private function statuses(): array
@@ -240,14 +204,6 @@ class UserController extends Controller
         };
     }
 
-    /**
-     * Both derived columns sort by what the reader sees: Access by how many
-     * permissions the row holds, Status by whether the invitation is still
-     * outstanding (Postgres orders false before true, so ascending puts
-     * accepted accounts first). Name is the tiebreak everywhere and `id`
-     * follows it, because a page boundary in the middle of two equal rows
-     * has to fall in the same place on every request.
-     */
     private function sort(Builder $query, string $sort, string $direction): void
     {
         // $direction is one of two literals (index() narrows it through
@@ -271,11 +227,6 @@ class UserController extends Controller
     }
 
     /**
-     * The invite form's preset bundles. A preset only ever exists in code
-     * (docs/design/02-access.md rule 4): the segmented control expands one
-     * into a permission list in the browser and it is that list, never the
-     * preset's name, that is submitted and stored.
-     *
      * @return array<int, array{value: string, label: string, permissions: array<int, string>}>
      */
     private function presets(): array

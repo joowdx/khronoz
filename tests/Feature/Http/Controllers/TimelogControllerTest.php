@@ -38,10 +38,6 @@ class TimelogControllerTest extends TestCase
         );
     }
 
-    /**
-     * The filter this screen exists for: a punch whose uid matched no
-     * enrollment on its date belongs to nobody, and nobody is looking for it.
-     */
     public function test_the_unresolved_filter_finds_punches_that_belong_to_nobody(): void
     {
         $agency = Agency::factory()->create();
@@ -63,11 +59,6 @@ class TimelogControllerTest extends TestCase
         );
     }
 
-    /**
-     * Voided rows are **included by default**, unlike a soft delete. Nothing
-     * is ever hidden here (03-terminals.md rule 1); the filter narrows *to*
-     * them.
-     */
     public function test_voided_punches_are_listed_by_default_and_can_be_filtered_to(): void
     {
         $agency = Agency::factory()->create();
@@ -102,7 +93,6 @@ class TimelogControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->has('timelogs', 1)->where('timelogs.0.uid', '0002'));
     }
 
-    /** Decision 42 at the filter: `007` must not match `7`. */
     public function test_the_device_user_filter_matches_the_string_exactly(): void
     {
         $agency = Agency::factory()->create();
@@ -116,7 +106,6 @@ class TimelogControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->has('timelogs', 1)->where('timelogs.0.uid', '007'));
     }
 
-    /** A mangled query string must not leave the list filtered by something the picker cannot show. */
     public function test_an_unknown_terminal_filter_is_reported_as_unset(): void
     {
         $agency = Agency::factory()->create();
@@ -137,7 +126,6 @@ class TimelogControllerTest extends TestCase
         $this->patch(route('timelogs.void', $timelog), ['reason' => 'Duplicate scan'])->assertForbidden();
     }
 
-    /** The row stays and stays visible — voiding marks it, it does not remove it. */
     public function test_a_punch_can_be_voided_and_remains(): void
     {
         $agency = Agency::factory()->create();
@@ -154,16 +142,6 @@ class TimelogControllerTest extends TestCase
         $this->assertDatabaseHas('timelogs', ['id' => $timelog->id]);
     }
 
-    /**
-     * A void says who performed it.
-     *
-     * It could not before: the app role's UPDATE was granted on
-     * `(voided_at, reason)` only, so writing an actor failed **42501**. The
-     * strike-out of a pay record was the one act in the application nobody
-     * could be held to. `voided_by` is a second column rather than a reuse of
-     * `user_id`, which stays out of the grant so a void can never rewrite
-     * whose punch it was.
-     */
     public function test_a_void_records_who_performed_it(): void
     {
         $agency = Agency::factory()->create();
@@ -184,16 +162,6 @@ class TimelogControllerTest extends TestCase
         );
     }
 
-    /**
-     * A void is final, and a second one cannot erase the first.
-     *
-     * `voided_at`, `reason` and the actor were all inside the column grant, so
-     * re-voiding was a legal UPDATE that overwrote every one of them — the
-     * audit record erased itself and the second void looked like the only one
-     * there had ever been. Reproduced before the fix: reason became "oops" and
-     * `voided_at` moved. No CHECK can see OLD, so `timelogs_void_is_final` is
-     * a trigger, and its P0001 is translated rather than surfacing as a 500.
-     */
     public function test_a_voided_punch_cannot_be_voided_again(): void
     {
         $agency = Agency::factory()->create();
@@ -213,7 +181,6 @@ class TimelogControllerTest extends TestCase
         $this->assertSame($first->voided_by, $again->voided_by);
     }
 
-    /** `timelogs_void_needs_reason`, mirrored so the refusal lands on the field. */
     public function test_a_void_without_a_reason_is_refused(): void
     {
         $agency = Agency::factory()->create();

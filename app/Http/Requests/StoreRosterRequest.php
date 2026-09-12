@@ -8,20 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Issuing a roster to the people picked on the grid.
- *
- * `anchor` is not derived from `starts` and is not allowed to be: cycle day 1
- * belongs to the cohort, not to the day a person joined it. Three hospital
- * teams on one 21-day schedule differ only by anchors seven days apart, so
- * defaulting one to the other would quietly collapse a rotation into a single
- * shift for everybody (04-scheduling.md, worked example 4).
- *
- * Nothing here checks for an overlapping roster. That is deliberate:
- * `rosters_no_overlap` is an exclusion constraint and the only authority on the
- * question, and a pre-check would race it and lie. The controller surfaces its
- * 23P01 instead.
- */
 class StoreRosterRequest extends FormRequest
 {
     public function authorize(): bool

@@ -5,23 +5,6 @@ namespace Tests\Unit\Enums;
 use App\Enums\Permission;
 use PHPUnit\Framework\TestCase;
 
-/**
- * The permission contract is kept in step across three files only by prose
- * comments (see Permission::implies() and the `implied` map in
- * resources/js/hooks/use-can.ts): the enum here, the `Permission` union in
- * resources/js/types/index.d.ts, and that `implied` map. A permission the
- * backend gate grants but the union or map forgets stays silently invisible
- * in the browser — indistinguishable from a real "not allowed" — so this
- * reads both TypeScript files from disk and checks them against the enum
- * directly, rather than trusting the comments.
- *
- * A regex that matches nothing would leave both sides empty and an
- * assertEqualsCanonicalizing([], []) would pass vacuously, hiding exactly
- * the kind of drift (a rename, a reformat) this test exists to catch. Each
- * parse method is therefore asserted for its expected entry count, with a
- * message naming the file, before either result is compared to the PHP
- * side — a shape change fails loudly here instead of passing quietly.
- */
 class PermissionContractTest extends TestCase
 {
     private const TYPES_PATH = __DIR__.'/../../../resources/js/types/index.d.ts';
@@ -72,12 +55,7 @@ class PermissionContractTest extends TestCase
         $this->assertSame($expected, $edges);
     }
 
-    /**
-     * Pull every quoted literal out of the `Permission` union declaration in
-     * index.d.ts, e.g. `| 'agency.manage'` -> 'agency.manage'.
-     *
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     private function parseUnionValues(): array
     {
         $contents = file_get_contents(self::TYPES_PATH);
@@ -91,12 +69,7 @@ class PermissionContractTest extends TestCase
         return $matches[1];
     }
 
-    /**
-     * Pull every `'key': 'value'` pair out of the `implied` object literal in
-     * use-can.ts.
-     *
-     * @return array<string, string>
-     */
+    /** @return array<string, string> */
     private function parseImpliedMap(): array
     {
         $contents = file_get_contents(self::USE_CAN_PATH);

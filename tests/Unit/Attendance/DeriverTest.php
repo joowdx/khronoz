@@ -40,9 +40,7 @@ class DeriverTest extends TestCase
         return new Shift(['required' => $required]);
     }
 
-    /**
-     * @return list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}>
-     */
+    /** @return list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}> */
     private function standard(): array
     {
         return Expectation::sides([
@@ -53,9 +51,7 @@ class DeriverTest extends TestCase
         ], $this->date());
     }
 
-    /**
-     * @return list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}>
-     */
+    /** @return list<array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}> */
     private function flexi(): array
     {
         return Expectation::sides([
@@ -85,11 +81,6 @@ class DeriverTest extends TestCase
     }
 
     /**
-     * A tap on a day that expected nothing (decision 78) — no expectation
-     * to be near, so no deviation. This is the only shape the matcher
-     * produces when the sides are empty, and the rule 10 fixtures below
-     * used the expected/actual shape it cannot.
-     *
      * @return array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}
      */
     private function transit(int $slot, string $kind, string $actual): array
@@ -178,12 +169,6 @@ class DeriverTest extends TestCase
         $this->assertSame($nightExcess, $derived->nightExcess);
     }
 
-    /**
-     * 06-attendance.md chain, 8 September. Afternoon in missing, out at
-     * 17:05. Under Void the slot is not credited (worked 240) and the
-     * missing in contributes no undertime (decision 71). Excess 5 is the
-     * morning's 07:58–08:00 and 12:00–12:03, not a charge against 17:05.
-     */
     public function test_the_standard_worked_example_charges_the_punched_side_only(): void
     {
         $sides = $this->standard();
@@ -199,10 +184,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Present, 240, 0, 0, 0, 5);
     }
 
-    /**
-     * Assume credits the half-filled slot to its expected span and still
-     * does not invent tardiness for the missing in (decision 64, 71).
-     */
     public function test_assume_credits_a_half_filled_slot_without_charging_the_missing_side(): void
     {
         $sides = $this->standard();
@@ -218,10 +199,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Present, 480, 0, 0, 0, 10);
     }
 
-    /**
-     * Daily rule 2 / MC 17 s. 2010: a morning with no punches and an
-     * afternoon present is one tardy occurrence carrying the morning.
-     */
     public function test_a_morning_with_no_punches_and_an_afternoon_present_is_one_tardy_occurrence(): void
     {
         $sides = $this->standard();
@@ -237,10 +214,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Present, 240, 0, 240, 0, 0);
     }
 
-    /**
-     * Daily rule 3 / MC 17 s. 2010: an afternoon with no punches and a
-     * morning present is one undertime occurrence carrying the afternoon.
-     */
     public function test_an_afternoon_with_no_punches_and_a_morning_present_is_one_undertime_occurrence(): void
     {
         $sides = $this->standard();
@@ -256,7 +229,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Present, 240, 0, 0, 240, 0);
     }
 
-    /** Rule 5: regular holiday → required, unless the preceding work day was an unexcused absence. */
     public function test_a_regular_holiday_credits_required(): void
     {
         $derived = $this->derive(
@@ -278,10 +250,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Holiday, 0, 0, 0, 0, 0);
     }
 
-    /**
-     * The single most likely bug: one branch on "the expectation is empty"
-     * giving required to a special day. No work, no pay.
-     */
     public function test_a_special_day_credits_nothing(): void
     {
         $derived = $this->derive(
@@ -302,10 +270,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Off, 0, 0, 0, 0, 0);
     }
 
-    /**
-     * Premium is checked before status: a regular holiday on a rest day is
-     * off and regular, and worked follows the premium (decision 62).
-     */
     public function test_a_regular_holiday_on_a_rest_day_follows_the_premium(): void
     {
         $derived = $this->derive(
@@ -373,11 +337,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Present, 480, 0, 0, 0, 0);
     }
 
-    /**
-     * Rule 10 / decision 51: credited is the first 480 of actual attendance
-     * on a premium day whose expectation is empty, and the rest stays excess.
-     * 480 is not the shift's required.
-     */
     public function test_credited_is_the_first_480_of_presence_on_a_premium_day(): void
     {
         $matching = $this->matching([], [
@@ -412,10 +371,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Holiday, 480, 0, 0, 0, 480);
     }
 
-    /**
-     * Rule 7: travel zeroes excess and leaves nightExcess. Worked and
-     * credited still follow the premium table.
-     */
     public function test_travel_zeroes_excess_and_leaves_night_excess(): void
     {
         $matching = $this->matching([], [
@@ -434,10 +389,6 @@ class DeriverTest extends TestCase
         $this->assertFigures($derived, WorkdayStatus::Off, 0, 480, 0, 0, 0, 0, 120);
     }
 
-    /**
-     * Excusing is a set subtraction applied last. Two overlapping windows
-     * covering a 30-minute late arrival leave only the uncovered tail.
-     */
     public function test_exemptions_subtract_from_tardy_as_sets(): void
     {
         $sides = $this->standard();
@@ -458,10 +409,6 @@ class DeriverTest extends TestCase
         $this->assertSame(0, $derived->undertime);
     }
 
-    /**
-     * Flexitime has already moved matching.sides. Tardiness against
-     * $day->sides would charge an arrival inside the band.
-     */
     public function test_tardy_uses_the_slid_sides_not_the_unslid_day(): void
     {
         $unslid = $this->flexi();
@@ -515,10 +462,6 @@ class DeriverTest extends TestCase
         $this->assertSame(480, $derived->worked);
     }
 
-    /**
-     * Rule 6: excess never reduces tardy. Thirty minutes early and thirty
-     * minutes late stay thirty of each.
-     */
     public function test_excess_does_not_offset_tardy(): void
     {
         $sides = $this->standard();

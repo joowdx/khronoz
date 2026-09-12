@@ -25,10 +25,6 @@ class RosterControllerTest extends TestCase
         $this->get(route('rosters.index'))->assertForbidden();
     }
 
-    /**
-     * The grid's one load-bearing projection: a three-shift rotation whose
-     * night turn crosses midnight, drawn across a month.
-     */
     public function test_the_grid_projects_a_rotation_across_the_month(): void
     {
         $agency = Agency::factory()->create();
@@ -126,7 +122,9 @@ class RosterControllerTest extends TestCase
         ]);
     }
 
-    /** @param  array<int, Shift>  $shifts */
+    /**
+     * @param  array<int, Shift>  $shifts
+     */
     private function schedule(Agency $agency, string $name, array $shifts): Schedule
     {
         return DB::transaction(function () use ($agency, $name, $shifts): Schedule {

@@ -10,24 +10,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-/**
- * One test per constraint and trigger on `attestations`
- * (docs/design/07-constraints.md).
- *
- * No agency_not_platform test: an attestation needs a ledger, and a ledger
- * needs an employee, and `employees` refuses the platform agency already.
- *
- * attestations_agency_id_foreign is untested on both sides for the reason
- * Ruling P5 gives on deployments: both paired FKs include agency_id, so no
- * row exists where this FK alone fails. Its delete side is covered
- * transitively by the employees / ledgers agency-delete tests.
- *
- * The row helper uses `supervisor` so it does not collide with the factory
- * default (`timekeeper`) on UNIQUE (ledger_id, role).
- */
 class AttestationTest extends TestCase
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function attestationRow(Attestation $like, array $overrides = []): array
     {
         return [
@@ -86,13 +73,11 @@ class AttestationTest extends TestCase
         ));
     }
 
-    /** Ruling P4: the primary key masks the pair, so assert the catalog. */
     public function test_id_and_agency_id_pair_is_declared_unique(): void
     {
         $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'attestations_id_agency_id_unique'"));
     }
 
-    /** attestations_ledger_id_role_unique. */
     public function test_one_role_cannot_sign_the_same_ledger_twice(): void
     {
         $attestation = Attestation::factory()->create();
@@ -134,7 +119,6 @@ class AttestationTest extends TestCase
         $this->assertNotSame($first->ledger_id, $second->ledger_id);
     }
 
-    /** attestations_ledger_id_agency_id_foreign, insert side. */
     public function test_ledger_must_share_the_attestations_agency(): void
     {
         $attestation = Attestation::factory()->create();
@@ -145,7 +129,6 @@ class AttestationTest extends TestCase
         ));
     }
 
-    /** Same FK, delete side. */
     public function test_ledger_with_an_attestation_cannot_be_deleted(): void
     {
         $attestation = Attestation::factory()->create();
@@ -153,16 +136,6 @@ class AttestationTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('ledgers')->where('id', $attestation->ledger_id)->delete());
     }
 
-    /**
-     * attestations_user_id_agency_id_foreign, insert side. A signature must
-     * come from inside the agency — the opposite of suspensions / exemptions /
-     * overtimes, which leave user_id unpaired so a platform superuser who
-     * entered the agency can do the data entry. The pair is the constraint,
-     * so a stranger of a third agency is 23503, not actor_of_agency's P0001.
-     *
-     * The stranger is built before any tenant is set, for the reason
-     * BelongsToAgency fills agency_id from the tenant on creating.
-     */
     public function test_the_signer_must_belong_to_the_ledgers_agency(): void
     {
         $attestation = Attestation::factory()->create();
@@ -173,11 +146,6 @@ class AttestationTest extends TestCase
         ));
     }
 
-    /**
-     * The same pair refuses a platform superuser. That is why there is no
-     * actor_of_agency trigger here: the FK already says "this agency", and
-     * a signature is not data entry.
-     */
     public function test_a_platform_superuser_cannot_sign(): void
     {
         $attestation = Attestation::factory()->create();
@@ -188,7 +156,6 @@ class AttestationTest extends TestCase
         ));
     }
 
-    /** Same FK, delete side. */
     public function test_user_who_signed_cannot_be_deleted(): void
     {
         $attestation = Attestation::factory()->create();
@@ -196,10 +163,6 @@ class AttestationTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('users')->where('id', $attestation->user_id)->delete());
     }
 
-    /**
-     * attestations_role_valid. Shape only — which strings are legal is the
-     * agency's settings.attestations list, checked by the application.
-     */
     public function test_role_must_be_a_short_lowercase_snake(): void
     {
         $attestation = Attestation::factory()->create();
@@ -220,11 +183,6 @@ class AttestationTest extends TestCase
         $this->assertDatabaseHas('attestations', ['id' => $id]);
     }
 
-    /**
-     * attestations_locked, refusing path. Locking a ledger with no workdays
-     * is permitted — LedgerTest already proves it — so the unlocked parent
-     * here is a factory default, not a special state.
-     */
     public function test_an_unlocked_ledger_cannot_be_attested(): void
     {
         $ledger = Ledger::factory()->create();
@@ -235,7 +193,6 @@ class AttestationTest extends TestCase
         ]));
     }
 
-    /** attestations_locked, permitting path. */
     public function test_a_locked_ledger_may_be_attested(): void
     {
         $attestation = Attestation::factory()->create();
@@ -243,11 +200,6 @@ class AttestationTest extends TestCase
         $this->assertDatabaseHas('attestations', ['id' => $attestation->id]);
     }
 
-    /**
-     * A signature is added or removed, never edited. Raw UPDATE through the
-     * app connection, which is the default — the form the other privilege
-     * tests use.
-     */
     public function test_the_app_role_cannot_update_a_signature(): void
     {
         $attestation = Attestation::factory()->create();
@@ -257,7 +209,6 @@ class AttestationTest extends TestCase
         ]));
     }
 
-    /** INSERT and DELETE stay: you un-certify by removing the row. */
     public function test_the_app_role_may_delete_a_signature(): void
     {
         $attestation = Attestation::factory()->create();
@@ -267,10 +218,6 @@ class AttestationTest extends TestCase
         $this->assertDatabaseMissing('attestations', ['id' => $attestation->id]);
     }
 
-    /**
-     * The privileges are invisible to every constraint catalog, so they get a
-     * read-back of their own: table-level INSERT, SELECT and DELETE, no UPDATE.
-     */
     public function test_the_granted_privileges_are_insert_select_and_delete(): void
     {
         $table = DB::table('information_schema.table_privileges')
@@ -280,12 +227,6 @@ class AttestationTest extends TestCase
         $this->assertSame(['DELETE', 'INSERT', 'SELECT'], $table);
     }
 
-    /**
-     * Decision 41: `db:grant` re-runs apply(), which grants CRUD on every
-     * table, so a REVOKE written only in the migration would be silently
-     * undone. restrict() is called from inside apply(), and this asserts the
-     * loop closes for this table.
-     */
     public function test_re_running_the_deploy_grants_does_not_restore_update(): void
     {
         $attestation = Attestation::factory()->create();

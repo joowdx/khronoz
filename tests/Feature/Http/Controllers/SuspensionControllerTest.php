@@ -38,7 +38,6 @@ class SuspensionControllerTest extends TestCase
         );
     }
 
-    /** `workgroup_id` null is agency-wide, which is the commonest shape. */
     public function test_a_suspension_with_no_workgroup_covers_the_agency(): void
     {
         $agency = Agency::factory()->create();
@@ -57,13 +56,6 @@ class SuspensionControllerTest extends TestCase
         $this->assertNull($suspension->ends);
     }
 
-    /**
-     * Turning "part of the day only" off used to report success and change
-     * nothing: the unmounted inputs submitted no keys, `validated()` omitted
-     * them, and the noon-to-five window stayed on a day the operator had just
-     * marked wholly suspended. `partial` is submitted so "off" is a value
-     * rather than an absence.
-     */
     public function test_turning_the_window_off_clears_the_hours(): void
     {
         $agency = Agency::factory()->create();
@@ -88,7 +80,6 @@ class SuspensionControllerTest extends TestCase
         $this->assertNull($suspension->ends);
     }
 
-    /** Who declared it is the acting user, never a field the client sends (decision 39). */
     public function test_the_declaring_user_is_the_acting_user(): void
     {
         $agency = Agency::factory()->create();
@@ -103,11 +94,6 @@ class SuspensionControllerTest extends TestCase
         $this->assertSame($user->id, Suspension::sole()->user_id);
     }
 
-    /**
-     * `suspensions_hours_paired` refuses a half-set window — "suspended from
-     * noon until nothing" is not a declaration anyone can act on — so the
-     * request mirrors it and the refusal lands on a field.
-     */
     public function test_a_half_set_window_is_refused_on_the_field(): void
     {
         $agency = Agency::factory()->create();
@@ -123,7 +109,6 @@ class SuspensionControllerTest extends TestCase
         $this->assertSame(0, Suspension::count());
     }
 
-    /** Strictly after, unlike every date range here: a zero-length window suspends nothing. */
     public function test_a_window_that_ends_when_it_starts_is_refused(): void
     {
         $agency = Agency::factory()->create();
@@ -138,10 +123,6 @@ class SuspensionControllerTest extends TestCase
         ])->assertSessionHasErrors('ends');
     }
 
-    /**
-     * A date may carry several, deliberately: a morning window and an
-     * afternoon one are ordinary, and the schema has no key forbidding it.
-     */
     public function test_one_date_may_carry_more_than_one_suspension(): void
     {
         $agency = Agency::factory()->create();
@@ -191,7 +172,6 @@ class SuspensionControllerTest extends TestCase
         $this->get(route('suspensions.edit', Suspension::factory()->create()))->assertNotFound();
     }
 
-    /** Workday rule 3, decision 86: a closure recomputes the day it closed. */
     public function test_an_agency_wide_suspension_queues_the_whole_agency(): void
     {
         $agency = Agency::factory()->create();
@@ -214,12 +194,6 @@ class SuspensionControllerTest extends TestCase
         );
     }
 
-    /**
-     * A workgroup's people are small by construction and `appliesTo()`
-     * already knows the subtree, so they travel by name. A whole agency's
-     * would not fit in a payload, which is why the case above travels as its
-     * agency instead.
-     */
     public function test_a_workgroup_suspension_queues_only_its_people(): void
     {
         $agency = Agency::factory()->create();
@@ -248,7 +222,6 @@ class SuspensionControllerTest extends TestCase
         );
     }
 
-    /** Both reaches: a suspension moved stops closing the day it left. */
     public function test_moving_a_suspension_queues_both_dates(): void
     {
         $agency = Agency::factory()->create();
@@ -272,7 +245,6 @@ class SuspensionControllerTest extends TestCase
         Queue::assertPushed(FanOutRecompute::class, fn (FanOutRecompute $job): bool => $job->from === '2026-07-23');
     }
 
-    /** And once when the correction left the reach where it was. */
     public function test_correcting_the_reason_queues_the_date_once(): void
     {
         $agency = Agency::factory()->create();

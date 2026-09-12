@@ -38,7 +38,6 @@ class ExemptionControllerTest extends TestCase
         );
     }
 
-    /** Decision 38: a one-day exemption is `until = date`, never a null. */
     public function test_a_one_day_exemption_ends_on_the_day_it_starts(): void
     {
         $agency = Agency::factory()->create();
@@ -59,7 +58,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertFalse($exemption->until->greaterThan($exemption->date));
     }
 
-    /** RA 11210's 105 continuous days is one row, not 105 (decision 37). */
     public function test_a_continuous_leave_is_a_single_row(): void
     {
         $agency = Agency::factory()->create();
@@ -78,11 +76,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertTrue(Exemption::sole()->until->greaterThan(Exemption::sole()->date));
     }
 
-    /**
-     * `exemptions_span_is_whole_days`, mirrored so it lands on the field. A
-     * 10:00–14:00 window repeated across a statutory leave would have the
-     * deriver excuse four hours a day of an entire entitlement.
-     */
     public function test_a_multi_day_exemption_cannot_carry_hours(): void
     {
         $agency = Agency::factory()->create();
@@ -121,15 +114,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertSame('10:00:00', Exemption::sole()->starts);
     }
 
-    /**
-     * The form's own regression, and the reason `partial` crosses the wire.
-     *
-     * Extending a one-day exemption used to unmount the hours inputs, which
-     * submitted nothing; `validated()` omitted the keys, `update()` never
-     * named the columns, the stored `starts` survived, and
-     * `exemptions_span_is_whole_days` answered the UPDATE with **23514** — a
-     * 500 on an edit the operator had every right to make.
-     */
     public function test_extending_a_windowed_exemption_across_days_clears_its_hours(): void
     {
         $agency = Agency::factory()->create();
@@ -156,11 +140,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertSame('2026-09-15', $exemption->until->toDateString());
     }
 
-    /**
-     * The silent half of the same defect: the save reported success and the
-     * row stayed partial, so the deriver went on excusing two hours of a day
-     * the operator had marked wholly excused.
-     */
     public function test_turning_the_window_off_clears_the_hours(): void
     {
         $agency = Agency::factory()->create();
@@ -183,11 +162,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertNull($exemption->refresh()->starts);
     }
 
-    /**
-     * `partial` is the form's switch, never a column. A caller that does not
-     * send it — anything that is not this form — keeps the old meaning, where
-     * `starts` and `ends` say what they say.
-     */
     public function test_the_window_switch_is_never_stored(): void
     {
         $agency = Agency::factory()->create();
@@ -209,15 +183,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertArrayNotHasKey('partial', Exemption::sole()->getAttributes());
     }
 
-    /**
-     * Offboarding must not lock the leave that is on the record.
-     *
-     * `RemoveEmployee` soft-deletes; the paired FK never sees an UPDATE, so
-     * the row stays valid and the index null-guards the missing person. But
-     * the update rule accepted only living ids, so fixing a typo on a 105-day
-     * maternity leave answered `Not found` — and saving meant choosing
-     * somebody else, which moves the leave onto them.
-     */
     public function test_an_exemption_of_a_removed_employee_is_still_correctable(): void
     {
         $agency = Agency::factory()->create();
@@ -245,7 +210,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertSame('Maternity, RA 11210', $exemption->refresh()->remarks);
     }
 
-    /** A *different* employee is still held to the picker: removed is not choosable. */
     public function test_an_exemption_cannot_be_moved_onto_a_removed_employee(): void
     {
         $agency = Agency::factory()->create();
@@ -281,11 +245,6 @@ class ExemptionControllerTest extends TestCase
         ])->assertSessionHasErrors('until');
     }
 
-    /**
-     * The date filters **overlap** rather than contain: a 105-day leave that
-     * merely crosses the fortnight being closed is exactly the row a
-     * timekeeper must not miss, and a containment filter would drop it.
-     */
     public function test_the_date_filter_finds_a_leave_that_merely_crosses_the_period(): void
     {
         $agency = Agency::factory()->create();
@@ -334,7 +293,6 @@ class ExemptionControllerTest extends TestCase
         ])->assertSessionHasErrors('employee_id');
     }
 
-    /** Workday rule 3, decision 86: an exemption touching a date recomputes it. */
     public function test_recording_an_exemption_queues_a_recompute_over_its_days(): void
     {
         $agency = Agency::factory()->create();
@@ -354,11 +312,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertQueued($employee->id, '2026-09-15', '2026-09-17');
     }
 
-    /**
-     * Both spans. A leave slip re-dated stops excusing the days it left as
-     * much as it starts excusing the ones it reached, and the days it left
-     * are unreachable once the row has moved.
-     */
     public function test_correcting_the_dates_queues_a_recompute_over_both_spans(): void
     {
         $agency = Agency::factory()->create();
@@ -403,10 +356,6 @@ class ExemptionControllerTest extends TestCase
         $this->assertQueued($employee->id, '2026-09-15', '2026-09-15');
     }
 
-    /**
-     * Decision 81 froze this table against a locked month and nothing here
-     * translated the P0001, so an ordinary correction answered a 500.
-     */
     public function test_an_exemption_reaching_a_locked_month_is_refused_with_a_message(): void
     {
         $agency = Agency::factory()->create();

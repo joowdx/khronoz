@@ -12,18 +12,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Every ingestion run, successful or refused.
- *
- * Entirely read-only — the app role has no DELETE on this table (decision 41),
- * because a run record that can be deleted is a run that can be denied.
- *
- * The rows worth finding are the **failed** ones, and not because something
- * went wrong technically: a file naming two device numbers is refused whole as
- * probable tampering (decision 44), and the only lasting trace of that attempt
- * is the row here carrying its reason. Without this screen a refusal is a
- * flash message that the second attempt looks identical to.
- */
 class SyncController extends Controller
 {
     private const PER_PAGE = 50;

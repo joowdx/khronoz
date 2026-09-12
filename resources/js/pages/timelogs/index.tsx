@@ -31,7 +31,6 @@ import { index, voidMethod as voidTimelog } from '@/routes/timelogs';
 import type { Terminal, Timelog } from '@/types';
 
 interface Filters {
-    /** A terminal id, or '' for every device. */
     terminal: string;
     unresolved: boolean;
     voided: boolean;
@@ -48,7 +47,6 @@ interface Pagination {
     next: string | null;
 }
 
-/** Only the props the list owns; `terminals` is a closure and stays put. */
 const PARTIAL = ['timelogs', 'pagination', 'filters'];
 
 const COLUMNS = {
@@ -60,16 +58,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Person column needs for a full Filipino name. */
 const FLEX_MIN = 240;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * Every filter lives in the query string, so the list is a link — a colleague
- * can be sent `/timelogs?unresolved=1&terminal=…`. Defaults are dropped, so an
- * unfiltered list is `/timelogs` and nothing else.
- */
 function query(filters: Filters, page?: string): Record<string, string> {
     const params: Record<string, string> = {};
 
@@ -119,7 +111,6 @@ export default function Index({
     const manage = can('terminals.manage');
     const [uid, setUid] = useState(filters.uid);
 
-    // Debounced, and `replace` so Back does not walk keystrokes.
     useEffect(() => {
         if (uid === filters.uid) {
             return;
@@ -137,12 +128,6 @@ export default function Index({
         return () => clearTimeout(timer);
     }, [uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    /**
-     * Built from the **local** uid state, never from `filters.uid`: `filters`
-     * is what the server last confirmed, so flipping a filter while the 250ms
-     * debounce is still in flight would throw away what had just been typed
-     * (.ai/rules/pages.md records the measurement on employees/index).
-     */
     function go(next: Partial<Filters>) {
         router.get(index.url(), query({ ...filters, uid, ...next }), {
             only: PARTIAL,
@@ -224,12 +209,6 @@ export default function Index({
                     )}
                 </Field>
 
-                {/*
-                  The filter this screen exists for. A punch whose uid matched
-                  no enrollment on its date belongs to nobody, and nobody is
-                  looking for it — it is a month of somebody's pay waiting to
-                  be noticed, so it gets a button rather than a menu item.
-                */}
                 <Field label="Only show" htmlFor="only">
                     {({ id }) => (
                         <ToggleGroup
@@ -314,11 +293,6 @@ export default function Index({
                                     </TableCell>
                                     <TableCell className="tabular-nums">{timelog.terminal?.code ?? '—'}</TableCell>
                                     <TableCell className="tabular-nums">{timelog.uid}</TableCell>
-                                    {/*
-                                      Unresolved is stated, not dashed: the row
-                                      is real data that belongs to somebody, and
-                                      a dash reads as "nothing here".
-                                    */}
                                     <TableCell className="max-w-0">
                                         <span className="flex min-w-0 flex-col">
                                             <span className="truncate">
@@ -327,14 +301,6 @@ export default function Index({
                                                 )}
                                             </span>
                                             {timelog.voided_at && (
-                                                // Named, because an
-                                                // attribution nobody can read
-                                                // is not one — and voiding a
-                                                // punch changes what somebody
-                                                // is paid. The name is
-                                                // omitted rather than faked
-                                                // if the resource did not
-                                                // load it.
                                                 <span className="text-muted-foreground truncate text-xs">
                                                     Voided
                                                     {timelog.voider ? ` by ${timelog.voider.name}` : ''} —{' '}
@@ -377,12 +343,6 @@ export default function Index({
     );
 }
 
-/**
- * Voiding is the only thing that can be done to a timelog, and the row stays
- * afterwards. `timelogs_void_needs_reason` requires the words, and the dialog
- * says why: an unexplained void takes a punch out of the record with nothing
- * to audit, which is worse than leaving it standing.
- */
 function VoidMenu({ timelog }: { timelog: Timelog }) {
     const [voiding, setVoiding] = useState(false);
 

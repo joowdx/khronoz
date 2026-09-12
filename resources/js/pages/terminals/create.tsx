@@ -7,9 +7,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/terminals';
 import type { Choice, Workgroup } from '@/types';
 
-/**
- * One 560px column and the submit row, the shape workgroups/create established.
- */
 export default function Create({
     workgroups,
     kinds,

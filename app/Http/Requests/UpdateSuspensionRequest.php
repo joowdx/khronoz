@@ -16,25 +16,7 @@ class UpdateSuspensionRequest extends FormRequest
         return $this->user()->can('update', $this->route('suspension'));
     }
 
-    /**
-     * There is deliberately **no uniqueness rule**, and that mirrors the
-     * schema: `suspensions` has no key over `(agency_id, workgroup_id, date)`
-     * because a morning window and an afternoon one on the same date are
-     * ordinary, as is a division extending an agency-wide closure for its own
-     * reason. The deriver takes the union.
-     *
-     * `starts` and `ends` are all-or-nothing — `suspensions_hours_paired`
-     * refuses a half-set window, because "suspended from noon until nothing"
-     * is not something anyone can act on and the deriver would have to guess
-     * an end. `required_with` mirrors it in both directions so the refusal
-     * lands on a field.
-     *
-     * `ends` is strictly after `starts`, unlike every date range in this
-     * schema: a one-day range is a real thing, a zero-length window suspends
-     * nothing.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [

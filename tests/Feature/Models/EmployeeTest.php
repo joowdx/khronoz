@@ -10,7 +10,6 @@ use Tests\TestCase;
 
 class EmployeeTest extends TestCase
 {
-    /** Baseline row for a raw insert, every NOT NULL column set explicitly. */
     private function employeeRow(string $agencyId, array $overrides = []): array
     {
         return array_merge([
@@ -32,7 +31,6 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseRefuses('23502', fn () => Employee::factory()->create(['agency_id' => null]));
     }
 
-    /** employees_agency_id_foreign, insert side. employees carries no other FK, so this is cleanly isolated. */
     public function test_agency_id_must_reference_an_existing_agency(): void
     {
         $this->assertDatabaseRefuses('23503', fn () => DB::table('employees')->insert(
@@ -40,7 +38,6 @@ class EmployeeTest extends TestCase
         ));
     }
 
-    /** employees_agency_id_foreign, delete side. Non-platform agency — see AgencyTest's documented trap. */
     public function test_agency_with_employees_cannot_be_deleted(): void
     {
         $agency = Agency::factory()->create();
@@ -81,12 +78,6 @@ class EmployeeTest extends TestCase
         ));
     }
 
-    /**
-     * employees_tags_valid. Every shape here is 23514, never 22023 — the
-     * bound CHECK's own jsonb_typeof guard (Task 2) keeps a non-array value
-     * like '{}' from surfacing jsonb_array_length()'s raw error instead of
-     * the shape violation this constraint owns.
-     */
     public function test_tags_must_be_a_set_of_distinct_non_empty_strings(): void
     {
         $agency = Agency::factory()->create();
@@ -114,7 +105,6 @@ class EmployeeTest extends TestCase
         $this->assertCount(20, $accepted->fresh()->tags);
     }
 
-    /** agency_not_platform on employees: neither an INSERT under the platform agency nor an UPDATE into it is allowed. */
     public function test_an_employee_cannot_belong_to_the_platform_agency(): void
     {
         $platform = $this->platform();
@@ -126,12 +116,6 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('employees')->where('id', $employee->id)->update(['agency_id' => $platform->id]));
     }
 
-    /**
-     * UNIQUE (agency_id, number) is not partial (R7): a soft-deleted
-     * employee's number stays reserved forever. $employee->delete() here is
-     * deliberately the soft delete — the point is the row still occupies the
-     * unique index, not that a hard delete would be refused.
-     */
     public function test_a_soft_deleted_employees_number_stays_reserved(): void
     {
         $agency = Agency::factory()->create();
@@ -141,7 +125,6 @@ class EmployeeTest extends TestCase
         $this->assertDatabaseRefuses('23505', fn () => Employee::factory()->create(['agency_id' => $agency->id, 'number' => 'EMP1']));
     }
 
-    /** exempt is NOT NULL: it has a database default of false, which an omitted column would mask — this inserts an explicit null instead. */
     public function test_exempt_is_required(): void
     {
         $agency = Agency::factory()->create();
@@ -151,13 +134,6 @@ class EmployeeTest extends TestCase
         ));
     }
 
-    /**
-     * tags is NOT NULL: it has a database default of '[]', which an omitted
-     * column would mask — this inserts an explicit null instead. With the
-     * column nullable, string_set_valid(NULL) returns NULL, so both tags
-     * CHECKs would pass and a tagless employee would be indistinguishable
-     * from a broken one.
-     */
     public function test_tags_is_required(): void
     {
         $agency = Agency::factory()->create();

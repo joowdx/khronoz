@@ -9,12 +9,6 @@ use Illuminate\Support\Facades\Gate;
 
 class UserInviteController extends Controller
 {
-    /**
-     * Re-send the invite email. Refuses an already-accepted invite — its
-     * link would only confuse someone who has already signed in and set
-     * their own password. InviteNotification (see its own doc comment) is
-     * safe to send more than once: every send mints a fresh signed URL.
-     */
     public function store(User $user): RedirectResponse
     {
         Gate::authorize('update', $user);

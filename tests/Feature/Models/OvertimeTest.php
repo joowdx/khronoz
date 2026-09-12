@@ -21,7 +21,9 @@ use Tests\TestCase;
  */
 class OvertimeTest extends TestCase
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function overtimeRow(Overtime $like, array $overrides = []): array
     {
         return [
@@ -58,19 +60,6 @@ class OvertimeTest extends TestCase
         ));
     }
 
-    /**
-     * `starts` NOT NULL, and the refusing **column** is named here because
-     * the SQLSTATE alone cannot cover this rule — which mutation testing is
-     * what showed. `date` is `starts::date` and is itself NOT NULL, so a null
-     * `starts` produces a 23502 either way: making `starts` nullable left the
-     * insert refused by `date`, and a code-only assertion passed against the
-     * very change it existed to catch. The column and not the constraint name
-     * because a not-null message names only the column.
-     *
-     * Both constraints are kept. The generated column enforcing it
-     * transitively is a happy accident, not the rule — make `date` nullable
-     * and it evaporates — so `starts` states it directly.
-     */
     public function test_starts_is_required(): void
     {
         $overtime = Overtime::factory()->create();
@@ -82,12 +71,6 @@ class OvertimeTest extends TestCase
         );
     }
 
-    /**
-     * `ends` NOT NULL, unlike every `ends` elsewhere in this schema. An open
-     * overtime authority is not a thing: an order names the hours it grants,
-     * and a null would make overtimes_dates_ordered evaluate to NULL, which a
-     * CHECK accepts.
-     */
     public function test_ends_is_required(): void
     {
         $overtime = Overtime::factory()->create();
@@ -124,7 +107,6 @@ class OvertimeTest extends TestCase
         ));
     }
 
-    /** overtimes_mode_valid. */
     public function test_mode_must_be_pay_or_cto(): void
     {
         $overtime = Overtime::factory()->create();
@@ -134,11 +116,6 @@ class OvertimeTest extends TestCase
         ));
     }
 
-    /**
-     * overtimes_dates_ordered, and strictly greater: an authority of zero
-     * length authorises nothing, and tsrange(t, t) is the empty range, which
-     * overlaps nothing and would escape overtimes_no_overlap entirely.
-     */
     public function test_an_authority_cannot_end_when_it_starts(): void
     {
         $overtime = Overtime::factory()->create();
@@ -148,13 +125,11 @@ class OvertimeTest extends TestCase
         ));
     }
 
-    /** Ruling P4: the primary key masks the pair, so assert the catalog. */
     public function test_id_and_agency_id_pair_is_declared_unique(): void
     {
         $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'overtimes_id_agency_id_unique'"));
     }
 
-    /** overtimes_employee_id_agency_id_foreign, insert side. */
     public function test_employee_must_share_the_overtimes_agency(): void
     {
         $employee = Employee::factory()->create();
@@ -162,7 +137,6 @@ class OvertimeTest extends TestCase
         $this->assertDatabaseRefuses('23503', fn () => Overtime::factory()->create(['employee_id' => $employee->id]));
     }
 
-    /** Same FK, delete side. Raw DELETE: employees are soft deleted. */
     public function test_employee_with_an_authority_cannot_be_hard_deleted(): void
     {
         $overtime = Overtime::factory()->create();
@@ -170,7 +144,6 @@ class OvertimeTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('employees')->where('id', $overtime->employee_id)->delete());
     }
 
-    /** overtimes_user_id_foreign, insert side. */
     public function test_approving_user_must_exist(): void
     {
         $overtime = Overtime::factory()->create();
@@ -180,7 +153,6 @@ class OvertimeTest extends TestCase
         ));
     }
 
-    /** Same FK, delete side. */
     public function test_user_who_approved_an_authority_cannot_be_deleted(): void
     {
         $overtime = Overtime::factory()->create();
@@ -188,7 +160,6 @@ class OvertimeTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('users')->where('id', $overtime->user_id)->delete());
     }
 
-    /** The single-column user FK, for the reason suspensions.user_id is one. */
     public function test_the_approving_user_may_belong_to_another_agency(): void
     {
         $employee = Employee::factory()->create();
@@ -203,7 +174,6 @@ class OvertimeTest extends TestCase
         $this->assertSame($this->platform()->id, $overtime->user->agency_id);
     }
 
-    /** overtimes_no_overlap: one authority at a time per employee. */
     public function test_authorities_for_one_employee_cannot_overlap(): void
     {
         $overtime = Overtime::factory()->create();
@@ -214,18 +184,6 @@ class OvertimeTest extends TestCase
         ])));
     }
 
-    /**
-     * **The `[)` bound, which is the one place this table's range behaves
-     * differently from every daterange in the schema, and it is deliberate.**
-     *
-     * Two authorities meeting at an instant do not conflict: the first has
-     * ended when the second begins. Two *date* ranges sharing a day do
-     * conflict, because the employee really is in both on that day — same
-     * operator, opposite answer, because a day is an interval and an instant
-     * is not. Measured here rather than reasoned about, because "fixing" this
-     * to '[]' for consistency would refuse a perfectly ordinary pair of
-     * consecutive authorities.
-     */
     public function test_two_authorities_may_meet_at_an_instant(): void
     {
         $first = Overtime::factory()->create(['starts' => '2026-09-15 18:00:00', 'ends' => '2026-09-15 20:00:00']);
@@ -241,13 +199,6 @@ class OvertimeTest extends TestCase
         $this->assertDatabaseHas('overtimes', ['id' => $second->id]);
     }
 
-    /**
-     * The exclusion is keyed **per employee**, which the touching-instants
-     * test above cannot show: dropping `employee_id WITH =` still permits two
-     * authorities that merely meet. Two employees authorised for the *same*
-     * hours is the ordinary case a global exclusion would refuse — an office
-     * working a Saturday has everyone on one order.
-     */
     public function test_two_employees_may_be_authorised_at_the_same_time(): void
     {
         $first = Overtime::factory()->create();
@@ -265,11 +216,6 @@ class OvertimeTest extends TestCase
         $this->assertNotSame($first->employee_id, $second->employee_id);
     }
 
-    /**
-     * The generated column. `date` is `starts::date`, is STORED rather than
-     * Postgres 18's VIRTUAL default, and follows `starts` on an UPDATE — so
-     * it cannot drift out of agreement with the instants it summarises.
-     */
     public function test_the_date_is_generated_from_the_start_and_follows_it(): void
     {
         $overtime = Overtime::factory()->create(['starts' => '2026-09-15 17:00:00', 'ends' => '2026-09-15 20:00:00']);
@@ -284,10 +230,6 @@ class OvertimeTest extends TestCase
         $this->assertSame('2026-10-20', $overtime->fresh()->date->toDateString());
     }
 
-    /**
-     * An overnight authority is **one row**, which is the whole reason
-     * `starts` and `ends` are timestamps, and `date` is the day it began.
-     */
     public function test_an_overnight_authority_is_one_row_dated_by_its_start(): void
     {
         $overtime = Overtime::factory()->overnight()->create();
@@ -297,14 +239,6 @@ class OvertimeTest extends TestCase
         $this->assertSame(240, $overtime->minutes());
     }
 
-    /**
-     * **STORED, not VIRTUAL.** Postgres 18 defaults a generated column to
-     * VIRTUAL, and a virtual column can be neither indexed nor referenced by
-     * a foreign key — which is the entire reason this column exists rather
-     * than being derived at read time. Blueprint's storedAs() spells it out,
-     * and nothing in the migration's own text would reveal a regression to
-     * virtualAs(), so the catalog is asserted directly.
-     */
     public function test_the_generated_date_is_stored_and_not_virtual(): void
     {
         $column = DB::selectOne("select attgenerated from pg_attribute where attrelid = 'overtimes'::regclass and attname = 'date'");
@@ -312,7 +246,6 @@ class OvertimeTest extends TestCase
         $this->assertSame('s', $column->attgenerated, "expected STORED ('s'), got ".var_export($column->attgenerated, true));
     }
 
-    /** A generated column refuses a supplied value outright. */
     public function test_the_date_cannot_be_written(): void
     {
         $overtime = Overtime::factory()->create();
@@ -322,13 +255,6 @@ class OvertimeTest extends TestCase
         ));
     }
 
-    /**
-     * The two questions about "this date" that are not the same, and the
-     * reason neither scope is named covering(). An overnight authority filed
-     * on the 15th is what authorises 00:30 on the 16th: `overlapping()` finds
-     * it on the 16th and `startingOn()` does not, so a deriver asking the
-     * wrong one silently loses every minute after midnight.
-     */
     public function test_an_overnight_authority_is_found_by_its_window_not_its_date(): void
     {
         $employee = Employee::factory()->create();
@@ -349,18 +275,6 @@ class OvertimeTest extends TestCase
         $this->assertSame(1, Overtime::startingOn($sixteenth->subDay())->count());
     }
 
-    /**
-     * actor_of_agency. The single-column `user_id` FK is wider than the
-     * intent it serves: it exists so a platform superuser who has entered the
-     * agency can do the data entry, not so an ordinary user of some third
-     * agency can be recorded as having approved this. No foreign key can say
-     * "this agency **or** the platform one", so a trigger does — the same
-     * division of labour `origin_is_platform()` makes for the other
-     * deliberate cross-agency pointer in the schema.
-     *
-     * Found by an adversarial review on 2026-09-11, which noticed the FK
-     * permitted what the application never produces.
-     */
     public function test_the_recording_user_cannot_belong_to_a_third_agency(): void
     {
         $overtime = Overtime::factory()->create();

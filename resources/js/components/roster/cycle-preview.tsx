@@ -1,19 +1,6 @@
 import { OFF_HATCH, RAMP, type Slot } from '@/components/shift-chip';
 import { cn } from '@/lib/utils';
 
-/**
- * A schedule's cycle as a strip — one cell per turn, in the shift's own ramp
- * colour, rest turns hatched. Underneath, the position numbers at 1 and then
- * every seventh day, so a 21-day rotation reads as three weeks at a glance.
- *
- * The cells carry no letter. At `flex: 1` across a 420px sheet a 21-day cycle
- * gives each one about 18px, which is under the 21px the chip's 11px figure
- * needs — and the colour is the thing being previewed anyway. The artboard's
- * `.cycle i` chips are empty for the same reason.
- *
- * This geometry lives only in `06-roster-grid.html`'s own `<style>` block, not
- * in `ui.css`, so it is ported here rather than translated from a shared rule.
- */
 const MARK_EVERY = 7;
 
 export interface CycleTurn {

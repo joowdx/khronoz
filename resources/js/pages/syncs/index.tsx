@@ -35,7 +35,6 @@ const COLUMNS = {
     rejected: 110,
 } as const;
 
-/** What the flexible File column needs for a real export name plus a refusal. */
 const FLEX_MIN = 280;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
@@ -58,15 +57,6 @@ function query(filters: Filters, page?: string): Record<string, string> {
     return params;
 }
 
-/**
- * The history of getting punches in.
- *
- * The rows worth finding are the **failed** ones, and not because something
- * broke technically: a file naming two device numbers is refused whole as
- * probable tampering (decision 44), and the row here carrying its reason is
- * the only lasting trace of the attempt. Without this screen a refusal is a
- * flash message the second attempt looks identical to.
- */
 export default function Index({
     syncs,
     pagination,
@@ -180,30 +170,9 @@ export default function Index({
                                         </span>
                                     </TableCell>
                                     <TableCell className="tabular-nums">{sync.terminal?.code ?? '—'}</TableCell>
-                                    {/*
-                                      A refused run's whole value is its reason,
-                                      so the error sits under the filename
-                                      rather than behind a status chip. The
-                                      counters beside it are all zero, which is
-                                      the other half of the statement: nothing
-                                      was written.
-                                    */}
                                     <TableCell className="max-w-0">
                                         <span className="flex min-w-0 flex-col">
                                             <span className="truncate">
-                                                {/*
-                                                  A run with no filename is
-                                                  named by how it started, and
-                                                  the words come from
-                                                  SyncTrigger. `capitalize` on
-                                                  the raw value used to print
-                                                  "Import" and "Push" where
-                                                  the enum says "File import"
-                                                  and "Pushed by device" —
-                                                  wrong on exactly the two
-                                                  runs that have no filename
-                                                  to fall back from.
-                                                */}
                                                 {sync.reference ?? (
                                                     <span className="text-muted-foreground">{sync.trigger.label}</span>
                                                 )}
@@ -222,11 +191,6 @@ export default function Index({
                                     <TableCell className="text-muted-foreground text-right tabular-nums">
                                         {sync.duplicates.toLocaleString()}
                                     </TableCell>
-                                    {/*
-                                      Zero is the expected answer, so it stays
-                                      quiet; anything else is a line the parser
-                                      could not read and is worth the weight.
-                                    */}
                                     <TableCell
                                         className={
                                             sync.rejected > 0

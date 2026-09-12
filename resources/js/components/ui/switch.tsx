@@ -2,11 +2,6 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Switch as SwitchPrimitive } from 'radix-ui';
 
-/**
- * 34x20 track, 14px thumb. Like the checkbox, the drawn control keeps its
- * size and ::before grows the hit area past 24px. One geometry only — the
- * design has no small switch.
- */
 function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimitive.Root>) {
     return (
         <SwitchPrimitive.Root

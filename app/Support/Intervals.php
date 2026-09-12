@@ -5,28 +5,7 @@ namespace App\Support;
 use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 
-/**
- * Set algebra over half-open time ranges `[start, end)`.
- *
- * A slot ending at 12:00 and one starting at 12:00 are adjacent, not
- * overlapping, and their union is one range of the combined length.
- * Closed ranges would make noon a one-minute overlap counted twice or
- * subtracted twice depending on which method saw it first. Every caller
- * has to know this, which is why it lives in the docblock rather than
- * only in the tests.
- *
- * Every method that returns ranges returns a normalised union: merged,
- * sorted, non-overlapping, with touching ranges joined. Results therefore
- * compose. `minutes()` unions first too, so overlapping inputs cannot
- * double-count — `worked` is a measure of a set of minutes, not a sum
- * over slots (daily rule 5, decision 60).
- *
- * Lengths are whole minutes by truncation of instants, never by rounding
- * spans. A range that is not a whole number of minutes means something
- * upstream broke that contract.
- *
- * @phpstan-type Range array{0: CarbonImmutable, 1: CarbonImmutable}
- */
+/** @phpstan-type Range array{0: CarbonImmutable, 1: CarbonImmutable} */
 final class Intervals
 {
     /**
@@ -88,8 +67,6 @@ final class Intervals
     }
 
     /**
-     * Everything in `$a` that is not in `$b`.
-     *
      * @param  list<Range>  $a
      * @param  list<Range>  $b
      * @return list<Range>
@@ -150,17 +127,6 @@ final class Intervals
     }
 
     /**
-     * The set past its own first `$minutes` minutes, in time order — the
-     * complement of "the first `$minutes` of this set".
-     *
-     * Not `subtract($ranges, [[$start, $start->addMinutes($minutes)]])`:
-     * the count is of minutes *in the set*, so a gap between two ranges
-     * does not consume any of it. Reading a set's leading portion is how
-     * an entitlement measured in hours-from-the-start is placed on the
-     * clock — decision 51's first 480 minutes of a premium day are the
-     * caller this exists for, and rule 6's `excess ∩ authority` needs to
-     * know which minutes those were before it can intersect the rest.
-     *
      * @param  list<Range>  $ranges
      * @return list<Range>
      */

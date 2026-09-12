@@ -8,11 +8,6 @@ import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/platform/agencies';
 
-/**
- * One 560px column, two fields, one primary action (§6.1). The code is
- * upper-cased on the way in by StoreAgencyRequest, so the `uppercase` class
- * only shows the reader what will be stored rather than fighting them for it.
- */
 export default function Create() {
     return (
         <AppLayout>
@@ -25,8 +20,6 @@ export default function Create() {
             <Form {...store.form()} className="w-[560px] max-w-full">
                 {({ errors, processing }) => (
                     <>
-                        {/* A failure that belongs to no field: above the fields,
-                            and neither control's border changes (§6.4). */}
                         {errors.form && (
                             <Alert variant="destructive" className="mb-6">
                                 <TriangleAlertIcon />

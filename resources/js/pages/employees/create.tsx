@@ -7,17 +7,6 @@ import AppLayout from '@/layouts/app-layout';
 import type { Choice } from '@/types';
 import { index, store } from '@/routes/employees';
 
-/**
- * One 560px column: the person, then how to reach them, then their
- * employment, then the submit row (§6.1). Nothing here is a card — a form is
- * not a container.
- *
- * The workgroup is deliberately absent. Where someone works is a `Deployment`, a
- * dated placement with a history of its own, so it is created from the
- * employee's profile rather than folded into this form as if it were another
- * column of `employees`. The description says so, because otherwise the first
- * thing a new user looks for here is the workgroup.
- */
 export default function Create({ sexes }: { sexes: Choice[] }) {
     return (
         <AppLayout>

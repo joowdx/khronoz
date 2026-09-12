@@ -12,9 +12,6 @@ use Inertia\Response;
 
 class AuthenticatedSessionController extends Controller
 {
-    /**
-     * Display the login page.
-     */
     public function create(): Response
     {
         return Inertia::render('auth/login', [
@@ -23,15 +20,10 @@ class AuthenticatedSessionController extends Controller
         ]);
     }
 
-    /**
-     * Handle an incoming authentication request.
-     */
     public function store(LoginRequest $request): RedirectResponse
     {
         $request->authenticate();
 
-        // Regenerated on every successful login, invite acceptance included,
-        // so a session id an attacker fixed before authentication is useless
         // afterwards (session fixation).
         $request->session()->regenerate();
 

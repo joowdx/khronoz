@@ -45,12 +45,6 @@ class WorkdayControllerTest extends TestCase
         );
     }
 
-    /**
-     * Workday rule 2: the name on the page is the frozen snapshot, not the
-     * live `shifts` row. Renaming the row after the workday exists would
-     * otherwise still look like a pass — factory and live both said
-     * Standard until they were forced apart.
-     */
     public function test_the_shift_name_is_the_frozen_snapshot_not_the_live_row(): void
     {
         $agency = Agency::factory()->create();
@@ -74,10 +68,6 @@ class WorkdayControllerTest extends TestCase
         );
     }
 
-    /**
-     * August is the earlier date, so a missing month filter would hand that
-     * row back as `workdays.0`. The assertion is the September id.
-     */
     public function test_the_index_is_scoped_to_the_requested_month(): void
     {
         $agency = Agency::factory()->create();
@@ -107,7 +97,6 @@ class WorkdayControllerTest extends TestCase
         );
     }
 
-    /** A mangled query string must not leave the list filtered by something the picker cannot show. */
     public function test_an_unknown_employee_or_status_filter_is_reported_as_unset(): void
     {
         $agency = Agency::factory()->create();
@@ -123,10 +112,6 @@ class WorkdayControllerTest extends TestCase
             );
     }
 
-    /**
-     * The filter this screen exists for: status is absent, or any punch of
-     * the day has a null `actual_at`.
-     */
     public function test_the_attention_filter_finds_absences_and_unfilled_punches(): void
     {
         $agency = Agency::factory()->create();
@@ -226,10 +211,6 @@ class WorkdayControllerTest extends TestCase
         );
     }
 
-    /**
-     * A DTR is a historical pay record. RemoveEmployee soft-deletes; without
-     * `withTrashed()` the row is listed nameless through the living-rows scope.
-     */
     public function test_a_removed_employees_september_still_carries_their_name(): void
     {
         $agency = Agency::factory()->create();
@@ -264,12 +245,6 @@ class WorkdayControllerTest extends TestCase
         );
     }
 
-    /**
-     * `currentDeployment.workgroup` is eager-loaded on a page of rows.
-     * Model::shouldBeStrict() only arms the lazy-loading guard once a
-     * collection holds more than one model, so one row cannot catch a
-     * missing nested load — only one row versus many, same query count.
-     */
     public function test_listing_many_workdays_issues_the_same_queries_as_one(): void
     {
         $this->travelTo('2026-09-11 12:00:00');

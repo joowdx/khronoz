@@ -6,25 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Choice, Employee } from '@/types';
 
-/** Radix refuses an empty `value`, so "not recorded" needs a token of its own; the hidden input turns it back into ''. */
 const UNRECORDED = 'unrecorded';
 
-/**
- * A pair of fields on one row: §4.1's `--s3` (12) is "gap between controls in
- * a row", and a first and middle name read as one thing. §6.1's one column is
- * the form's column, not a rule that every field must own a whole line — four
- * stacked name boxes would push the other fields below the fold for no gain.
- */
 function Pair({ className = 'sm:grid-cols-2', children }: { className?: string; children: ReactNode }) {
     return <div className={`mt-6 grid grid-cols-1 gap-3 ${className}`}>{children}</div>;
 }
 
-/**
- * A new subject inside the form. §6.1 gives a group that starts one 32 of top
- * margin; the rule is §4.1's `--s6` "section gap either side of the rule",
- * which is how every other long surface in this product divides itself
- * (dashboard.tsx's `Stack`). It separates personal details from the position and timekeeping fields.
- */
 function Subject({ title, children }: { title: string; children: ReactNode }) {
     return (
         <section className="border-border mt-8 border-t pt-8">
@@ -34,32 +21,12 @@ function Subject({ title, children }: { title: string; children: ReactNode }) {
     );
 }
 
-/**
- * Every column of `employees`, in one 560px column — shared by the add and the
- * edit screens because they are the same fields against the same
- * rules, and a second copy would drift the moment one rule changes.
- *
- * Three things this component owns rather than the page:
- *
- * - `sex`, `tags` and `exempt` need React state, because none of them is a
- *   plain text box. Each writes a hidden input, so the page's Inertia `<Form>`
- *   submits them with everything else and never has to know they exist.
- * - Empty strings, not absent keys: `ConvertEmptyStringsToNull` turns them
- *   into the nulls every `nullable` rule wants, which is also why a cleared
- *   date is submitted as '' rather than being dropped.
- * - The dates bind straight to `<input type="date">`. The resources send
- *   `YYYY-MM-DD` strings for exactly this reason — reparsing them as instants
- *   is what made every naive read name the day before.
- */
 export function EmployeeFields({
     employee,
     sexes,
     errors,
 }: {
-    /** The record being edited, or nothing when one is being added. */
     employee?: Employee;
-    /** `Sex`, labelled by the enum. The "Not recorded" sentinel is not a case
-     *  of it — null is the absence of a value, not a third value. */
     sexes: Choice[];
     errors: Partial<Record<string, string>>;
 }) {
@@ -69,13 +36,6 @@ export function EmployeeFields({
 
     return (
         <>
-            {/*
-              The narrow ones are narrow at the *control*, not at the field.
-              MEASURED: with `w-[220px]` on the field, its hint inherited the
-              220 and wrapped to two lines under a one-line box — §6.1 puts a
-              hint below the field, and the field is 560 wide even when its
-              control is not.
-            */}
             <Field
                 label="Employee number"
                 htmlFor="number"
@@ -264,13 +224,6 @@ export function EmployeeFields({
                     )}
                 </Field>
 
-                {/*
-                  A checkbox, not the switch the employees list filters with:
-                  a switch turns something on now, and this records a fact
-                  about a person that is saved with the rest of the form.
-                  Geometry is §5.21's attest row — the box, the sentence, and
-                  the hint that says who it is for.
-                */}
                 <div className="mt-8 flex items-start gap-3">
                     <input type="hidden" name="exempt" value={exempt ? '1' : '0'} />
                     <Checkbox

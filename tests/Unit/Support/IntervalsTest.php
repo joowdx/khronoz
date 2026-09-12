@@ -44,11 +44,6 @@ class IntervalsTest extends TestCase
         );
     }
 
-    /**
-     * Two slots whose punches overlap — a missed lunch out, a device
-     * double-read across noon — must become one range. Summing per slot
-     * would count the overlap twice; the union cannot write that.
-     */
     public function test_overlapping_ranges_merge_into_one(): void
     {
         $merged = Intervals::union([
@@ -62,11 +57,6 @@ class IntervalsTest extends TestCase
         $this->assertSame(300, Intervals::minutes($merged));
     }
 
-    /**
-     * Half-open `[start, end)`: a slot ending at 12:00 and one starting
-     * at 12:00 are adjacent, not overlapping. Closed ranges would make
-     * noon a one-minute overlap counted twice.
-     */
     public function test_touching_ranges_join_at_the_shared_instant(): void
     {
         $merged = Intervals::union([
@@ -80,7 +70,6 @@ class IntervalsTest extends TestCase
         $this->assertSame(540, Intervals::minutes($merged));
     }
 
-    /** Disjoint ranges stay separate and come back sorted by start. */
     public function test_disjoint_ranges_stay_separate_and_sorted(): void
     {
         $merged = Intervals::union([
@@ -103,10 +92,6 @@ class IntervalsTest extends TestCase
         $this->assertSame(0, Intervals::minutes([]));
     }
 
-    /**
-     * The morning overlap of a standard day: 08:00–12:00 against
-     * 08:00–17:00 is four hours, not nine.
-     */
     public function test_intersect_is_the_overlapping_minutes(): void
     {
         $overlap = Intervals::intersect(
@@ -124,10 +109,6 @@ class IntervalsTest extends TestCase
         $this->assertSame(480, Intervals::minutes($overlap));
     }
 
-    /**
-     * Abutting at 12:00 must not produce a one-minute intersection.
-     * That is the half-open contract: `[08:00, 12:00) ∩ [12:00, 17:00) = ∅`.
-     */
     public function test_abutting_ranges_do_not_intersect(): void
     {
         $this->assertSame([], Intervals::intersect(
@@ -136,10 +117,6 @@ class IntervalsTest extends TestCase
         ));
     }
 
-    /**
-     * Presence through lunch against a two-slot expectation: the hour
-     * between 12:00 and 13:00 is the leftover, not a second copy of noon.
-     */
     public function test_subtract_keeps_only_minutes_outside_the_cut(): void
     {
         $leftover = Intervals::subtract(
@@ -164,12 +141,6 @@ class IntervalsTest extends TestCase
         ));
     }
 
-    /**
-     * `after()` counts minutes *in the set*, so a gap consumes none of
-     * them. 480 minutes past 08:00–12:00 and 13:00–20:00 lands at 17:00,
-     * not at 16:00 — subtracting a plain four-hour span from the start
-     * would have lost the lunch hour and placed the boundary an hour early.
-     */
     public function test_after_skips_the_gaps_when_counting(): void
     {
         $this->assertRanges([
@@ -195,7 +166,6 @@ class IntervalsTest extends TestCase
         ));
     }
 
-    /** A whole range consumed exactly leaves the next one untouched. */
     public function test_after_a_range_boundary_drops_that_range_whole(): void
     {
         $this->assertRanges([
@@ -206,7 +176,6 @@ class IntervalsTest extends TestCase
         ], 240));
     }
 
-    /** Overlapping input is unioned first, so the count is of the set. */
     public function test_after_counts_overlapping_ranges_once(): void
     {
         $this->assertRanges([
@@ -217,10 +186,6 @@ class IntervalsTest extends TestCase
         ], 60));
     }
 
-    /**
-     * `minutes()` measures a set. Passing the same hour twice must not
-     * report 120 — that is the double count union exists to make unwriteable.
-     */
     public function test_minutes_of_overlapping_ranges_do_not_double_count(): void
     {
         $this->assertSame(180, Intervals::minutes([
@@ -229,11 +194,6 @@ class IntervalsTest extends TestCase
         ]));
     }
 
-    /**
-     * Decision 60: whole minutes by truncation of instants, never by
-     * rounding spans. A range that is not a whole number of minutes
-     * means something upstream broke that contract.
-     */
     public function test_a_fractional_minute_is_refused(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -243,10 +203,6 @@ class IntervalsTest extends TestCase
         ]);
     }
 
-    /**
-     * Every method returns a normalised union, so intersect then subtract
-     * is the same set as doing the operations in one step.
-     */
     public function test_results_compose_as_normalised_unions(): void
     {
         $presence = [

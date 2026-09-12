@@ -24,15 +24,6 @@ class HolidayPolicy
         return $user->allows(Permission::ManageCalendar);
     }
 
-    /**
-     * An agency may edit its own holidays and **not** the national ones.
-     *
-     * `holidays` is the one table read under AgencyOrPlatformScope: a tenant
-     * sees its own rows and the platform agency's, because a national holiday
-     * applies to everyone (07-constraints.md). That makes the list mixed, and
-     * a row an agency cannot change has to be refused here rather than merely
-     * hidden in the interface — the index is not the only way to reach this.
-     */
     public function update(User $user, Holiday $holiday): bool
     {
         return $user->allows(Permission::ManageCalendar) && ! $holiday->national();

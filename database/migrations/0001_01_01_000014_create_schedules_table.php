@@ -8,13 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * A repeating cycle of shifts (docs/design/04-scheduling.md): `length`
-     * days, one turn per day, resolved as
-     * `position = (D - roster.anchor) mod length`.
-     *
-     * Like `shifts` and unlike `teams`, a schedule may belong to the platform
-     * agency — that is where the defaults live, and an agency's own schedule
-     * is a copy carrying `origin_id` back to it.
+     * Platform-owned schedules are defaults; agency copies retain their origin.
      */
     public function up(): void
     {
@@ -22,16 +16,9 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('agency_id')->constrained('agencies')->restrictOnDelete()->restrictOnUpdate();
             $table->string('name');
-            // Days in the cycle. Bounded at 366 rather than left open: the
-            // cycle is a rotation, and anything longer than a year is a
-            // calendar, which is what holidays and exemptions are for. 1 is
-            // legal — a single-turn schedule is every day the same.
+            // A rotation is bounded to one year; a single-turn cycle is valid.
             $table->smallInteger('length');
-            // When a holiday or suspension lands on an Off turn, the other
-            // turns of that ISO week resolve to this shift instead, so a
-            // compressed week reverts to standard days rather than losing the
-            // holiday (Res. 2600838 §2.3, 04-scheduling.md rule 5). Paired FK
-            // — a fallback must be a shift of the same agency.
+            // The paired key keeps the fallback shift within the agency.
             $table->ulid('fallback_shift_id')->nullable();
             // The platform row this was copied from; reference only, see
             // shifts.origin_id for why it is deliberately unpaired.
@@ -61,22 +48,8 @@ return new class extends Migration
                 FOR EACH ROW EXECUTE FUNCTION origin_is_platform();
         SQL);
 
-        // The other half of turns_complete: changing a schedule's length
-        // invalidates a turn set that was complete a moment ago, so the
-        // constraint has to watch this column as well as the turns
-        // themselves. DEFERRED, so one transaction may widen the length and
-        // add the turns in either order — the function and the testing
-        // consequences are in 0001_01_01_000012_prepare_scheduling.
-        //
-        // INSERT is listed as well as UPDATE OF length, which 07-constraints.md
-        // did not have, and it is not belt-and-braces. MEASURED before adding
-        // it: a schedule created with no turns at all was accepted and then
-        // never checked again, because nothing had changed on `turns` and the
-        // length had never been updated — so an unresolvable schedule could
-        // sit in the table permanently, and the resolver would find no turn at
-        // any position. Deferral is what makes covering INSERT free: a real
-        // create writes the schedule and its turns in one transaction, so the
-        // check still sees a complete set at COMMIT.
+        // INSERT prevents a schedule without turns from escaping validation.
+        // Deferred timing permits creating or resizing a schedule with its turns in one transaction.
         DB::unprepared(<<<'SQL'
             CREATE CONSTRAINT TRIGGER turns_complete
                 AFTER INSERT OR UPDATE OF length ON schedules

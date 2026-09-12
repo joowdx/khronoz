@@ -54,10 +54,6 @@ class LedgerControllerTest extends TestCase
         );
     }
 
-    /**
-     * August sorts first by last name, so a missing month filter would hand
-     * that row back as `ledgers.0`. The assertion is the September id.
-     */
     public function test_the_index_is_scoped_to_the_requested_month(): void
     {
         $agency = Agency::factory()->create();
@@ -85,10 +81,6 @@ class LedgerControllerTest extends TestCase
         );
     }
 
-    /**
-     * The index answers "whose month is done" with aggregates, never a view.
-     * Overtime is a figure of the record and belongs on the DTR page.
-     */
     public function test_the_index_carries_aggregates_not_a_view(): void
     {
         $agency = Agency::factory()->create();
@@ -219,10 +211,6 @@ class LedgerControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('view.overtime', 0));
     }
 
-    /**
-     * A DTR is a historical pay record. RemoveEmployee soft-deletes; without
-     * `withTrashed()` the row is listed nameless through the living-rows scope.
-     */
     public function test_a_removed_employees_september_still_carries_their_name(): void
     {
         $agency = Agency::factory()->create();
@@ -261,11 +249,6 @@ class LedgerControllerTest extends TestCase
         );
     }
 
-    /**
-     * Daily rule 7: a personal slip on an otherwise present day is still
-     * recorded and printed. The one-argument `whenLoaded` would crash because
-     * `exemption_id` is nullable.
-     */
     public function test_the_record_sends_a_stamped_exemption(): void
     {
         $agency = Agency::factory()->create();
@@ -295,12 +278,6 @@ class LedgerControllerTest extends TestCase
         );
     }
 
-    /**
-     * `currentDeployment.workgroup` and `exemption` are eager-loaded on a
-     * page of rows. Model::shouldBeStrict() only arms the lazy-loading guard
-     * once a collection holds more than one model, so one row cannot catch
-     * a missing nested load — only one row versus many, same query count.
-     */
     public function test_listing_many_ledgers_issues_the_same_queries_as_one(): void
     {
         $this->travelTo('2026-09-11 12:00:00');
@@ -427,11 +404,6 @@ class LedgerControllerTest extends TestCase
         $this->assertNull($ledger->fresh()->locked_at);
     }
 
-    /**
-     * `ledgers_lock_complete` is reachable from the UI by a user doing nothing
-     * wrong, and must flash rather than 500. The action's own transaction is
-     * what keeps the next assertion from answering 25P02.
-     */
     public function test_a_lock_with_a_punch_still_due_flashes_rather_than_500(): void
     {
         $agency = Agency::factory()->create();
@@ -460,7 +432,6 @@ class LedgerControllerTest extends TestCase
         $this->assertNull($ledger->fresh()->locked_at);
     }
 
-    /** `ledgers_unlock_clean`: you certify frozen numbers, never moving ones. */
     public function test_an_unlock_of_an_attested_ledger_flashes_rather_than_500(): void
     {
         $agency = Agency::factory()->create();

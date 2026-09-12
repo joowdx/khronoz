@@ -11,24 +11,17 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/**
- * One expected slot side of a workday, and the timelog that filled it, or
- * null for a missed one (docs/design/06-attendance.md Punch).
- *
- * **`const UPDATED_AT = null`.** A punch is a derived row rewritten with its
- * workday, so "when was this last written" is the workday's `computed_at`.
- * The same mixed-concern defect a workday `updated_at` would be.
- */
 #[Fillable([
     'agency_id', 'workday_id', 'employee_id', 'slot', 'kind',
     'expected_at', 'timelog_id', 'actual_at', 'deviation',
 ])]
 class Punch extends Model
 {
-    /** @use HasFactory<PunchFactory> */
+    /**
+     * @use HasFactory<PunchFactory>
+     */
     use BelongsToAgency, HasFactory, HasUlids;
 
-    /** There is no `updated_at` column, and that is deliberate — see the docblock. */
     public const UPDATED_AT = null;
 
     /** @return array<string, string> */
@@ -59,7 +52,9 @@ class Punch extends Model
         return $this->belongsTo(Timelog::class);
     }
 
-    /** No timelog filled this slot side. */
+    /**
+     * No timelog filled this slot side.
+     */
     public function missed(): bool
     {
         return $this->timelog_id === null;

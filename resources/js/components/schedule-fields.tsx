@@ -11,26 +11,8 @@ import type { Schedule, Shift, Turn } from '@/types';
 const DEFAULT_LENGTH = 7;
 const MAX_LENGTH = 366;
 
-/** How many turns a read-only strip draws before it counts the rest. */
 const STRIP_LIMIT = 14;
 
-/**
- * A shift as one mark: its ramp chip, the Off hatch or the Remote box.
- *
- * The three marks come from `components/shift-chip.tsx` and nothing here
- * invents a colour — `shifts.color` is the stored ramp index (04-scheduling.md
- * rule 8) and `kind` is derived server-side, so a rest day is a hatch and a
- * remote day a dashed box on every surface that draws a shift.
- *
- * Always `aria-hidden`: every place this is used sets its own accessible name
- * from the shift's name, and a chip that reads out "M" beside the word
- * "Morning" says it twice.
- *
- * It lives here rather than in `shift-chip.tsx` because it is a *cycle's* way
- * of drawing a shift — the schedule builder, the read-only strip on both
- * index pages and the team form all want the same 18px mark, and one
- * definition is what keeps them the same mark.
- */
 export function ShiftGlyph({ shift, className }: { shift: Shift; className?: string }) {
     const size = cn('size-[18px]', className);
 
@@ -51,13 +33,6 @@ export function ShiftGlyph({ shift, className }: { shift: Shift; className?: str
     );
 }
 
-/**
- * A cycle, read-only: one mark per day in position order.
- *
- * Bounded at `STRIP_LIMIT` marks and a count of what is left, because a cycle
- * runs to 366 days and a table cell does not. The whole of it is on the
- * schedule's own edit screen; this is the shape of it at a glance.
- */
 export function TurnStrip({ turns, className }: { turns: Turn[]; className?: string }) {
     const shown = turns.slice(0, STRIP_LIMIT);
     const rest = turns.length - shown.length;
@@ -70,23 +45,6 @@ export function TurnStrip({ turns, className }: { turns: Turn[]; className?: str
     );
 }
 
-/**
- * Building a cycle: a name, how many days it runs, what a compressed week
- * reverts to, and one shift per day.
- *
- * **The turns are the form's real content.** They submit as `turns[0]`,
- * `turns[1]`, … — an ordered array of shift ids whose index *is* the turn's
- * position, so there is no position to type and none to get wrong. The
- * controller writes them with the schedule in one transaction, which is what
- * `turns_complete` (DEFERRABLE INITIALLY DEFERRED) requires: it counts at
- * COMMIT, and a cycle that is missing a day at that moment is refused whole.
- *
- * Changing the length grows or shrinks the strip in place. Growing repeats
- * what is already there rather than blanking the new days — extending a
- * standard week to 14 gives two identical weeks, which is the edit somebody
- * making a fortnightly cycle actually wants, and every day is then a choice
- * they can change rather than a hole they must fill.
- */
 export function ScheduleFields({
     schedule,
     shifts,
@@ -103,9 +61,6 @@ export function ScheduleFields({
     const labelId = useId();
     const errorId = useId();
 
-    // The strip's own verdict: its count against the length, or the first day
-    // whose shift the server refused. One line, because the label row holds
-    // one — the offending day says the rest by carrying the invalid state.
     const fault = errors.turns ?? Object.entries(errors).find(([key]) => key.startsWith('turns.'))?.[1];
 
     const options = shifts.map((shift) => ({
@@ -120,9 +75,6 @@ export function ScheduleFields({
 
         const next = Number(raw);
 
-        // A half-typed or out-of-range length leaves the strip alone; the
-        // field keeps the text and the server answers for it. Blanking the
-        // box must not throw away the cycle underneath it.
         if (Number.isInteger(next) && next >= 1 && next <= MAX_LENGTH) {
             setTurns((current) => resized(current, next, shifts));
         }
@@ -202,14 +154,6 @@ export function ScheduleFields({
             </div>
 
             <div className="mt-8">
-                {/*
-                  A hand-rolled label row, the one permission-matrix.tsx also
-                  carries: the strip is a group of controls rather than one,
-                  so `Field` cannot own it. The zero-width space is
-                  load-bearing for the same reason it is in field.tsx — an
-                  empty block has no line box and the row would be taller
-                  without a message than with one.
-                */}
                 <div className="flex items-baseline justify-between gap-3 pb-1.5">
                     <span id={labelId} className="text-[13px] leading-[18px] font-medium">
                         The cycle
@@ -245,13 +189,6 @@ export function ScheduleFields({
                     >
                         {turns.map((shift, position) => (
                             <div key={position} className="min-w-0">
-                                {/*
-                                  Decoration: the picker's own accessible name
-                                  is "Day 3: Morning" (combobox.tsx's `label`
-                                  rule — the name has to carry the value), so
-                                  reading this out as well would say the day
-                                  twice.
-                                */}
                                 <span
                                     aria-hidden
                                     className="text-muted-foreground block pb-1 text-[11px] leading-[14px] font-medium tabular-nums"
@@ -283,7 +220,6 @@ export function ScheduleFields({
     );
 }
 
-/** A shift inside the picker: its mark, its name, and what a full day credits. */
 function ShiftOption({ shift }: { shift: Shift }) {
     return (
         <span className="flex min-w-0 items-center gap-2">
@@ -293,34 +229,16 @@ function ShiftOption({ shift }: { shift: Shift }) {
     );
 }
 
-/**
- * The ramp slot a shift's stored colour names, wrapped at 8.
- *
- * Rule 8's own wrapping, applied where the number is read rather than trusted
- * blind: more than eight shifts means a repeated colour, which is accepted,
- * and a value outside 1–8 that somehow reached the browser lands on a real
- * slot instead of an undefined class string.
- */
 function slot(color: number): Slot {
     return (((((Math.trunc(color) - 1) % 8) + 8) % 8) + 1) as Slot;
 }
 
-/** The strip a form opens on: this schedule's turns, or a fresh week. */
 function opening(schedule: Schedule | undefined, shifts: Shift[]): string[] {
     const chosen = [...(schedule?.turns ?? [])].sort((a, b) => a.position - b.position).map((turn) => turn.shift_id);
 
     return resized(chosen, schedule?.length ?? DEFAULT_LENGTH, shifts);
 }
 
-/**
- * `current` at exactly `length` days.
- *
- * Shrinking drops the tail. Growing repeats the cycle so far — position 8 of a
- * widened seven-day week takes what day 1 holds — which makes "make this a
- * fortnight" one edit instead of seven. With nothing to repeat (a fresh form)
- * every day opens on the first shift the agency has, so the cycle is complete
- * from the outset and the operator changes days rather than filling them.
- */
 function resized(current: string[], length: number, shifts: Shift[]): string[] {
     if (length <= current.length) {
         return current.slice(0, length);

@@ -39,12 +39,6 @@ class FanOutRecomputeTest extends TestCase
         $this->assertQueued($second->id, '2026-09-10', '2026-09-10');
     }
 
-    /**
-     * The span the caller asks for is the widest the change could reach; the
-     * span the employee gets is the part of it they have days in. A holiday
-     * declared for a whole ISO week recomputes the two days of it somebody
-     * actually punched, not seven.
-     */
     public function test_the_span_is_clamped_to_the_days_actually_computed(): void
     {
         $agency = Agency::factory()->create();
@@ -60,11 +54,6 @@ class FanOutRecomputeTest extends TestCase
         $this->assertQueued($employee->id, '2026-09-08', '2026-09-20');
     }
 
-    /**
-     * The rule this class exists for. A proclamation for Christmas filed in
-     * September must not write a December workday for everybody — nobody has
-     * worked that day, and only a timelog brings a day into existence.
-     */
     public function test_an_employee_with_no_computed_day_in_the_span_is_left_alone(): void
     {
         $agency = Agency::factory()->create();
@@ -78,10 +67,6 @@ class FanOutRecomputeTest extends TestCase
         Queue::assertNotPushed(RecomputeWorkdays::class);
     }
 
-    /**
-     * And the upper end holds: a correction to September must not drag
-     * October's days in behind it.
-     */
     public function test_a_day_after_the_span_is_not_reached(): void
     {
         $agency = Agency::factory()->create();
@@ -118,7 +103,6 @@ class FanOutRecomputeTest extends TestCase
         );
     }
 
-    /** A national holiday is owned by the platform agency and owed by all of them. */
     public function test_a_platform_holiday_reaches_every_agency(): void
     {
         $agency = Agency::factory()->create();
@@ -138,10 +122,6 @@ class FanOutRecomputeTest extends TestCase
         $this->assertQueued($theirs->id, '2026-09-10', '2026-09-10');
     }
 
-    /**
-     * An open placement and an open roster both run to no date at all, and
-     * the last computed day is the only honest answer to where they stop.
-     */
     public function test_an_open_ended_span_runs_to_the_last_computed_day(): void
     {
         $agency = Agency::factory()->create();
@@ -156,12 +136,6 @@ class FanOutRecomputeTest extends TestCase
         $this->assertQueued($employee->id, '2026-09-10', '2026-10-05');
     }
 
-    /**
-     * Decision 86's other half. Under `QUEUE_CONNECTION=sync` this job runs
-     * inside the request that dispatched it, so clearing the tenant on the
-     * way out — decision 84's rule, and right for a worker — left the
-     * controller's own later queries answering "SetTenant did not run".
-     */
     public function test_it_puts_back_the_tenant_it_found(): void
     {
         $agency = Agency::factory()->create();
@@ -175,7 +149,6 @@ class FanOutRecomputeTest extends TestCase
         $this->assertSame($agency->id, app(Tenant::class)->id());
     }
 
-    /** And clears it when there was none, which is the worker. */
     public function test_it_leaves_no_tenant_behind_when_it_found_none(): void
     {
         $agency = Agency::factory()->create();
@@ -217,11 +190,6 @@ class FanOutRecomputeTest extends TestCase
         );
     }
 
-    /**
-     * A DTR is a historical pay record. The month somebody was removed in is
-     * exactly the one still to be locked and signed, and a holiday corrected
-     * over it has to reach them — workdays do not soft-delete with the person.
-     */
     public function test_a_removed_employee_is_still_reached(): void
     {
         $agency = Agency::factory()->create();
@@ -255,7 +223,6 @@ class FanOutRecomputeTest extends TestCase
         return $employee;
     }
 
-    /** One ledger per employee-month: two days of one month share theirs. */
     private function workday(Agency $agency, Employee $employee, string $date): Workday
     {
         $ledger = Ledger::firstOrCreate([

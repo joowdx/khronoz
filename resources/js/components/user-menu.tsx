@@ -15,20 +15,6 @@ import {
 import { useAppearance } from '@/hooks/use-appearance';
 import type { Appearance, SharedProps } from '@/types';
 
-/**
- * The sidebar's footer: who you are, then what you can change about that.
- *
- * The trigger is a 40px row, not an icon — the owner asked for the name and
- * the address to be readable without opening anything (§5.3). Radix supplies
- * the menu's whole keyboard contract: arrow keys between items, Home/End,
- * typing to jump, Escape to close with focus returning to this button, and
- * `aria-haspopup="menu"` plus `aria-expanded` on the trigger (§5.14).
- *
- * The menu holds an identity block, the appearance switcher and Sign out.
- * There is no Account settings entry: the artboard has one, but no such page
- * exists in Milestone 1 and a menu item that goes nowhere is worse than an
- * absent one. It arrives with the agency-settings screens.
- */
 const CHOICES: { value: Appearance; label: string }[] = [
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
@@ -36,9 +22,6 @@ const CHOICES: { value: Appearance; label: string }[] = [
 ];
 
 export function UserMenu() {
-    // `auth` is only shared once a user is signed in; the shell never renders
-    // for a guest, but the prop is read defensively the way the rest of the
-    // shell reads it.
     const { auth } = usePage<SharedProps>().props;
     const user = auth?.user;
     const { appearance, setAppearance } = useAppearance();
@@ -70,10 +53,6 @@ export function UserMenu() {
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent side="top" align="start" sideOffset={6} className="w-[268px]">
-                {/* §5.14's user menu opens with an identity block. It repeats
-                    the trigger on purpose: the menu is also what the collapsed
-                    rail's avatar-only trigger opens, and there the name and the
-                    address appear nowhere else. */}
                 <div className="border-border mb-1 flex items-center gap-2.5 border-b px-[9px] pt-2 pb-2.5">
                     <Avatar size="md" aria-hidden>
                         <AvatarFallback tint={avatarTint(user.name)}>{initials(user.name)}</AvatarFallback>
@@ -104,8 +83,6 @@ export function UserMenu() {
                     </DropdownMenuSegmented>
                 </div>
                 <DropdownMenuSeparator />
-                {/* Signing out is a POST, so it stays a real form submit rather
-                    than a link. */}
                 <Form {...destroy.form()}>
                     {({ processing }) => (
                         <DropdownMenuItem asChild disabled={processing}>

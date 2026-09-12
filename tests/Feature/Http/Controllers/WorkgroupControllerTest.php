@@ -52,27 +52,6 @@ class WorkgroupControllerTest extends TestCase
         $this->{$verb}($url)->assertForbidden();
     }
 
-    /**
-     * Flat with parent_id, not nested (task-6-brief.md — the tree is built
-     * client side). Two workgroups plus a head, mirroring the same
-     * "two-or-more rows" caution as EmployeeControllerTest even though
-     * WorkgroupController::index already eager-loads `head`.
-     */
-    /**
-     * The tree's two aggregates. `people_count` is the headcount to show —
-     * open deployments only — and `deployments_count` is every placement the
-     * workgroup has ever held, which is what decides whether Remove can be offered
-     * at all: `deployments_workgroup_id_agency_id_foreign` RESTRICTs, and its
-     * refusal arrives as a 500 rather than as a message a form can show.
-     *
-     * The fixture keeps them apart deliberately: one workgroup with a closed
-     * deployment and no open one must read 0 people but 1 placement, so a
-     * single count could not stand in for both.
-     *
-     * Three roots, so the two meanings of `people_count` — the workgroup's own and
-     * its subtree's — coincide here; the subtree half is
-     * test_the_headcount_covers_everything_under_the_workgroup below.
-     */
     public function test_index_counts_who_is_in_each_workgroup_now_and_who_ever_was(): void
     {
         $agency = Agency::factory()->create();
@@ -103,24 +82,6 @@ class WorkgroupControllerTest extends TestCase
                 ->where('workgroups.2.deployments_count', 0));
     }
 
-    /**
-     * `people_count` is the subtree's headcount, not the workgroup's own row's.
-     * The row labels it that way and links there — `aria-label` reads "N in
-     * Administrative Division and below" and the number is a link to
-     * `/employees?workgroup=…`, whose filter expands over Workgroup::descendants()
-     * (01-organization.md rule 4) — so the number has to be counted the same
-     * way. MEASURED against the seeded Demo Agency before WorkgroupController
-     * rolled it up: Administrative Division displayed 6 while its own link
-     * reported 15.
-     *
-     * The fixture is three levels deep and every workgroup holds people of its
-     * own — 1, 2 and 3 — so the rollup is load-bearing twice over: without it
-     * the department reads 1, and with a one-level "sum of my children" it
-     * reads 3. Only a transitive rollup answers 6.
-     *
-     * One employee per deployment: `deployments_no_overlap` allows a person
-     * exactly one open placement, so a headcount of six needs six people.
-     */
     public function test_the_headcount_covers_everything_under_the_workgroup(): void
     {
         $agency = Agency::factory()->create();
@@ -156,11 +117,6 @@ class WorkgroupControllerTest extends TestCase
                 ->where('workgroups.2.deployments_count', 3));
     }
 
-    /**
-     * The head picker's options, on the index and on both forms. Someone who
-     * has left cannot run a workgroup, so offering them would be offering a
-     * mistake — and the list is this tenant's own, like everything else here.
-     */
     public function test_the_head_picker_offers_only_this_agency_s_employees_who_are_still_employed(): void
     {
         $agency = Agency::factory()->create();
@@ -181,7 +137,6 @@ class WorkgroupControllerTest extends TestCase
         }
     }
 
-    /** Both forms need the whole tree for their parent picker; the front end composes the nesting from parent_id. */
     public function test_the_forms_carry_the_tree_for_their_parent_picker(): void
     {
         $agency = Agency::factory()->create();
@@ -221,12 +176,6 @@ class WorkgroupControllerTest extends TestCase
                 ->where('workgroups.1.parent_id', $parent->id));
     }
 
-    /**
-     * Minor 6: create/edit were only ever exercised for 403 (view-only) and
-     * 404 (cross-tenant), never for a manager actually reaching the form —
-     * so a wrong Inertia::render() component string here would first surface
-     * in the next task's screens, not in this suite.
-     */
     public function test_create_renders_the_workgroup_create_form(): void
     {
         $agency = Agency::factory()->create();
@@ -259,12 +208,6 @@ class WorkgroupControllerTest extends TestCase
             ->assertSessionHasErrors('code');
     }
 
-    /**
-     * Minor 5: StoreWorkgroupRequest upper-cases code in prepareForValidation()
-     * before the uniqueness rule runs (mirrors StoreAgencyRequest), so a
-     * lower-case 'hr' must still collide with an existing 'HR' — the
-     * database's own unique index is case-sensitive and would not catch it.
-     */
     public function test_store_requires_a_unique_code_per_agency_case_insensitively(): void
     {
         $agency = Agency::factory()->create();
@@ -285,10 +228,6 @@ class WorkgroupControllerTest extends TestCase
             ->assertSessionHasErrors('parent_id');
     }
 
-    /**
-     * Minor 6: also proves WorkgroupController::edit's $workgroup->load('head') —
-     * entirely unexercised before, since only the 403/404 cases were tested.
-     */
     public function test_edit_renders_the_workgroup_being_edited_with_its_head(): void
     {
         $agency = Agency::factory()->create();
@@ -316,7 +255,6 @@ class WorkgroupControllerTest extends TestCase
         $this->assertSame('New', $workgroup->fresh()->name);
     }
 
-    /** Minor 5: mirrors the store-side case-insensitivity test — UpdateWorkgroupRequest normalises the same way. */
     public function test_update_requires_a_unique_code_per_agency_case_insensitively(): void
     {
         $agency = Agency::factory()->create();
@@ -340,13 +278,6 @@ class WorkgroupControllerTest extends TestCase
         $this->assertModelMissing($workgroup);
     }
 
-    /**
-     * `workgroups_acyclic` (a CONSTRAINT TRIGGER, P0001) is the only thing that
-     * decides this, and the controller translates its refusal — see
-     * WorkgroupController::update. Reachable from a stale edit page: open Edit for
-     * A, move B under A in another tab, then set A's parent to B. Before the
-     * translation this was an uncaught 500.
-     */
     public function test_update_refuses_a_parent_that_is_one_of_the_workgroups_own(): void
     {
         $agency = Agency::factory()->create();
@@ -363,7 +294,6 @@ class WorkgroupControllerTest extends TestCase
         $this->assertNull($parent->fresh()->parent_id);
     }
 
-    /** workgroups_parent_not_self, a CHECK (23514). The picker excludes the workgroup from its own options, so this arrives by URL. */
     public function test_update_refuses_a_workgroup_as_its_own_parent(): void
     {
         $agency = Agency::factory()->create();
@@ -379,19 +309,7 @@ class WorkgroupControllerTest extends TestCase
         $this->assertNull($workgroup->fresh()->parent_id);
     }
 
-    /**
-     * The two real RESTRICTs on a workgroup's own delete. The tree hides Remove
-     * where either would bite, but the route stays authorized and reachable
-     * from a stale index page or by URL, so the refusal is translated into a
-     * flash error rather than a 500. There is no field to hang it on.
-     *
-     * The wording itself is pinned below (fix round 2): it is the only one of
-     * the five refusal messages that names the obstacle to the user, so a
-     * reword, truncation or emptying of it is the one most worth catching —
-     * `assertSessionHas('error')` alone would still pass for any of those.
-     *
-     * @return array<string, array{0: string}>
-     */
+    /** @return array<string, array{0: string}> */
     public static function undeletableWorkgroupCases(): array
     {
         return ['a child workgroup' => ['child'], 'a closed deployment' => ['history']];
@@ -425,13 +343,6 @@ class WorkgroupControllerTest extends TestCase
         $this->assertModelExists($workgroup);
     }
 
-    /**
-     * M4: `workgroups_head_id_agency_id_foreign` does NOT restrict this. `head_id`
-     * points *out of* `workgroups` at an employee, so it restricts deleting the
-     * employee — and that is a soft delete, so it never fires at all. Both
-     * WorkgroupController::destroy and .ai/rules/components.md used to claim
-     * otherwise; this is the proof they were wrong.
-     */
     public function test_destroy_removes_a_workgroup_that_has_a_head(): void
     {
         $agency = Agency::factory()->create();
@@ -446,16 +357,7 @@ class WorkgroupControllerTest extends TestCase
         $this->assertModelExists($head);
     }
 
-    /**
-     * M5: the picker's own query offers neither a removed nor a departed or unplaced
-     * employee (test_the_head_picker_offers_only_this_agency_s_employees_who_
-     * are_still_employed), and the request must refuse one submitted anyway.
-     * Accepting it wrote a `head_id` the screen could never display: the workgroup
-     * came back with no head at all, because ->with('head') resolves through
-     * the model's own scopes and answers null.
-     *
-     * @return array<string, array{0: string}>
-     */
+    /** @return array<string, array{0: string}> */
     public static function ineligibleHeadCases(): array
     {
         return ['departed' => ['departed'], 'unplaced' => ['unplaced'], 'removed' => ['removed']];

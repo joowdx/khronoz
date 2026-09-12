@@ -36,16 +36,6 @@ class UserControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('users/index')->has('users', 3));
     }
 
-    /**
-     * The superuser path through index: Gate::before grants a platform user
-     * every ability, so UserPolicy::viewAny never actually runs for them.
-     * What stops a platform user who has entered X from seeing every
-     * agency's users is that index reads through $tenant->agency()->users()
-     * rather than a bare User::query() — this proves that holds for a
-     * platform actor specifically, with a fixture in all three places
-     * (X, Y, platform) so the assertion actually discriminates between
-     * them rather than passing by coincidence.
-     */
     public function test_platform_user_in_an_entered_agency_sees_only_that_agencys_users(): void
     {
         $agencyX = Agency::factory()->create();
@@ -64,10 +54,6 @@ class UserControllerTest extends TestCase
 
     public function test_index_filters_by_search_on_name_or_email(): void
     {
-        // Pinned like the three below, and for the same reason: the admin is in
-        // its own agency's list, so a faker name or email carrying "ana"
-        // (Ariana, Joana, Adriana, diana@…) makes the admin a fourth match and
-        // the count assertion fails about one run in five.
         $admin = User::factory()->permissions(Permission::ManageUsers)->create([
             'name' => 'Dolor Uy',
             'email' => 'dolor.uy@x.test',
@@ -86,15 +72,7 @@ class UserControllerTest extends TestCase
                 ->where('filters.search', 'ana'));
     }
 
-    /**
-     * Every user-management route besides index (covered above by the full
-     * permission matrix) and destroy (covered below by the self-removal
-     * case). None of the other given tests exercise these with anyone other
-     * than a ManageUsers holder, so without this, forgetting to authorize
-     * create/store/edit/update/invite would go uncaught.
-     *
-     * @return array<string, array{0: string, 1: string, 2: bool}>
-     */
+    /** @return array<string, array{0: string, 1: string, 2: bool}> */
     public static function userManagementRouteCases(): array
     {
         return [
@@ -141,20 +119,6 @@ class UserControllerTest extends TestCase
             ->assertSessionHasErrors('permissions.0');
     }
 
-    /**
-     * The users_email index (0001_01_01_000001_create_users_table) is on
-     * lower(email), so a duplicate submitted in a different case than the
-     * stored row must still be caught here, before it ever reaches Postgres
-     * as an uncaught constraint violation.
-     *
-     * Also pins both messages (StoreUserRequest::after()): the short verdict
-     * the field's label row can hold, and the sentence the banner under the
-     * field explains it with. Neither names an agency — the stock "has
-     * already been taken" wording, or anything mentioning where the account
-     * lives, would confirm to the submitter that the address is registered
-     * in some other agency, a cross-tenant existence oracle the unique index
-     * is global enough to create.
-     */
     public function test_store_requires_a_unique_email_regardless_of_case(): void
     {
         User::factory()->create(['email' => 'ana@x.test']);
@@ -167,11 +131,6 @@ class UserControllerTest extends TestCase
             ]);
     }
 
-    /**
-     * The conflict sentence is a second message about one field, not a
-     * second failure: a malformed address is answered once, on the label
-     * row, and never gets the banner as well — there is no account to find.
-     */
     public function test_store_does_not_add_the_conflict_banner_to_a_malformed_address(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -181,12 +140,6 @@ class UserControllerTest extends TestCase
             ->assertSessionDoesntHaveErrors('email_conflict');
     }
 
-    /**
-     * An account with no permissions can sign in and reach nothing, so both
-     * write endpoints refuse an empty matrix rather than saving one — the
-     * design answers it with `Choose at least one` on the matrix's own label
-     * row (lang/en/validation.php's custom.permissions.required).
-     */
     public function test_store_refuses_an_empty_permission_set(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -208,14 +161,6 @@ class UserControllerTest extends TestCase
         $this->assertEqualsCanonicalizing(['scheduling.view'], $colleague->refresh()->permissions->map->value->all());
     }
 
-    /**
-     * The superuser path through store: Gate::before also lets a platform
-     * user create a colleague without holding users.manage.
-     * InviteUser::handle() assigns agency_id from app(Tenant::class)->id(),
-     * which SetTenant set from the agency the platform user entered — this
-     * proves the new row lands in X, not in the platform agency the actor
-     * itself belongs to.
-     */
     public function test_platform_user_store_creates_the_invited_user_in_the_entered_agency(): void
     {
         Notification::fake([InviteNotification::class]);
@@ -230,13 +175,6 @@ class UserControllerTest extends TestCase
         $this->assertSame($agencyX->id, $user->agency_id);
     }
 
-    /**
-     * The middleware-order tripwire: User::resolveRouteBindingQuery's
-     * agency_id filter is only observable when it must exclude a row, so a
-     * cross-tenant lookup is the only shape that can detect SetTenant
-     * running after SubstituteBindings — a same-tenant lookup would resolve
-     * to the same row whether or not the filter is even applied.
-     */
     public function test_editing_a_user_of_another_agency_is_not_found(): void
     {
         $stranger = User::factory()->create();
@@ -245,16 +183,6 @@ class UserControllerTest extends TestCase
             ->get(route('users.edit', $stranger))->assertNotFound();
     }
 
-    /**
-     * Proves a legitimate ManageUsers holder can reach a colleague's edit
-     * page, so this catches a broken authorization check or an unregistered
-     * UserPolicy wrongly denying them (200 flipping to 403). It does not
-     * guard the SetTenant/SubstituteBindings ordering: an unfiltered
-     * {user} binding still resolves this same-tenant colleague to the same
-     * row, so that regression would slip past here too — see
-     * test_editing_a_user_of_another_agency_is_not_found for the test that
-     * actually catches it.
-     */
     public function test_editing_a_colleague_renders(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -279,15 +207,6 @@ class UserControllerTest extends TestCase
         $this->assertEqualsCanonicalizing(['organization.manage'], $colleague->permissions->map->value->all());
     }
 
-    /**
-     * UpdateUserRequest::preventsSelfDemotion() guards this: UserPolicy has
-     * no visibility into the submitted permissions, so it cannot be the one
-     * to refuse a users.manage holder editing themselves out of their own
-     * access. Mirrors test_admins_cannot_remove_themselves (self-delete),
-     * but this path fails validation (422/session error) rather than
-     * authorization (403), since it depends on the payload, not just who
-     * the target is.
-     */
     public function test_self_edit_cannot_drop_users_manage(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers, Permission::ViewScheduling)->create();
@@ -301,7 +220,6 @@ class UserControllerTest extends TestCase
         $this->assertTrue($admin->allows(Permission::ManageUsers));
     }
 
-    /** The self-demotion guard is specific to self-edit: a colleague may still be edited down to fewer permissions, including losing users.manage. */
     public function test_editing_a_colleague_can_remove_their_users_manage(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -316,7 +234,6 @@ class UserControllerTest extends TestCase
         $this->assertFalse($colleague->allows(Permission::ManageUsers));
     }
 
-    /** Same cross-tenant binding protection as the edit route, exercised through update instead. */
     public function test_updating_a_user_of_another_agency_is_not_found(): void
     {
         $stranger = User::factory()->create();
@@ -326,14 +243,6 @@ class UserControllerTest extends TestCase
             ->assertNotFound();
     }
 
-    /**
-     * The superuser path through update: Gate::before grants a platform
-     * user every ability, so resolveRouteBindingQuery's agency_id filter is
-     * the only thing stopping a platform user who has entered X from
-     * reaching Y's user through this route — UserPolicy::update never even
-     * gets asked. Same shape as test_updating_a_user_of_another_agency_is_not_found,
-     * exercised by a platform actor instead of an ordinary ManageUsers holder.
-     */
     public function test_platform_user_updating_another_agencys_user_is_not_found(): void
     {
         $agencyX = Agency::factory()->create();
@@ -363,12 +272,6 @@ class UserControllerTest extends TestCase
         $this->assertModelMissing($colleague);
     }
 
-    /**
-     * Same cross-tenant binding protection as the edit route, exercised
-     * through destroy instead. $stranger belongs to another agency, so
-     * this is the binding's 404, not UserPolicy::delete's separate 403 for
-     * removing oneself (see test_admins_cannot_remove_themselves).
-     */
     public function test_destroying_a_user_of_another_agency_is_not_found(): void
     {
         $stranger = User::factory()->create();
@@ -377,11 +280,6 @@ class UserControllerTest extends TestCase
             ->delete(route('users.destroy', $stranger))->assertNotFound();
     }
 
-    /**
-     * Same superuser binding protection as
-     * test_platform_user_updating_another_agencys_user_is_not_found,
-     * exercised through destroy instead.
-     */
     public function test_platform_user_destroying_another_agencys_user_is_not_found(): void
     {
         $agencyX = Agency::factory()->create();
@@ -392,12 +290,6 @@ class UserControllerTest extends TestCase
         $this->delete(route('users.destroy', $stranger))->assertNotFound();
     }
 
-    /**
-     * The dashboard's "Invitations not yet accepted" row links to exactly
-     * this URL (resources/js/pages/dashboard.tsx), so the parameter name and
-     * its value are a contract between the two screens, not an internal
-     * detail.
-     */
     public function test_index_filters_by_status_invited(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -424,12 +316,6 @@ class UserControllerTest extends TestCase
                 ->where('users.0.id', $admin->id));
     }
 
-    /**
-     * The Access filter is an exact-set match, because the Access column
-     * only reads a preset's name when the held set *is* that preset. A user
-     * holding the timekeeper bundle plus one extra right is Custom in both places,
-     * which is what the third fixture proves.
-     */
     public function test_index_filters_by_access_preset_and_by_custom(): void
     {
         $agency = Agency::factory()->create();
@@ -452,7 +338,6 @@ class UserControllerTest extends TestCase
         );
     }
 
-    /** A full bundle reads as its preset's name; anything else reads as a count. */
     public function test_index_labels_access_by_preset_or_by_count(): void
     {
         $agency = Agency::factory()->create();
@@ -474,13 +359,6 @@ class UserControllerTest extends TestCase
                 ->where('users.3.access.label', 'No permissions'));
     }
 
-    /**
-     * Access sorts by how much access the row has, which is the only order
-     * the column's own values suggest; Status sorts on whether the
-     * invitation is still outstanding. Both are derived, so neither can be
-     * a plain column sort — this is what catches the ordering expressions
-     * being dropped or inverted.
-     */
     public function test_index_sorts_by_access_and_by_status(): void
     {
         $agency = Agency::factory()->create();
@@ -501,7 +379,6 @@ class UserControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('users.0.id', $invited->id));
     }
 
-    /** An unknown sort, direction or filter falls back rather than 500s or leaks into SQL. */
     public function test_index_ignores_filters_it_does_not_recognise(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -516,7 +393,6 @@ class UserControllerTest extends TestCase
             ->has('users', 1));
     }
 
-    /** The footer's range and its two pager buttons come from the server. */
     public function test_index_pages_the_list(): void
     {
         $agency = Agency::factory()->create();
@@ -537,13 +413,6 @@ class UserControllerTest extends TestCase
                 ->where('pagination.next', null));
     }
 
-    /**
-     * The row menu's Resend invitation and Copy invitation link are offered
-     * from these two keys, so an accepted invitation must carry neither a
-     * link to copy nor an `invited` status — the same test
-     * UserInviteController::store() applies before refusing a pointless
-     * re-send.
-     */
     public function test_index_carries_an_invitation_link_only_while_it_is_outstanding(): void
     {
         $agency = Agency::factory()->create();
@@ -559,7 +428,6 @@ class UserControllerTest extends TestCase
                 ->where('users.2.invitation_url', null));
     }
 
-    /** The copied link is the invitation itself: it opens the accept screen. */
     public function test_the_copied_invitation_link_opens_the_accept_screen(): void
     {
         $agency = Agency::factory()->create();
@@ -579,12 +447,6 @@ class UserControllerTest extends TestCase
     }
 
     /**
-     * The rendered `users` prop, in the order the table draws it. Reading it
-     * straight off the response rather than through AssertableInertia is
-     * what lets a test assert a *set* of rows, or reach into a value it then
-     * has to use — an ordering assertion by index would otherwise depend on
-     * whatever name the faker gave the acting user.
-     *
      * @return array<int, array<string, mixed>>
      */
     private function renderedUsers(string $url): array
@@ -592,7 +454,9 @@ class UserControllerTest extends TestCase
         return $this->get($url)->assertOk()->viewData('page')['props']['users'];
     }
 
-    /** @return array<int, string> */
+    /**
+     * @return array<int, string>
+     */
     private function renderedIds(string $url): array
     {
         return array_column($this->renderedUsers($url), 'id');
@@ -609,11 +473,6 @@ class UserControllerTest extends TestCase
                 ->has('presets.1.permissions'));
     }
 
-    /**
-     * A manage right implies its view right (Permission::implies()), which
-     * is why the matrix draws that view checked and locked and never posts
-     * it. Storing only what was checked must therefore still grant the view.
-     */
     public function test_a_stored_manage_right_grants_the_view_it_implies(): void
     {
         Notification::fake([InviteNotification::class]);
@@ -653,7 +512,6 @@ class UserControllerTest extends TestCase
         Notification::assertNothingSent();
     }
 
-    /** Same cross-tenant binding protection as the edit route, exercised through invite instead. */
     public function test_inviting_a_user_of_another_agency_is_not_found(): void
     {
         $stranger = User::factory()->create();

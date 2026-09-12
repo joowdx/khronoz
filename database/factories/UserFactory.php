@@ -20,31 +20,17 @@ class UserFactory extends Factory
      */
     protected static ?string $password;
 
-    /**
-     * email_verified_at defaults to a non-null time: routes behind the
-     * `verified` middleware (Tasks 6, 8, 9, 10) must render for a plain
-     * User::factory()->create() without every caller opting in. invited()
-     * is the only state that clears it.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
             'agency_id' => Agency::factory(),
-            // Explicitly null, not omitted: Model::shouldBeStrict() (AppServiceProvider)
-            // throws MissingAttributeException on a column no attribute was ever set
-            // for, and create() never re-selects the row afterwards to pick up the
-            // database's own default. Every other real column below is set for the
-            // same reason; the paired FK to employees itself arrives in Milestone 2.
+            // Strict models require this nullable attribute to be set explicitly.
             'employee_id' => null,
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            // Same reasoning as employee_id above: UserResource (Task 7) reads this
-            // on every authenticated request via the shared `auth.user` prop, so any
-            // plain User::factory()->create() needs it set, not omitted. invited()
-            // is the only state that gives it a real value.
+            // Resources read this attribute, so factory defaults set it explicitly.
             'invited_at' => null,
             'password' => static::$password ??= Hash::make('password'),
             'permissions' => [],
@@ -52,7 +38,6 @@ class UserFactory extends Factory
         ];
     }
 
-    /** A user of the platform agency: superuser, passes every gate (User::isPlatform()). */
     public function platform(): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -67,7 +52,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /** Holds exactly these permissions; grants() still resolves what each one implies. */
     public function permissions(Permission ...$permissions): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -75,7 +59,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /** Holds a preset bundle's permissions. Presets are never themselves stored. */
     public function preset(Preset $preset): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -83,7 +66,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /** Invited but has not yet signed in and set a password. */
     public function invited(): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -99,3 +81,4 @@ class UserFactory extends Factory
         ]);
     }
 }
+/** @return static */

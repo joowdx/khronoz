@@ -20,43 +20,20 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 
-/**
- * Recompute one employee's workdays over an inclusive date range.
- *
- * A queued job must set the tenant as its first scoped act (decision 61):
- * AgencyScope fails closed for HTTP and tests, but a queue worker is a
- * console process and reads every agency's rows if the tenant is unset.
- * Holiday::covering() is the query that would then mix in every tenant's
- * calendar, because holidays deliberately widen to the platform agency.
- *
- * Two jobs for one employee must never run concurrently ("Across midnight"
- * rule 1: the earlier workday claims a shared timelog first). That is
- * WithoutOverlapping with a releaseAfter, not ShouldBeUnique — uniqueness
- * would drop the second recompute while the first is still queued.
- *
- * The constructor takes the employee's id, not the model: a serialised
- * model re-resolves through the tenant scope on unqueue, which in a
- * worker is the unscoped read this job exists to prevent.
- */
 class RecomputeWorkdays implements ShouldQueue
 {
     use Queueable;
 
-    /**
-     * Not 1: `queue:work` defaults to `--tries=1`, and `Worker::process`
-     * fails a job before running it when `attempts() > maxTries`.
-     * `WithoutOverlapping::releaseAfter` puts the blocked job back on the
-     * queue with `attempts()` incremented, so one try marks it failed on
-     * the way back and never runs it — the same silent drop `ShouldBeUnique`
-     * would cause. Five attempts wait out a long-running recompute for this
-     * employee (`releaseAfter` 60s × 4 waits exceeds `expireAfter`) rather
-     * than discarding it.
-     */
     public int $tries = 5;
 
     /** Mirrors `Computer::precedingUnexcusedAbsence`'s look-back. */
     private const REACH = 7;
 
+    /**
+     * @param public string $employeeId
+     * @param public string $from
+     * @param public string $to
+     */
     public function __construct(
         public string $employeeId,
         public string $from,
@@ -64,14 +41,6 @@ class RecomputeWorkdays implements ShouldQueue
     ) {}
 
     /**
-     * Queue a recompute for each employee named by the accepted pairs.
-     *
-     * An arriving or voided timelog at time T covers T::date − 3 … T::date
-     * (the 72:00 slot cap). Those windows are merged when they overlap or
-     * abut, so a month's consecutive punches stay one job, but a stray
-     * year-2000 punch (dead RTC) is its own four-day job and does not
-     * drag the span across the gap. A punch with no employee is skipped.
-     *
      * @param  iterable<int, array{employee_id: ?string, time: CarbonInterface|string}|object>  $pairs
      */
     public static function dispatchFor(iterable $pairs): void
@@ -97,9 +66,6 @@ class RecomputeWorkdays implements ShouldQueue
     }
 
     /**
-     * Each date D is [D − 3, D]; merge while the next starts on or before
-     * the day after the current one ends.
-     *
      * @param  list<string>  $dates
      * @return list<array{0: string, 1: string}>
      */
@@ -132,46 +98,17 @@ class RecomputeWorkdays implements ShouldQueue
         );
     }
 
-    /**
-     * @return list<WithoutOverlapping>
-     */
+    /** @return list<WithoutOverlapping> */
     public function middleware(): array
     {
-        // expireAfter 180, not the constructor's 0: Cache::lock($key, 0) never
-        // expires, so a worker killed mid-job (deploy, OOM, SIGKILL) would
-        // hold this employee forever. Computer::over() loads the range once
-        // (roster, almanac, candidate timelogs) then, per day, a transaction
-        // of firstOrCreate ledger, unclaimed-punch query, updateOrCreate
-        // workday, punch delete and insert — on the order of half a dozen
-        // statements. A merged month is ~35 days; a year of consecutive
-        // punches is the widest legitimate span and still well under a
-        // minute. Three minutes is a ceiling above that run, not a guess
-        // at a single day.
         return [(new WithoutOverlapping($this->employeeId))->releaseAfter(60)->expireAfter(180)];
     }
 
-    /**
-     * `withTrashed()`, for `LedgerController`'s reason (decision 86): a DTR is
-     * a historical pay record, and the month an employee was removed in is
-     * exactly the one still to be locked and signed. `RemoveEmployee` closes
-     * the open placement and soft-deletes the person, so a holiday corrected
-     * over that month, or a terminal syncing its backlog a week later, must
-     * still reach them — and without this the job did not skip them, it threw
-     * `ModelNotFoundException` and failed. Decision 82's employment gate is
-     * what keeps the recompute itself honest: their days after removal are
-     * outside every deployment and write nothing.
-     */
     public function handle(Tenant $tenant): void
     {
         $employee = Employee::withoutGlobalScope(AgencyScope::class)->withTrashed()->findOrFail($this->employeeId);
         $agency = Agency::findOrFail($employee->agency_id);
 
-        // Put back on the way out, success or failure (decisions 84 and 86).
-        // The worker is a long-lived process and the container survives the
-        // job, so an agency left set here is the agency the *next* job on
-        // that worker reads — and every job that does not set its own
-        // tenant is one AgencyScope then silently scopes to the wrong
-        // office. Decision 61 put the set here; this is its other half.
         $tenant->within($agency, function () use ($employee, $agency): void {
             $from = CarbonImmutable::parse($this->from);
             $settings = new Settings($agency);
@@ -181,27 +118,6 @@ class RecomputeWorkdays implements ShouldQueue
         });
     }
 
-    /**
-     * `$to`, extended forward to a following regular holiday whose credit
-     * this range can still change (decisions 66 and 77).
-     *
-     * An unworked regular holiday credits `required` unless the preceding
-     * **work** day was an unexcused absence, so a punch arriving for that
-     * absence must recompute the holiday too. Decision 66 reached one day
-     * forward, which is the whole distance only when the two are adjacent.
-     * Decision 77 made the backward walk skip every day nothing was
-     * required on, and this is the same walk run the other way: it steps
-     * over rest days, non-working holidays and whole-day suspensions and
-     * stops at the first day work was expected on, because that day — not
-     * ours — is then the holiday's preceding work day and our range cannot
-     * move it. A Monday regular holiday after a weekend is the ordinary
-     * shape of this in the Philippines, and one day forward never reached
-     * it.
-     *
-     * Seven days is `Computer::precedingUnexcusedAbsence`'s own bound, and
-     * the two must agree: a distance the walk back would cross is a
-     * distance the dispatch has to cover.
-     */
     private function reaching(Employee $employee, Settings $settings, CarbonImmutable $to): CarbonImmutable
     {
         $first = $to->addDay();

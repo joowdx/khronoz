@@ -17,11 +17,9 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * Roster resolution: which shift the roster puts on each date
- * (04-scheduling.md, Resolution for employee E on date D, steps 1 to 3).
- *
- * The calendar does not enter here — holidays, suspensions and the
- * compressed-week fallback are the next chunk's.
+ * Roster resolution: which shift the roster puts on each date (04-scheduling.md, Resolution for
+ * employee E on date D, steps 1 to 3). The calendar does not enter here — holidays, suspensions
+ * and the compressed-week fallback belong to `Calendar`.
  */
 class ResolverTest extends TestCase
 {
@@ -41,9 +39,6 @@ class ResolverTest extends TestCase
     }
 
     /**
-     * The standard week: five working days then two Off, anchored on Monday
-     * 7 September 2026.
-     *
      * @return array{employee: Employee, roster: Roster, standard: Shift, off: Shift}
      */
     private function standardWeek(?Employee $employee = null): array
@@ -64,12 +59,7 @@ class ResolverTest extends TestCase
         return compact('employee', 'roster', 'standard', 'off');
     }
 
-    /**
-     * The 21-day hospital rotation: Morning ×5, Off ×2, Afternoon ×5, Off ×2,
-     * Night ×5, Off ×2.
-     *
-     * @return array{schedule: Schedule, morning: Shift, afternoon: Shift, night: Shift, off: Shift}
-     */
+    /** @return array{schedule: Schedule, morning: Shift, afternoon: Shift, night: Shift, off: Shift} */
     private function rotation(): array
     {
         $morning = Shift::factory()->create(['agency_id' => $this->agency->id, 'name' => 'Morning']);
@@ -100,7 +90,9 @@ class ResolverTest extends TestCase
         return compact('schedule', 'morning', 'afternoon', 'night', 'off');
     }
 
-    /** @param  array<string, ?Resolution>  $days */
+    /**
+     * @param  array<string, ?Resolution>  $days
+     */
     private function assertShift(array $days, string $date, Roster $roster, int $position, Shift $shift): void
     {
         $this->assertArrayHasKey($date, $days);
@@ -110,7 +102,6 @@ class ResolverTest extends TestCase
         $this->assertSame($shift->id, $days[$date]->shift->id);
     }
 
-    /** Five Standard then two Off, Monday to Sunday of the anchored week. */
     public function test_a_standard_week_resolves_five_working_days_then_two_off(): void
     {
         ['employee' => $employee, 'roster' => $roster, 'standard' => $standard, 'off' => $off] = $this->standardWeek();
@@ -138,12 +129,6 @@ class ResolverTest extends TestCase
         $this->assertShift($days, '2026-09-13', $roster, 6, $off);
     }
 
-    /**
-     * Three hospital teams, one schedule, anchors seven days apart. On
-     * 7 September Team A is at position 0 (Morning), Team B at 14 (Night)
-     * and Team C at 7 (Afternoon) — every shift covered, which is why the
-     * anchors sit that far apart.
-     */
     public function test_three_hospital_teams_sit_seven_positions_apart_on_one_date(): void
     {
         ['schedule' => $schedule, 'morning' => $morning, 'afternoon' => $afternoon, 'night' => $night] = $this->rotation();
@@ -176,12 +161,6 @@ class ResolverTest extends TestCase
         );
     }
 
-    /**
-     * The anchor may fall after the roster's own starts. Saturday 5 September
-     * is two days before Monday 7 September, so the position is 5 (Off) —
-     * not 4 (Friday, Standard), which is what counting from `starts` of
-     * 1 September would give.
-     */
     public function test_a_date_before_the_anchor_still_resolves_from_the_anchor(): void
     {
         $employee = $this->employee();
@@ -203,13 +182,6 @@ class ResolverTest extends TestCase
         $this->assertShift($days, '2026-09-05', $roster, 5, $off);
     }
 
-    /**
-     * Two consecutive rosters: the standing Standard week ends on Sunday
-     * 13 September (inclusive) and a Flexi roster starts on the 14th. The
-     * handover date takes the second; the day it ended still belongs to the
-     * first. `ends` is inclusive — an off-by-one silently moves the handover
-     * by a day.
-     */
     public function test_a_handover_date_takes_the_second_roster(): void
     {
         $employee = $this->employee();
@@ -245,11 +217,6 @@ class ResolverTest extends TestCase
         $this->assertShift($days, '2026-09-14', $second, 0, $flexi);
     }
 
-    /**
-     * No roster covering a date is null, not a guessed shift: 04-scheduling.md
-     * step 3, the workday that simply lists raw timelogs. That is a different
-     * outcome from "not employed", which this class must not decide.
-     */
     public function test_a_gap_with_no_roster_returns_null(): void
     {
         $employee = $this->employee();
@@ -287,10 +254,6 @@ class ResolverTest extends TestCase
         $this->assertShift($days, '2026-09-15', $second, 1, $standard);
     }
 
-    /**
-     * Load overlapping rosters once with schedule.turns.shift, then walk the
-     * dates in PHP. Sixty days must issue the same number of queries as one.
-     */
     public function test_resolving_sixty_days_issues_the_same_queries_as_one(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -304,7 +267,6 @@ class ResolverTest extends TestCase
         $this->assertSame(4, $one, 'rosters + schedule + turns + shifts, once each');
     }
 
-    /** from after to is an empty range, a legitimate question with an empty answer. */
     public function test_from_after_to_returns_an_empty_array(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -315,11 +277,6 @@ class ResolverTest extends TestCase
         ));
     }
 
-    /**
-     * A missing turn is an invariant violation (`turns_complete` is deferred
-     * and cannot fire inside the test transaction). It must throw naming the
-     * schedule and position — not come back as null, which means "no roster".
-     */
     public function test_a_missing_turn_is_an_invariant_violation(): void
     {
         $employee = $this->employee();

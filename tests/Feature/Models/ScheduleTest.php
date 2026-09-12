@@ -17,7 +17,9 @@ use Tests\TestCase;
  */
 class ScheduleTest extends TestCase
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function scheduleRow(string $agency, array $overrides = []): array
     {
         return [
@@ -56,17 +58,11 @@ class ScheduleTest extends TestCase
         ));
     }
 
-    /** Ruling P4: the primary key masks any violation of the pair, so assert the catalog. */
     public function test_id_and_agency_id_pair_is_declared_unique(): void
     {
         $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'schedules_id_agency_id_unique'"));
     }
 
-    /**
-     * Bounded 1 to 366. A length of 1 is legal — every day the same — and the
-     * upper bound is a year because beyond that a cycle is really a calendar,
-     * which is what holidays and exemptions are for.
-     */
     public function test_length_is_bounded_to_a_year(): void
     {
         $this->assertDatabaseRefuses('23514', fn () => Schedule::factory()->create(['length' => 0]));
@@ -78,7 +74,6 @@ class ScheduleTest extends TestCase
         }
     }
 
-    /** schedules_fallback_shift_id_agency_id_foreign, insert side: a shift of another agency. */
     public function test_fallback_shift_must_share_the_schedules_agency(): void
     {
         $foreign = Shift::factory()->create();
@@ -86,7 +81,6 @@ class ScheduleTest extends TestCase
         $this->assertDatabaseRefuses('23503', fn () => Schedule::factory()->create(['fallback_shift_id' => $foreign->id]));
     }
 
-    /** Same FK, delete side. */
     public function test_shift_used_as_a_fallback_cannot_be_deleted(): void
     {
         $shift = Shift::factory()->create();
@@ -95,7 +89,6 @@ class ScheduleTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('shifts')->where('id', $shift->id)->delete());
     }
 
-    /** origin_is_platform (P0001): a copy's ancestry may only point at a platform-owned row. */
     public function test_an_origin_must_be_a_platform_owned_schedule(): void
     {
         $private = Schedule::factory()->create();
@@ -108,39 +101,11 @@ class ScheduleTest extends TestCase
         $this->assertDatabaseHas('schedules', ['id' => $copy->id, 'origin_id' => $default->id]);
     }
 
-    /** The trigger stays silent on a nonexistent origin so the FK's own 23503 stays reachable. */
     public function test_an_origin_that_does_not_exist_is_refused_by_the_foreign_key(): void
     {
         $this->assertDatabaseRefuses('23503', fn () => Schedule::factory()->create(['origin_id' => (string) Str::ulid()]));
     }
 
-    /**
-     * turns_complete on the schedule side (P0001), and this test is the whole
-     * reason the constraint is testable at all.
-     *
-     * It is the schema's only DEFERRABLE INITIALLY DEFERRED constraint, so it
-     * fires at COMMIT — and the suite runs every test inside a transaction it
-     * rolls back, so the check would **never run** and this test would pass
-     * against a completely absent constraint. `SET CONSTRAINTS ALL IMMEDIATE`
-     * inside the closure is what forces it to fire on the statement instead.
-     *
-     * Two violations: a schedule created with no turns at all (which is why
-     * INSERT is on the trigger and not only UPDATE OF length — measured, a
-     * turn-less schedule was otherwise accepted and then never re-checked),
-     * and a length widened without adding the turn it now needs.
-     *
-     * No `SET CONSTRAINTS ALL DEFERRED` reset is needed between the two, and
-     * that is measured rather than assumed: assertDatabaseRefuses() runs its
-     * closure in a SAVEPOINT, and the setting **is** rolled back with that
-     * savepoint, so each closure starts deferred again. It matters because if
-     * it leaked, the second closure's own `withTurns()` create would raise
-     * P0001 on the schedule INSERT before its turns existed — and this test
-     * would pass on the wrong exception while asserting nothing about
-     * UPDATE OF length. An external reviewer asserted the opposite from
-     * memory on 2026-09-11; a direct probe (SET IMMEDIATE inside a savepoint,
-     * roll back, then insert a turn-less schedule) showed the insert accepted,
-     * i.e. deferred again.
-     */
     public function test_a_schedule_must_have_a_complete_set_of_turns(): void
     {
         $this->assertDatabaseRefuses('P0001', function () {
@@ -169,18 +134,6 @@ class ScheduleTest extends TestCase
         $this->assertSame(8, DB::table('turns')->where('schedule_id', $schedule->id)->count());
     }
 
-    /**
-     * A complete cycle at every length the doc's worked examples use: 1 (every
-     * day the same), 3 (the 24/48 guard post), 7 (the standard week), 8 (the
-     * 12-hour 2-2-4 rotation) and 21 (the three-team hospital rotation).
-     *
-     * All five are built first and the constraint forced once at the end, not
-     * per iteration, and that ordering is the point: `SET CONSTRAINTS ALL
-     * IMMEDIATE` lasts for the whole transaction, so forcing it inside the
-     * loop makes every later schedule INSERT fire the check before its own
-     * turns exist — which is a fact about the test, not about the schema
-     * (MEASURED: length 3 failed that way, having passed at length 1).
-     */
     public function test_a_complete_cycle_is_accepted_at_every_documented_length(): void
     {
         $lengths = [1, 3, 7, 8, 21];

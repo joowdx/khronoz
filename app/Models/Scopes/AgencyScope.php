@@ -8,11 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 
-/**
- * Fails closed: a silent empty result would hide a misconfiguration, so a
- * tenant-scoped read with no current agency throws instead of quietly
- * returning nothing.
- */
 final class AgencyScope implements Scope
 {
     public function apply(Builder $builder, Model $model): void

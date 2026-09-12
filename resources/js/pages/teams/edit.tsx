@@ -6,13 +6,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/teams';
 import type { Schedule, Team } from '@/types';
 
-/**
- * Re-anchoring changes the definition, not the rosters already issued from it.
- * Those keep their own anchor and may legitimately diverge (07-constraints.md
- * has no trigger holding the two equal), so a past rotation stays answerable —
- * putting the cohort onto a new cycle day is re-issuing their rosters, which
- * is the roster grid's act and not this form's.
- */
 export default function Edit({ team, schedules }: { team: Team; schedules: Schedule[] }) {
     return (
         <AppLayout>

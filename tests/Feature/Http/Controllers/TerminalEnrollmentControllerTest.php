@@ -90,7 +90,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         ]);
     }
 
-    /** Decision 42, at the boundary: a padded uid never matches what the device reports. */
     public function test_a_device_user_id_with_a_space_is_refused(): void
     {
         $agency = Agency::factory()->create();
@@ -106,7 +105,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         ])->assertSessionHasErrors('uid');
     }
 
-    /** Decision 42 again: `007` is stored as `007`, never normalised to `7`. */
     public function test_a_leading_zero_survives(): void
     {
         $agency = Agency::factory()->create();
@@ -125,11 +123,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertDatabaseMissing('enrollments', ['uid' => '7']);
     }
 
-    /**
-     * `enrollments_uid_one_person`, translated. The constraint is an exclusion
-     * over a date range, which no validation rule can express, so the
-     * controller turns the 23P01 into a message naming which rule broke.
-     */
     public function test_a_taken_device_user_id_is_refused_with_a_message_naming_it(): void
     {
         $agency = Agency::factory()->create();
@@ -149,7 +142,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertSame(1, Enrollment::where('uid', '0042')->count());
     }
 
-    /** `enrollments_one_uid_per_person` — the other exclusion, a different problem and a different message. */
     public function test_enrolling_the_same_person_twice_on_one_terminal_is_refused(): void
     {
         $agency = Agency::factory()->create();
@@ -165,10 +157,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         ])->assertSessionHas('error', fn (string $message) => str_contains($message, 'already enrolled'));
     }
 
-    /**
-     * The reissue case, which is the whole reason enrollments are a range: once
-     * the first holder's row is ended, the device user id is free again.
-     */
     public function test_a_device_user_id_can_be_reissued_once_the_first_enrollment_has_ended(): void
     {
         $agency = Agency::factory()->create();
@@ -206,7 +194,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertSame('2026-09-30', $enrollment->fresh()->ends->toDateString());
     }
 
-    /** `enrollments_dates_ordered`, translated rather than surfacing as a 500. */
     public function test_an_enrollment_cannot_be_ended_before_it_started(): void
     {
         $agency = Agency::factory()->create();
@@ -220,10 +207,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertNull($enrollment->fresh()->ends);
     }
 
-    /**
-     * Ending an enrollment re-resolves the punches it no longer covers — the
-     * trigger's detach pass, reached through the UI rather than through SQL.
-     */
     public function test_ending_an_enrollment_unresolves_the_punches_it_no_longer_covers(): void
     {
         $agency = Agency::factory()->create();
@@ -242,14 +225,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertNull($punch->fresh()->employee_id);
     }
 
-    /**
-     * A UID reissued after the first holder left, then the first enrollment's
-     * end date nudged forward over the successor's range.
-     *
-     * `enrollments_uid_one_person` refuses it with **23P01**, and `update()`
-     * caught only 23514 — so this ordinary correction returned a **500**.
-     * Both refusals are now words.
-     */
     public function test_ending_an_enrollment_onto_its_successor_is_refused_with_a_message(): void
     {
         $agency = Agency::factory()->create();
@@ -268,12 +243,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertSame('2026-09-05', $first->fresh()->ends->toDateString());
     }
 
-    /**
-     * The stale-form hole, closed the way decision 30 closed it for
-     * deployments. An enrollment's date range is what attributes punches to a
-     * person, so silently moving an end date already on the record
-     * reattributes pay.
-     */
     public function test_a_stale_form_cannot_move_an_end_date_already_recorded(): void
     {
         $agency = Agency::factory()->create();
@@ -296,7 +265,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertSame('2026-09-10', $enrollment->fresh()->ends->toDateString());
     }
 
-    /** The predicate is required, not optional — an omitted `expects` is a 422. */
     public function test_ending_without_the_expected_end_date_is_refused(): void
     {
         $agency = Agency::factory()->create();
@@ -310,18 +278,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertNull($enrollment->fresh()->ends);
     }
 
-    /**
-     * The flash that reports a lost race, which validation can no longer
-     * reach: `expects` is checked against the row before the write, so the
-     * only way to the controller's own zero-rows branch is a change landing
-     * *between* that check and the UPDATE.
-     *
-     * Driven by binding a request that skips `after()` — the device
-     * EmployeeDeploymentControllerTest established for the same predicate —
-     * because a genuine interleaving cannot be produced from a single test
-     * process. Without this, the branch would be unreachable code that looks
-     * covered.
-     */
     public function test_a_change_landing_after_validation_reports_a_lost_race(): void
     {
         $agency = Agency::factory()->create();
@@ -347,16 +303,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         $this->assertNull($enrollment->fresh()->ends, 'the row must be untouched');
     }
 
-    /**
-     * Offboarding an enrolled employee must not take the roster down.
-     *
-     * `employee_id` is NOT NULL, so `.ai/rules/resources.md`'s rule of thumb
-     * — "if the migration writes ->nullable(), the resource needs the
-     * closure" — passed this one. `Employee` soft-deletes, though, so
-     * `with('employee')` loads **null** and the one-argument `whenLoaded`
-     * handed it to `make()`: the whole page 500'd, every still-employed row
-     * with it. That screen is how an unresolved punch gets a person.
-     */
     public function test_the_roster_survives_an_offboarded_employee(): void
     {
         $agency = Agency::factory()->create();
@@ -383,15 +329,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         );
     }
 
-    /**
-     * The privilege column and the enrol dialog agree, because both take
-     * their words from `EnrollmentPrivilege`.
-     *
-     * They did not. The table cell rendered the raw value under a
-     * `capitalize` class — "Admin", "Superadmin" — while the dropdown three
-     * hundred lines below offered "Administrator" and "Super administrator".
-     * One screen, two names for one privilege.
-     */
     public function test_the_privilege_is_labelled_by_the_enum(): void
     {
         $agency = Agency::factory()->create();
@@ -408,7 +345,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         );
     }
 
-    /** An enrollment of another terminal is a 404, not something this route can end. */
     public function test_an_enrollment_of_another_terminal_is_not_reachable(): void
     {
         $agency = Agency::factory()->create();
@@ -420,14 +356,6 @@ class TerminalEnrollmentControllerTest extends TestCase
             ->assertNotFound();
     }
 
-    /**
-     * Workday rule 3, decision 86. `enrollments_reresolve` re-attributes
-     * existing timelogs in SQL, where no job sees it happen: correcting a
-     * mistyped device user id hands a whole history of punches to somebody,
-     * and the days on both sides of that move have to be recomputed. This is
-     * not a calendar event — a punch changed hands — so it goes straight to
-     * `RecomputeWorkdays` and its T−3…T span.
-     */
     public function test_enrolling_queues_a_recompute_for_the_punches_it_claims(): void
     {
         $agency = Agency::factory()->create();
@@ -459,11 +387,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         );
     }
 
-    /**
-     * And the other side of the move. After the write the losing employee is
-     * already gone from the table, so the set has to be read before it too —
-     * a punch nobody owns any more is a punch whose workday still counts it.
-     */
     public function test_ending_an_enrollment_queues_a_recompute_for_the_punch_it_releases(): void
     {
         $agency = Agency::factory()->create();
@@ -489,11 +412,6 @@ class TerminalEnrollmentControllerTest extends TestCase
         );
     }
 
-    /**
-     * A refused write changed nothing, so it queues nothing. The `expects`
-     * predicate is checked in the request, so a stale form never reaches the
-     * UPDATE — and the recompute sits after both.
-     */
     public function test_a_stale_form_queues_no_recompute(): void
     {
         $agency = Agency::factory()->create();

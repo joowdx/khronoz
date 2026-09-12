@@ -35,12 +35,6 @@ class SyncControllerTest extends TestCase
         );
     }
 
-    /**
-     * The rows worth finding. A file naming two devices is refused whole as
-     * probable tampering (decision 44), and this row is the only lasting
-     * trace of the attempt — without it, a refusal is a flash message the
-     * second attempt looks identical to.
-     */
     public function test_refused_runs_can_be_filtered_to_and_carry_their_reason(): void
     {
         $agency = Agency::factory()->create();
@@ -75,7 +69,6 @@ class SyncControllerTest extends TestCase
         );
     }
 
-    /** The counters the page prints are the ones the CHECK balances. */
     public function test_the_counters_are_sent_as_stored_and_add_up(): void
     {
         $agency = Agency::factory()->create();
@@ -93,7 +86,6 @@ class SyncControllerTest extends TestCase
         );
     }
 
-    /** Nothing here can be written: the app role has no DELETE and there is no write route at all. */
     public function test_there_is_no_route_that_changes_a_run(): void
     {
         $routes = collect(app('router')->getRoutes())
@@ -106,14 +98,6 @@ class SyncControllerTest extends TestCase
         $this->assertSame(['GET', 'HEAD'], $routes);
     }
 
-    /**
-     * A run with no filename is named by how it started, in the enum's words.
-     *
-     * The cell applied `capitalize` to the raw value, so a file import read
-     * "Import" and a pushed run read "Push" where `SyncTrigger` says "File
-     * import" and "Pushed by device" — wrong on exactly the two triggers that
-     * have no filename to fall back from.
-     */
     public function test_a_run_without_a_filename_is_named_by_the_enum(): void
     {
         $agency = Agency::factory()->create();

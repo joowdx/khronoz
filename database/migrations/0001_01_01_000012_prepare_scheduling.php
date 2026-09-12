@@ -6,35 +6,11 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * The scheduling tables' shared functions, the same arrangement
-     * 0001_01_01_000008_prepare_organization makes for the organization ones:
-     * they live here rather than in the table migrations because two of the
-     * three are shared, and keeping all three behind one `down()` means no
-     * table migration has to know whether it may drop a function.
-     *
-     * OR REPLACE on all three: `db:wipe` (what `migrate:fresh` runs, i.e.
-     * every test run) drops tables, views and types but never functions, so a
-     * plain CREATE FUNCTION collides with itself on the second `migrate:fresh`
-     * against the same database (.ai/rules/migrations.md).
+     * Shared functions live here so table rollbacks do not drop one another's dependencies.
      */
     public function up(): void
     {
-        // The slot shape, checked by the database and not only by a Form
-        // Request, because the workday deriver reads these pairs directly and
-        // a malformed one is a wrong DTR rather than a validation slip
-        // (docs/design/04-scheduling.md, "Slot shape").
-        //
-        // Times are 'HH:MM' with hours past 24 rolling into following days,
-        // like a transit timetable: '30:00' is 06:00 the next day, '56:00' is
-        // 08:00 two days on, capped at 72:00. That is what replaces an
-        // `overnight` flag, and it is why the hour is matched as one or two
-        // digits rather than bounded to 23.
-        //
-        // The WHERE clause in the CTE is what makes this total rather than
-        // raising: a malformed element is simply not parsed, and the
-        // `jsonb_array_length(slots) = count(*)` line then fails because one
-        // element went missing. Without that, `split_part(...)::int` on a
-        // non-numeric string would raise 22P02 where this CHECK owes 23514.
+        // Filtered parsing preserves the CHECK's SQLSTATE for malformed slot values.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION slots_valid(slots jsonb) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
                 WITH s AS (
@@ -63,25 +39,7 @@ return new class extends Migration
             $$;
         SQL);
 
-        // A copy's `origin_id` is the one deliberate cross-agency pointer in
-        // the schema (07-constraints.md, "Global rows belong to the platform
-        // agency"), and it exists so the UI can show that a copy has diverged
-        // from the default it came from and offer to refresh it. It is
-        // reference-only, which is why it is a plain single-column FK rather
-        // than a paired one — the pair is exactly what it is allowed to break.
-        //
-        // What must still hold is that it points at a *platform* row and not
-        // at another agency's private shift, or the pointer would become a
-        // cross-tenant read. No FK can say that, so this trigger does.
-        //
-        // Dynamic SQL because `shifts.origin_id` points into `shifts` and
-        // `schedules.origin_id` into `schedules`: TG_TABLE_NAME is the table
-        // in both cases, so one function serves both rather than two
-        // near-identical ones.
-        //
-        // Silent when the origin does not exist at all, for the reason
-        // agency_not_platform() is (…000008): the FK owes 23503 there, and
-        // raising P0001 first would shadow it and leave it untestable.
+        // The trigger permits only platform origins; missing parents remain silent for FK SQLSTATE 23503.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION origin_is_platform() RETURNS trigger LANGUAGE plpgsql AS $$
             DECLARE
@@ -111,41 +69,8 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // A schedule's turns must be complete: exactly `length` rows, at
-        // positions 0 to length - 1 (04-scheduling.md rule 4). Neither half
-        // can be a CHECK — both count rows of another table — and the rule is
-        // *transiently false* by construction, since a schedule is written
-        // before its turns exist and a length change is written before the
-        // turns are adjusted.
-        //
-        // Hence DEFERRABLE INITIALLY DEFERRED, the only constraint in the
-        // schema that is: it is checked at COMMIT, so one transaction may
-        // insert a schedule and its seven turns in any order. Note what that
-        // costs in testing — assertDatabaseRefuses() runs each statement in a
-        // SAVEPOINT, and releasing a SAVEPOINT does not run deferred checks,
-        // so a test must either `SET CONSTRAINTS ALL IMMEDIATE` inside the
-        // closure or commit for real. A test that does neither passes
-        // vacuously.
-        //
-        // UNIQUE (schedule_id, position) and CHECK (position >= 0) carry the
-        // rest of the rule declaratively, so this function only has to prove
-        // the count and the maximum: with no duplicates and no negatives,
-        // `count(*) = length AND max(position) = length - 1` forces exactly
-        // the set 0..length-1.
-        //
-        // It fires for both tables, so it reads the schedule id from
-        // whichever side triggered it, and tolerates the schedule having been
-        // deleted in the same transaction — deleting a schedule and its turns
-        // together must not raise on the turns' own DELETE.
-        //
-        // Branches and not a CASE expression, and TG_OP and not COALESCE over
-        // NEW/OLD, both learned by running it: plpgsql resolves the field
-        // references in *every* arm of a CASE, so `NEW.schedule_id` raises
-        // 42703 on the `schedules` table where no such field exists; and NEW
-        // is unassigned in an AFTER DELETE trigger, so touching it there
-        // raises rather than yielding null for COALESCE to absorb. The
-        // variable is `target` rather than `schedule_id` so it cannot shadow
-        // the column of that name in the query below.
+        // Deferral permits transiently incomplete turn sets within one transaction.
+        // TG_OP branching avoids unavailable NEW fields on DELETE and schedule triggers.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION turns_complete() RETURNS trigger LANGUAGE plpgsql AS $$
             DECLARE

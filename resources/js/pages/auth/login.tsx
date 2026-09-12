@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import AuthLayout from '@/layouts/auth-layout';
 import { CircleCheckIcon, TriangleAlertIcon } from 'lucide-react';
 
-/** Monochrome, so both providers sit at the same weight as every other control. */
 function GoogleMark() {
     return (
         <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
@@ -32,12 +31,6 @@ function AppleMark() {
     );
 }
 
-/**
- * lang/en/auth.php ends the rejected-credentials sentence with this phrase, so
- * the banner can turn it into the way out without splitting the message into
- * two translatable fragments. If the phrase is ever reworded away, the sentence
- * simply renders as plain text.
- */
 const RESET_PHRASE = 'reset your password';
 
 function FailureBanner({ message, resetHref }: { message: string; resetHref: string }) {
@@ -78,9 +71,6 @@ export default function Login({ status, canResetPassword }: { status?: string; c
             <Form {...store.form()} resetOnError={['password']}>
                 {({ errors, processing }) => (
                     <>
-                        {/* A rejected sign-in belongs to no field: it goes above them, and
-                            neither control's border changes. LoginRequest reports it under
-                            `form` for exactly that reason. */}
                         {errors.form && <FailureBanner message={errors.form} resetHref={resetHref} />}
 
                         <Field label="Email" htmlFor="email" error={errors.email}>
@@ -115,9 +105,6 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                         </Field>
 
                         <div className="pt-4 pb-5">
-                            {/* htmlFor, not just the wrapping label: Radix renders the box
-                                as a <button role="checkbox">, which a wrapping <label>
-                                alone does not reliably name. */}
                             <label
                                 htmlFor="remember"
                                 className="inline-flex cursor-pointer items-center gap-2.5 text-sm leading-5"
@@ -156,9 +143,6 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                 <span className="bg-border h-px flex-1" />
             </div>
 
-            {/* Single sign-on is designed but not wired: there is no provider redirect
-                to point these at yet, so they are shown disabled rather than left as
-                controls that silently do nothing. */}
             <div className="flex flex-col gap-2.5">
                 <Button
                     type="button"

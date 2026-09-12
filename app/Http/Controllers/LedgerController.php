@@ -20,23 +20,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Whose month is done, and one DTR.
- *
- * The index answers the first with aggregates (`withCount` / `withSum`),
- * never a `Ledger::view()` per row — overtime is a figure of the record and
- * belongs on show, where the view is computed once. Locking and unlocking
- * are the only writes; the database's triggers are the rule (decision 70),
- * and the P0001s they raise are translated here rather than surfacing as 500s.
- *
- * `employee` is loaded `withTrashed()`. That is deliberately unlike every
- * other screen in the application — nothing else uses `withTrashed()` —
- * because a DTR is a historical pay record, not a live roster.
- * `RemoveEmployee` closes the open placement and soft-deletes the person,
- * and their final month is exactly the ledger that still has to be locked
- * and signed. The index join does not apply the soft-delete scope, so the
- * row is listed either way; without `withTrashed()` it would render nameless.
- */
 class LedgerController extends Controller
 {
     private const PER_PAGE = 50;
@@ -161,7 +144,9 @@ class LedgerController extends Controller
         return CarbonImmutable::parse($value.'-01')->startOfMonth();
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function viewPayload(LedgerView $view): array
     {
         return [

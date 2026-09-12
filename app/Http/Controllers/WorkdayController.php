@@ -17,22 +17,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * What the engine says happened, across the agency, this month.
- *
- * The filter the screen exists for is **attention**: a day whose status is
- * absent, or that still has a punch with no `actual_at`. Pickers sit behind
- * closures so a partial reload of the list does not re-query them.
- *
- * `employee` is loaded `withTrashed()`. That is deliberately unlike every
- * other screen in the application — nothing else uses `withTrashed()` —
- * because a workday is a line of a DTR, and a DTR is a historical pay
- * record, not a live roster. `RemoveEmployee` closes the open placement
- * and soft-deletes the person, and their final month is exactly the ledger
- * that still has to be locked and signed. The index join does not apply
- * the soft-delete scope, so the row is listed either way; without
- * `withTrashed()` it would render nameless.
- */
 class WorkdayController extends Controller
 {
     private const PER_PAGE = 50;
@@ -95,10 +79,6 @@ class WorkdayController extends Controller
         ]);
     }
 
-    /**
-     * `YYYY-MM`; defaults to the current month. A malformed value falls back
-     * to the default rather than filtering by garbage.
-     */
     private function month(Request $request): CarbonImmutable
     {
         $value = $request->string('month')->trim()->toString();
@@ -110,7 +90,9 @@ class WorkdayController extends Controller
         return CarbonImmutable::parse($value.'-01')->startOfMonth();
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * @return array<int, array<string, mixed>>
+     */
     private function employees(): array
     {
         return EmployeeResource::collection(

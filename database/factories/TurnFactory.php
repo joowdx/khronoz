@@ -13,17 +13,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TurnFactory extends Factory
 {
-    /**
-     * schedule_id and shift_id are callbacks, not Schedule::factory() /
-     * Shift::factory() directly, for the reason DeploymentFactory's are: the
-     * paired FKs (schedule_id, agency_id) and (shift_id, agency_id) require
-     * both parents to belong to the same agency as this turn, so each is
-     * created explicitly under the agency_id resolved just above rather than
-     * getting its own random one. agency_id is declared first so both
-     * callbacks can read the resolved value from $attributes.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [

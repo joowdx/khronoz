@@ -6,17 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Get the migration connection name.
-     */
     public function getConnection(): ?string
     {
         return config('telescope.storage.database.connection');
     }
 
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         $this->ensureDatabaseExists();
@@ -62,9 +56,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         $schema = Schema::connection($this->getConnection());
@@ -75,9 +66,7 @@ return new class extends Migration
     }
 
     /**
-     * Telescope stores itself in its own SQLite file, which will not exist on
-     * a fresh checkout. Create it here so the migration is self-sufficient
-     * wherever it runs.
+     * Creates Telescope's SQLite database file when absent.
      */
     protected function ensureDatabaseExists(): void
     {

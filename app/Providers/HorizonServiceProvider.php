@@ -17,11 +17,6 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
         // Horizon::routeSlackNotificationsTo('slack-webhook-url', '#channel');
     }
 
-    /**
-     * Register the Horizon gate.
-     *
-     * This gate determines who can access Horizon in non-local environments.
-     */
     protected function gate(): void
     {
         Gate::define('viewHorizon', fn ($user = null) => Dashboard::allows($user));

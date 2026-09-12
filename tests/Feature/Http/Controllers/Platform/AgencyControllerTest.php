@@ -63,14 +63,6 @@ class AgencyControllerTest extends TestCase
         $this->assertDatabaseHas('agencies', ['id' => $agency->id, 'code' => 'MOH', 'name' => 'Ministry of Health']);
     }
 
-    /**
-     * The single most valuable test in this file. UpdateAgencyRequest's
-     * Rule::unique('agencies', 'code')->ignore($this->route('agency')) exists
-     * precisely so posting an agency's own unchanged code back to itself does
-     * not collide with its own row. Do not "simplify" this into changing both
-     * fields — the unchanged code is the point: without ->ignore(), this exact
-     * request would fail validation against the agency's own row.
-     */
     public function test_updating_an_agency_without_changing_its_code_succeeds(): void
     {
         $agency = Agency::factory()->create(['code' => 'DOH', 'name' => 'Department of Health']);
@@ -82,10 +74,6 @@ class AgencyControllerTest extends TestCase
         $this->assertSame('Renamed Department of Health', $agency->refresh()->name);
     }
 
-    /**
-     * The screen a fresh install lands on: the props the page reads to choose
-     * its invitation rather than an empty table.
-     */
     public function test_a_platform_with_no_agencies_yet_renders_an_empty_list(): void
     {
         $this->actingAs(User::factory()->platform()->create())->get(route('platform.agencies.index'))
@@ -191,11 +179,6 @@ class AgencyControllerTest extends TestCase
                 ->where('pagination.next', null));
     }
 
-    /**
-     * The entered marker on the list is derived, not sent: the row is marked
-     * when its id matches the shared `agency` prop the sidebar's switcher
-     * already reads. This is the server half of that contract.
-     */
     public function test_the_entered_agency_is_the_shared_agency_prop_on_the_list(): void
     {
         $agency = Agency::factory()->create();

@@ -3,9 +3,6 @@
 import { CircleCheckIcon, InfoIcon, Loader2Icon, OctagonXIcon, TriangleAlertIcon } from 'lucide-react';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 
-// Theming comes from the tokens in resources/css/app.css (--popover, --border,
-// --radius), which follow the data-mode attribute on <html>. Sonner reads them
-// through the inline style block below, so no theme provider is needed.
 const Toaster = ({ ...props }: ToasterProps) => {
     return (
         <Sonner

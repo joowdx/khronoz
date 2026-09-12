@@ -4,20 +4,14 @@ namespace Tests\Feature\Policies;
 
 use App\Enums\Permission;
 use App\Models\Agency;
-use App\Models\Workgroup;
 use App\Models\User;
+use App\Models\Workgroup;
 use Illuminate\Support\Facades\Gate;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class WorkgroupPolicyTest extends TestCase
 {
-    /**
-     * Holding some OTHER permission must not grant any Workgroup ability — only
-     * asserting against a zero-permission user would miss a policy that
-     * (incorrectly) checked "holds any permission" rather than specifically
-     * organization.view/organization.manage.
-     */
     #[DataProvider('permissionsWithoutOrganizationAbilities')]
     public function test_no_ability_is_granted_by_any_permission_other_than_organization_view_or_manage(Permission $permission): void
     {
@@ -38,7 +32,6 @@ class WorkgroupPolicyTest extends TestCase
             ->mapWithKeys(fn (Permission $p) => [$p->value => [$p]])->all();
     }
 
-    /** organization.view grants viewAny only — never create, update or delete. There is no `view` ability: workgroups have no show route. */
     public function test_organization_view_grants_view_any_only(): void
     {
         $agency = Agency::factory()->create();
@@ -51,7 +44,6 @@ class WorkgroupPolicyTest extends TestCase
         $this->assertFalse(Gate::forUser($viewer)->allows('delete', $workgroup));
     }
 
-    /** organization.manage implies organization.view (Permission::implies()), so it grants every ability. */
     public function test_organization_manage_grants_every_ability(): void
     {
         $agency = Agency::factory()->create();
@@ -64,12 +56,6 @@ class WorkgroupPolicyTest extends TestCase
         $this->assertTrue(Gate::forUser($manager)->allows('delete', $workgroup));
     }
 
-    /**
-     * A platform user is allowed every ability too, but this allow comes from
-     * Gate::before (AppServiceProvider::configureAuthorization) short-
-     * circuiting before WorkgroupPolicy ever runs, not from any of its own method
-     * bodies — mirrors UserPolicyTest's equivalent case.
-     */
     public function test_platform_user_is_allowed_every_ability(): void
     {
         $user = User::factory()->platform()->create();

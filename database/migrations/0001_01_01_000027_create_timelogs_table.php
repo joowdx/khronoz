@@ -9,30 +9,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * What the device recorded (docs/design/03-terminals.md). Never a punch —
-     * a punch is one matched slot side of a workday and arrives in M6.
-     *
-     * **A timelog is immutable.** Nothing is ever pruned; a bad one gets
-     * `voided_at` and `reason` and stays. That is enforced by privilege rather
-     * than by trigger, and the REVOKEs land in the next commit. The predecessor
-     * had *four* independent ways to destroy one of these rows — a flush verb
-     * that hard-deleted, a `Prunable` scheduled every minute, and cascading
-     * deletes from both the scanner and the self-FK — which is why every
-     * foreign key here is RESTRICT and none of those verbs exists.
-     *
-     * There is a `created_at` and deliberately **no `updated_at`**, and that is
-     * load-bearing rather than tidy: once the next commit revokes UPDATE down
-     * to `(voided_at, reason)`, an Eloquent write that also touched
-     * `updated_at` would fail with 42501. Voiding through the model works only
-     * because the column is not there. The predecessor had neither, and so
-     * could not say when a punch was ingested at all.
-     *
-     * `employee_id` and `enrollment_id` are **never written by the
-     * application**. `timelogs_resolve` fills them from the one enrollment
-     * covering (terminal_id, uid, time::date), or leaves both null, and
-     * overwrites whatever a client sent. The paired four-column FK is a second
-     * lock on that: satisfied by construction today, it catches a future bug
-     * in the function.
+     * Timelogs are immutable records; resolution overwrites client-supplied employee and enrollment values.
      */
     public function up(): void
     {
@@ -43,23 +20,15 @@ return new class extends Migration
             // Nullable: a manual entry has no run. timelogs_source_pairs_sync
             // below ties this to `source` in both directions.
             $table->ulid('sync_id')->nullable();
-            // Null means **unresolved**, and an unresolved timelog stays
-            // visible. It is not an error and never rejected: a punch by
-            // somebody not yet enrolled is real data, and hiding it is how a
-            // day silently goes missing.
+            // Unresolved timelogs remain visible until enrollment resolution succeeds.
             $table->ulid('employee_id')->nullable();
             $table->ulid('enrollment_id')->nullable();
             // The device user id exactly as the attlog carries it — a string,
             // never integer-cast, never trimmed (decision 42).
             $table->string('uid');
-            // As reported by the device: a naive local wall clock, never
-            // converted to UTC and never adjusted for observed drift
-            // (rule 4). Third column of the natural key below, so its
-            // precision decides whether re-importing one file dedupes.
+            // Preserve the device's local clock precision for natural-key deduplication.
             $table->timestamp('time');
-            // Raw attlog integers, not enums (rule 6). An unknown value from
-            // unfamiliar firmware must survive; the model casts with tryFrom
-            // and never writes an interpretation back.
+            // Preserve unknown raw device states without coercion.
             $table->unsignedTinyInteger('state');
             $table->unsignedTinyInteger('mode');
             $table->string('source');
@@ -69,13 +38,7 @@ return new class extends Migration
             $table->ulid('user_id')->nullable();
             $table->timestamp('voided_at')->nullable();
             $table->string('reason')->nullable();
-            // Who voided it. A second actor column rather than a reuse of
-            // user_id, because they are different facts: user_id is who
-            // *recorded* a manual punch, and the app role's UPDATE deliberately
-            // cannot touch it — a void must never be able to rewrite who
-            // punched. Single-column FK for the same reason user_id is one:
-            // the voider may be a platform superuser who has entered the
-            // agency, whose own agency_id is the platform row.
+            // The voider is distinct from the original manual-entry actor.
             $table->ulid('voided_by')->nullable();
             // created_at only. See the docblock: `updated_at` would make
             // voiding through Eloquent fail 42501 once UPDATE is revoked.
@@ -89,11 +52,7 @@ return new class extends Migration
                 ->restrictOnDelete()
                 ->restrictOnUpdate();
 
-            // Paired, not a single-column FK on sync_id: that would prove the
-            // run exists, and this proves it belongs to the same terminal.
-            // sync_id is nullable (a manual entry has no run) and
-            // terminal_id is NOT NULL — MATCH SIMPLE skips it entirely while
-            // sync_id is null, which is what lets a manual row exist at all.
+            // The paired run key requires the same terminal; MATCH SIMPLE permits manual rows.
             $table->foreign(['sync_id', 'terminal_id'])
                 ->references(['id', 'terminal_id'])
                 ->on('syncs')
@@ -104,54 +63,16 @@ return new class extends Migration
             $table->foreign('voided_by')->references('id')->on('users')->restrictOnDelete()->restrictOnUpdate();
         });
 
-        // **The attlog natural key**, and the upsert target (rule 2). Import is
-        // INSERT ... ON CONFLICT DO NOTHING on exactly these five columns:
-        // inserted rows are `accepted`, skipped rows `duplicates`. All five are
-        // NOT NULL, so NULLS DISTINCT cannot quietly let a duplicate through.
-        //
-        // This is the one thing the predecessor got right and then undid in the
-        // writer: it declared the same key and then issued ON CONFLICT DO
-        // UPDATE against it, rewriting each row with itself — which made the
-        // row mutable, made "how many are new" unknowable, and raised 21000
-        // whenever one statement carried the same key twice.
+        // This natural key is the immutable import upsert target.
         DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_attlog_key UNIQUE (terminal_id, uid, time, state, mode)');
 
-        // Target for the punch FK in M6. An unresolved timelog has a null
+        // Target for the punch FK. An unresolved timelog has a null
         // employee_id and so can never match a punch's non-null one — a punch
         // can only ever use a resolved timelog, by construction.
         DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_id_employee_id_unique UNIQUE (id, employee_id)');
 
-        // The second lock on resolution: a timelog may only name an enrollment
-        // that agrees with it about the employee, the terminal and the device
-        // user id. MATCH SIMPLE skips it entirely while enrollment_id is null,
-        // which is what lets an unresolved row exist at all.
-        //
-        // The two sides are deliberately asymmetric, and it took a failing
-        // test to notice why they have to be.
-        //
-        // **Delete stays RESTRICT**, and immediate: an enrollment with punches
-        // hanging off it is ended with `ends`, never removed. Postgres keeps a
-        // RESTRICT check immediate even on a DEFERRABLE constraint, so that
-        // refusal still arrives as 23001 at the statement — verified against
-        // the database rather than assumed.
-        //
-        // **Update is NO ACTION DEFERRABLE INITIALLY DEFERRED**, because an
-        // enrollment's `uid`, `terminal_id` and `employee_id` must be able to
-        // change — a mistyped device user id is an ordinary correction, and
-        // `enrollments_reresolve` is declared `UPDATE OF ... employee_id, uid,
-        // terminal_id` precisely to handle it. Under ON UPDATE RESTRICT that
-        // trigger could never fire: the FK refused the parent's own UPDATE
-        // before the trigger got to repair the children, so the design
-        // contradicted itself and the first test to try it failed with 23001.
-        // Deferring the check to commit lets the AFTER trigger re-resolve the
-        // affected punches first; the constraint then re-checks and finds them
-        // consistent.
-        //
-        // The cost is that an insert-side violation surfaces at COMMIT rather
-        // than at the statement, so a test provoking one needs
-        // `SET CONSTRAINTS ALL IMMEDIATE`. Acceptable: this FK is defence in
-        // depth against a future bug in the resolver, not a rule the
-        // application is expected to hit.
+        // MATCH SIMPLE permits unresolved timelogs.
+        // Deferred updates allow the re-resolution trigger to repair affected rows.
         DB::statement(<<<'SQL'
             ALTER TABLE timelogs ADD CONSTRAINT timelogs_enrollment_foreign
                 FOREIGN KEY (enrollment_id, employee_id, terminal_id, uid)
@@ -162,22 +83,14 @@ return new class extends Migration
 
         DB::statement("ALTER TABLE timelogs ADD CONSTRAINT timelogs_source_valid CHECK (source IN ('device', 'manual'))");
 
-        // Resolved means **both** columns or neither. Half-resolved is not a
-        // state: employee_id without enrollment_id is an attribution nothing
-        // can justify, and enrollment_id without employee_id would satisfy the
-        // paired FK vacuously.
+        // Resolution requires both employee and enrollment or neither.
         DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_resolved_pair CHECK ((enrollment_id IS NULL) = (employee_id IS NULL))');
 
         // A device row must name the run that brought it in, and a manual row
         // must not. Both directions, in one CHECK.
         DB::statement("ALTER TABLE timelogs ADD CONSTRAINT timelogs_source_pairs_sync CHECK ((source = 'device') = (sync_id IS NOT NULL))");
 
-        // Who recorded it, both directions — the same shape
-        // timelogs_source_pairs_sync already uses. MC 21 s. 1991: a
-        // manually entered time record must say who recorded it. The other
-        // direction is what a one-way rule would miss: a device row naming
-        // a recording user contradicts the documented meaning of user_id
-        // ("Who entered it, manual only").
+        // Manual entries require an actor; device entries cannot name one.
         DB::statement("ALTER TABLE timelogs ADD CONSTRAINT timelogs_user_pairs_source CHECK ((source = 'manual') = (user_id IS NOT NULL))");
 
         // Voiding is the only correction this table allows, and an unexplained
@@ -185,11 +98,7 @@ return new class extends Migration
         // nothing to audit.
         DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_void_needs_reason CHECK (voided_at IS NULL OR reason IS NOT NULL)');
 
-        // And it must say **who**. Both directions, the shape
-        // timelogs_user_pairs_source already uses: a void with no actor cannot
-        // be audited, and an actor on a standing row records a void that never
-        // happened. MC 21 s. 1991 requires a manual time record to name who
-        // recorded it; striking one out is the same weight.
+        // Voids require an actor and standing rows cannot name one.
         DB::statement('ALTER TABLE timelogs ADD CONSTRAINT timelogs_void_pairs_actor CHECK ((voided_at IS NULL) = (voided_by IS NULL))');
 
         // Postgres has no tinyint — Laravel's unsignedTinyInteger is a
@@ -207,18 +116,7 @@ return new class extends Migration
                 FOR EACH ROW EXECUTE FUNCTION timelogs_resolve();
         SQL);
 
-        // **A void is final.** Privilege alone cannot say this: the app role
-        // holds UPDATE on exactly the void columns, so re-voiding an already
-        // voided row is a legal statement, and it overwrites the original
-        // `voided_at`, `reason` and actor — the audit record erases itself and
-        // the second void looks like the only one there ever was. A CHECK
-        // cannot see OLD, so this is the one place on this table a trigger is
-        // the right instrument rather than a privilege.
-        //
-        // Refusing every UPDATE of a voided row, not just a second void, is
-        // deliberate: editing the reason rewrites the record too. Correcting
-        // a void is not an operation this table offers, the way correcting a
-        // punch is not.
+        // The trigger makes voids final because a CHECK cannot inspect OLD.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION timelogs_void_is_final() RETURNS trigger
                 LANGUAGE plpgsql AS $$
@@ -235,21 +133,10 @@ return new class extends Migration
                 EXECUTE FUNCTION timelogs_void_is_final();
         SQL);
 
-        // Immutability. `03-terminals.md` rule 1 is enforced by privilege, not
-        // by trigger — the app role loses DELETE and all of UPDATE except the
-        // two columns a void needs.
-        //
-        // The statements live in AppRoleGrants::restrict() rather than here,
-        // and that placement is the point: `db:grant` re-runs apply(), which
-        // grants CRUD on every table, so a REVOKE written only into this
-        // migration would be silently undone by the next deploy after an
-        // owner-role rotation — no error, no failing test, no immutability.
+        // AppRoleGrants retains the restricted-update policy after db:grant.
         AppRoleGrants::restrict();
 
-        // And the re-resolution trigger on `enrollments`, created **here**
-        // rather than in that table's own migration: it writes to `timelogs`,
-        // so attaching it earlier would make the next enrollment inserted
-        // answer 42P01 and break every seeder and factory in between.
+        // Attach re-resolution only after its timelogs target exists.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER enrollments_reresolve
                 AFTER INSERT OR UPDATE OF starts, ends, employee_id, uid, terminal_id ON enrollments

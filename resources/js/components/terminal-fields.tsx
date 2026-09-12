@@ -6,24 +6,6 @@ import { Switch } from '@/components/ui/switch';
 import { flattenWorkgroups } from '@/lib/workgroups';
 import type { Choice, Terminal, Workgroup } from '@/types';
 
-/**
- * The fields of `terminals` an operator actually sets, in one 560px column —
- * shared by the add and the edit screens the way the workgroup fields are.
- *
- * **Not every column is here, and the omissions are the design.** `host`,
- * `port` and `secret` belong to push and pull, which Milestone 5 does not
- * ship (decision 40); offering them would invite someone to configure a
- * connection nothing will ever open. `stamp`, `seen_at` and `synced_at` are
- * written by a device read and by nothing else — an import must not move them
- * — so they are facts the list reports, never fields a person fills in.
- *
- * `code` carries the hardest hint on the page because it is the one field that
- * can silently ruin an import. It is compared byte-for-byte against the
- * `device` column of every attlog line (decision 44): a file that names a
- * different device is refused whole, and a file naming *two* is refused as
- * tampering. So the hint tells the operator where to read the number from
- * rather than inviting them to make one up.
- */
 export function TerminalFields({
     terminal,
     workgroups,
@@ -31,12 +13,8 @@ export function TerminalFields({
     protocols,
     errors,
 }: {
-    /** The terminal being edited, or nothing when one is being added. */
     terminal?: Terminal;
-    /** Every workgroup of the agency, flat — the "sits at" picker's options. */
     workgroups: Workgroup[];
-    /** TerminalKind and TerminalProtocol, labelled by the enums that hold the
-     *  CHECK's cases. Never restated here (.ai/rules/resources.md). */
     kinds: Choice[];
     protocols: Choice[];
     errors: Partial<Record<string, string>>;

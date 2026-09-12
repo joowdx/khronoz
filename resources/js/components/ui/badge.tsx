@@ -3,10 +3,6 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { Slot } from 'radix-ui';
 
-/**
- * The design's pill: 22px tall, 12/16 at 500, on a soft tint of its own
- * family. Never a shadow, never a hard fill.
- */
 const badgeVariants = cva(
     'inline-flex h-[22px] w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-full border border-transparent px-[9px] text-xs leading-4 font-medium whitespace-nowrap [&>svg]:pointer-events-none [&>svg]:size-3',
     {
@@ -26,7 +22,6 @@ const badgeVariants = cva(
     },
 );
 
-/** The status families, all of which must say a word as well as show a colour. */
 type StatusVariant = 'secondary' | 'destructive' | 'attention' | 'positive';
 
 function Badge({
@@ -47,11 +42,6 @@ function Badge({
     );
 }
 
-/**
- * A state, not a label. Colour alone never carries the meaning (WCAG 1.4.1),
- * so the dot is always paired with the word — which is why this exists as its
- * own export rather than as a `dot` a caller may forget.
- */
 function StatusPill({
     variant = 'secondary',
     ...props

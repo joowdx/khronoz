@@ -12,12 +12,6 @@ function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimiti
     return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 
-/**
- * z-60, not shadcn's flat z-50: §4.4's one page-wide ladder puts the sheet at
- * 55 and a popover, menu or toast at 60. MEASURED — with both at 50 the workgroup
- * picker inside the move sheet (employees/show) rendered *behind* the sheet's
- * own surface, so the list was legible only as a ghost through it.
- */
 function PopoverContent({
     className,
     align = 'center',

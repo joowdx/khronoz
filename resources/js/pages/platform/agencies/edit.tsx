@@ -9,7 +9,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/platform/agencies';
 import type { Agency } from '@/types';
 
-/** The same 560px column as Add agency, so the two read as one form seen twice. */
 export default function Edit({ agency }: { agency: Agency }) {
     return (
         <AppLayout>

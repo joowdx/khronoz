@@ -11,12 +11,6 @@ use Tests\TestCase;
 
 class UserPolicyTest extends TestCase
 {
-    /**
-     * Holding some OTHER permission must not grant any User ability — only
-     * asserting against a zero-permission user would miss a policy that
-     * (incorrectly) checked "holds any permission" rather than specifically
-     * ManageUsers.
-     */
     #[DataProvider('permissionsWithoutUsersManage')]
     public function test_no_ability_is_granted_by_any_permission_other_than_manage_users(Permission $permission): void
     {
@@ -48,7 +42,6 @@ class UserPolicyTest extends TestCase
         $this->assertTrue(Gate::forUser($admin)->allows('delete', $colleague));
     }
 
-    /** The one exception to "ManageUsers may delete any user": never themselves. */
     public function test_manage_users_does_not_permit_deleting_self(): void
     {
         $admin = User::factory()->permissions(Permission::ManageUsers)->create();
@@ -56,13 +49,6 @@ class UserPolicyTest extends TestCase
         $this->assertFalse(Gate::forUser($admin)->allows('delete', $admin));
     }
 
-    /**
-     * A platform user is allowed every ability too, but this allow comes from
-     * Gate::before (AppServiceProvider::configureAuthorization) short-
-     * circuiting before UserPolicy ever runs, not from any of its own method
-     * bodies — including the self-delete case, which UserPolicy alone would
-     * refuse.
-     */
     public function test_platform_user_is_allowed_every_ability_including_deleting_self(): void
     {
         $user = User::factory()->platform()->create();

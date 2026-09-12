@@ -1,15 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
-/**
- * An empty screen is an invitation to act, not a placeholder. Left-aligned in
- * the content column with no dashed box — a dashed box says "something is
- * missing here"; the sentence already says that, and says what to do about it.
- *
- * Heading at 20/26/700, per ui.css's `.empty h2` and docs/design/08-interface.md
- * §5.20. The sentence should teach the model rather than apologise for the
- * absence, and the action repeats the one in the title bar.
- */
 export function EmptyState({
     title,
     description,

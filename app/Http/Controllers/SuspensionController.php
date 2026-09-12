@@ -15,19 +15,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Work suspensions: a typhoon, a brownout, a transport strike (05-calendar.md).
- *
- * `workgroup_id` null is **agency-wide** and is the commonest shape — a
- * typhoon closes the office, not one division. Naming a workgroup means that
- * workgroup *and everything under it* (01-organization.md rule 4), which the
- * form says out loud because the picker cannot show a subtree.
- *
- * `user_id` is never a form field: it is the acting user, taken from the
- * request. The `actor_of_agency` trigger (decision 39) refuses a user from
- * some third agency, and a picker would be inviting exactly the row that
- * trigger exists to refuse.
- */
 class SuspensionController extends Controller
 {
     public function index(Request $request): Response
@@ -62,8 +49,7 @@ class SuspensionController extends Controller
     {
         $suspension = Suspension::create([
             ...$request->validated(),
-            // Who declared it. Never sent by the client — see the class
-            // docblock and decision 39.
+
             'user_id' => $request->user()->id,
         ]);
 
@@ -85,7 +71,7 @@ class SuspensionController extends Controller
 
     public function update(UpdateSuspensionRequest $request, Suspension $suspension): RedirectResponse
     {
-        // Both reaches: a suspension moved to another date or another
+
         // workgroup stops closing the office it left.
         $before = $this->reach($suspension);
 
@@ -117,18 +103,6 @@ class SuspensionController extends Controller
     }
 
     /**
-     * Who a declaration closes the office for, and on what date (Workday
-     * rule 3, decision 86).
-     *
-     * Captured as a *description* rather than dispatched on the spot,
-     * because an update has two of them and the one that is going away has
-     * to be read before the write and queued after it. A whole-agency
-     * suspension travels as its agency: `appliesTo()` would name every
-     * employee of it and the payload is the one thing this job refuses to
-     * carry at that size. A workgroup's is small by construction and
-     * `appliesTo()` already knows the subtree, and which of a movement and
-     * a placement wins.
-     *
      * @return array{agency: ?string, employees: list<string>, date: string}
      */
     private function reach(Suspension $suspension): array

@@ -4,13 +4,6 @@ import { TableCell } from '@/components/ui/table';
 import { formatMinutes } from '@/lib/minutes';
 import type { Choice, Employee, Punch, Workday } from '@/types';
 
-/**
- * `.who2`: avatar, name at 14/18/500, workgroup at 12/16 muted.
- *
- * Workgroup comes from `current_deployment` when the employee payload carries
- * it. The workdays and ledgers indexes load the employee without that
- * relation, so the second line is an em dash until a later chunk asks for it.
- */
 export function Who2({ employee }: { employee: Employee | null | undefined }) {
     const name = employee?.name ?? '—';
     const workgroup = employee?.current_deployment?.workgroup?.name;
@@ -30,20 +23,6 @@ export function Who2({ employee }: { employee: Employee | null | undefined }) {
     );
 }
 
-/**
- * The day's punches as `07:58 · 12:03 · — · 17:05`.
- *
- * A missing side is daily rule 4 left in the data on purpose: never hidden,
- * never a blank, never a zero. The dash takes the attention colour. Each
- * punched time carries its signed deviation as a `title`.
- *
- * **A time on another calendar day carries `⁺¹`** (decision 84). The status
- * belongs to the day the shift started on and is never split (decision 54),
- * so a night shift's out at 06:00 sits on the next date — and a bare `06:00`
- * beside a 22:00 in reads as a shift that ran backwards. `date` is the
- * workday's, and the marker is the difference in calendar days, negative for
- * a pre-midnight arrival against an after-midnight shift.
- */
 export function PunchChain({ punches, date }: { punches: Punch[] | undefined; date?: string }) {
     if (punches === undefined || punches.length === 0) {
         return <span className="text-muted-foreground">—</span>;
@@ -68,7 +47,6 @@ export function PunchChain({ punches, date }: { punches: Punch[] | undefined; da
     );
 }
 
-/** Whole calendar days from the workday's date to the punch's. */
 function dayOffset(date: string | undefined, at: string): number {
     if (date === undefined) {
         return 0;
@@ -79,11 +57,6 @@ function dayOffset(date: string | undefined, at: string): number {
     return Number.isFinite(days) ? Math.round(days) : 0;
 }
 
-/**
- * `⁺¹` for the next day, `⁻¹` for the one before. Superscript characters
- * rather than a `<sup>`: the chain is one line of tabular figures and a
- * raised element would move the baseline of the row it sits in.
- */
 function DayMarker({ offset }: { offset: number }) {
     if (offset === 0) {
         return null;
@@ -95,8 +68,6 @@ function DayMarker({ offset }: { offset: number }) {
         .map((digit) => SUPERSCRIPT[Number(digit)])
         .join('');
 
-    // aria-hidden on the glyph alone: a superscript sign reads as noise, and
-    // an sr-only child of an aria-hidden parent is hidden with it.
     return (
         <>
             <span aria-hidden className="text-muted-foreground">
@@ -119,7 +90,6 @@ export function WorkdayStatus({ status, premium }: { status: Choice; premium?: C
     );
 }
 
-/** Worked · Tardy · Undertime · Excess · Night, each `H:MM` or an em dash. */
 export function MinuteCells({ workday }: { workday: Workday | null }) {
     const figures = workday
         ? [workday.worked, workday.tardy, workday.undertime, workday.excess, workday.night]
@@ -136,11 +106,6 @@ export function MinuteCells({ workday }: { workday: Workday | null }) {
     );
 }
 
-/**
- * Colour families for a workday status. The *words* stay on the Choice the
- * server sent; this only picks the pill's tint, and an unknown value falls
- * through to neutral so a new case is still readable.
- */
 function statusVariant(value: string): 'positive' | 'destructive' | 'attention' | 'secondary' {
     switch (value) {
         case 'present':

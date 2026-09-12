@@ -9,17 +9,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Matches the `Sync` interface in resources/js/types/index.d.ts.
  *
- * The four counters are sent as they are stored, balanced by
- * `syncs_counts_balance` — so a reader can trust that accepted, duplicates and
- * rejected add up to received without the page checking. `error` is sent in
- * full: on a refused run it carries the reason, and the refusal of a file
- * naming two devices is the closest thing this system has to a tamper alert.
- *
  * @mixin Sync
  */
 class SyncResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

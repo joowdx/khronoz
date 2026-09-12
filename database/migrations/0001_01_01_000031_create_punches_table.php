@@ -8,21 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * One transit of a workday: an expected slot side and the timelog that
-     * filled it, a side no timelog filled, or a tap that answered no
-     * expectation at all (docs/design/06-attendance.md Punch, decision 78).
-     *
-     * `expected_at` is therefore nullable, and the three CHECKs below say
-     * which combinations mean something: every `actual_at` reaches a device
-     * record, a `deviation` needs both an expectation and an arrival to be
-     * the difference of, and a row with neither instant records nothing.
-     *
-     * `ON DELETE CASCADE` on the workday FK is the one place in this schema
-     * that cascades, and it is deliberate: punches are derived rows with no
-     * independent existence. Every other FK stays RESTRICT.
-     *
-     * There is a `created_at` and deliberately **no `updated_at`**, for the
-     * same reason workdays have none: a punch is rewritten with its workday.
+     * The sole cascade removes derived punches with their workday.
      */
     public function up(): void
     {
@@ -62,27 +48,20 @@ return new class extends Migration
         DB::statement("ALTER TABLE punches ADD CONSTRAINT punches_kind_valid CHECK (kind IN ('in', 'out'))");
         DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_slot_positive CHECK (slot > 0)');
         DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_actual_pairs_timelog CHECK ((timelog_id IS NULL) = (actual_at IS NULL))');
-        // Deviation is actual minus expected, so it exists exactly when both
-        // do. On a day with no expectation there is nothing to deviate from
-        // (decision 78) and a zero would read as punctuality nobody measured.
+        // Deviation exists only when actual and expected times both exist.
         DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_deviation_pairs_both CHECK ((deviation IS NULL) = (actual_at IS NULL OR expected_at IS NULL))');
 
         // A row with neither instant is a punch that records nothing.
         DB::statement('ALTER TABLE punches ADD CONSTRAINT punches_records_a_time CHECK (expected_at IS NOT NULL OR actual_at IS NOT NULL)');
 
-        // Function created in 0001_01_01_000028_prepare_attendance. INSERT
-        // only: a punch that already claimed a record survives a later void
-        // (decision 57); recompute is what uncounts it.
+        // Inserts alone are guarded; recomputation uncounts a later-voided timelog.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER punches_timelog_live
                 BEFORE INSERT ON punches
                 FOR EACH ROW EXECUTE FUNCTION punches_timelog_live();
         SQL);
 
-        // Function created in 0001_01_01_000028_prepare_attendance. Decision
-        // 80: the same guard workdays carry, on the rows the lock exists to
-        // protect. `workdays_ledger_open` refuses rewriting the day; without
-        // this the app role could still rewrite its chain a punch at a time.
+        // This lock guard prevents rewriting a workday's punch chain.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER punches_ledger_open
                 BEFORE INSERT OR UPDATE OR DELETE ON punches

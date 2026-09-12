@@ -1,6 +1,5 @@
 #!/bin/sh
-# Creates the application role. Roles are cluster-wide, so one script serves
-# both the khronoz and testing databases. Grants live in the first migration.
+# Roles are cluster-wide; grants live in the first migration.
 set -e
 psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
 DO \$\$ BEGIN

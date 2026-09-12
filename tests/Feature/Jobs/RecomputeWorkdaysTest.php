@@ -35,10 +35,6 @@ class RecomputeWorkdaysTest extends TestCase
         (new RecomputeWorkdays($employee->id, '2026-09-08', '2026-09-08'))
             ->handle(app(Tenant::class));
 
-        // Decision 84: set on the way in and cleared on the way out, so the
-        // next job on this worker inherits nothing. The workday existing is
-        // the proof it was set while the job ran — AgencyScope fails closed
-        // and the write could not have happened otherwise.
         $this->assertNull(app(Tenant::class)->id());
 
         $this->withTenant($agency);
@@ -106,18 +102,6 @@ class RecomputeWorkdaysTest extends TestCase
         });
     }
 
-    /**
-     * Four days apart abuts; five does not. The number is the three-day
-     * backreach plus one: [D − 3, D] and [D + 1, D + 4] are adjacent
-     * and disjoint, and without merging them they dispatch as two jobs.
-     * WithoutOverlapping then serialises in queue order, so the later
-     * window can run first and workday D+1 claims a timelog the 72:00
-     * slot cap still lets D reach — the violation "Across midnight"
-     * rule 1 exists to prevent. Drop `addDay()` from the merge and
-     * 8 September with 12 September splits. Five days apart
-     * ([D − 3, D] and [D + 2, D + 5]) leaves a day of gap, so nothing
-     * can be contended and they stay two jobs.
-     */
     public function test_punches_four_days_apart_queue_one_job_because_the_windows_abut(): void
     {
         $agency = Agency::factory()->create();
@@ -139,11 +123,6 @@ class RecomputeWorkdaysTest extends TestCase
         });
     }
 
-    /**
-     * Five days is the three-day backreach plus two, so [D − 3, D] and
-     * [D + 2, D + 5] leave a gap. See the four-day test for why that
-     * gap is the one `addDay()` in the merge exists to refuse to close.
-     */
     public function test_punches_five_days_apart_queue_two_jobs_because_the_windows_do_not_abut(): void
     {
         $agency = Agency::factory()->create();
@@ -258,11 +237,6 @@ class RecomputeWorkdaysTest extends TestCase
         );
     }
 
-    /**
-     * Decision 84's other half: `finally`, not a trailing statement. A job
-     * that throws must still leave the worker clean, or the agency it was
-     * working on becomes the agency the next job silently reads.
-     */
     public function test_the_tenant_is_cleared_even_when_the_job_throws(): void
     {
         $agency = Agency::factory()->create();
@@ -276,16 +250,11 @@ class RecomputeWorkdaysTest extends TestCase
                 ->handle(app(Tenant::class));
             $this->fail('expected the job to throw on an unparseable date');
         } catch (Throwable) {
-            // the throw is the arrange; what is asserted is the cleanup
         }
 
         $this->assertNull(app(Tenant::class)->id());
     }
 
-    /**
-     * Workday rule 1 counts only days in the employment range (decision 82),
-     * so a job that is meant to write anything needs its employee placed.
-     */
     private function employee(Agency $agency): Employee
     {
         $employee = Employee::factory()->create(['agency_id' => $agency->id]);
@@ -301,10 +270,6 @@ class RecomputeWorkdaysTest extends TestCase
         return $employee;
     }
 
-    /**
-     * Mon-Fri working, Sat-Sun off, anchored Monday 7 September 2026 and
-     * open from 1 August, so every date these tests name has a turn.
-     */
     private function rostered(Agency $agency): Employee
     {
         $employee = $this->employee($agency);
@@ -326,13 +291,6 @@ class RecomputeWorkdaysTest extends TestCase
         return $employee;
     }
 
-    /**
-     * Decision 77: the forward reach walks past days nothing was required
-     * on, exactly as the backward look-back does. A special non-working
-     * holiday on the 2nd is not the 3rd's preceding work day, so a punch
-     * arriving for the 1st still has to recompute the 3rd. One day forward
-     * left Christmas Day crediting an absence the 23rd had forfeited.
-     */
     public function test_the_span_reaches_past_a_non_working_holiday_to_a_regular_holiday(): void
     {
         $agency = Agency::factory()->create();
@@ -363,11 +321,6 @@ class RecomputeWorkdaysTest extends TestCase
         );
     }
 
-    /**
-     * And stops at the first day work was expected on. The 2nd is then the
-     * 3rd's preceding work day and this range cannot move it, so reaching
-     * the holiday would only write days nobody has worked yet.
-     */
     public function test_the_span_does_not_reach_past_a_work_day_to_a_regular_holiday(): void
     {
         $agency = Agency::factory()->create();
@@ -449,13 +402,6 @@ class RecomputeWorkdaysTest extends TestCase
         $this->assertFalse(Workday::query()->where('employee_id', $employee->id)->exists());
     }
 
-    /**
-     * Decision 86. A DTR is a historical pay record and the month somebody
-     * was removed in is the one still to be locked and signed, so a terminal
-     * syncing its backlog a week later must still reach them. Without
-     * `withTrashed()` the job did not skip them, it threw
-     * `ModelNotFoundException` and failed.
-     */
     public function test_a_removed_employee_is_still_recomputed(): void
     {
         $agency = Agency::factory()->create();

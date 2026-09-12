@@ -2,25 +2,6 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronUpIcon } from 'lucide-react';
 
-/**
- * Rules, not boxes: a 36px head separated by --border, 44px rows separated by
- * the softer --rule, and no shadow or outer frame. The head's background sits
- * on each `th` rather than on the `thead`, because a sticky `thead` paints
- * nothing — only its cells do — and rows would show through as they scroll
- * underneath.
- */
-/**
- * The container is `overflow-x-clip`, not shadcn's `overflow-x-auto`. A
- * scrollable axis makes this div the nearest scrollport, and a sticky `thead`
- * then sticks to *it* rather than to the page's scroll container, which put
- * our heads 75px above the title bar and looked like sticky was simply broken.
- * `clip` is the one overflow value that leaves the other axis `visible`, so
- * the head keeps sticking at `top: var(--bar-h)`.
- *
- * A table that genuinely needs to scroll sideways — the roster grid in
- * Milestone 3 — opts in with `overflow-x-auto` on this slot, and accepts that
- * its head then sticks inside its own scrollport.
- */
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
     return (
         <div data-slot="table-container" className="relative w-full overflow-x-clip">
@@ -33,11 +14,6 @@ function Table({ className, ...props }: React.ComponentProps<'table'>) {
     );
 }
 
-/**
- * `sticky` pins the head under the app bar. It is opt-in because it only
- * works inside the shell's own scroller — on a page that scrolls in the
- * window it would pin the head to the viewport instead.
- */
 function TableHeader({ className, sticky = false, ...props }: React.ComponentProps<'thead'> & { sticky?: boolean }) {
     return (
         <thead
@@ -75,7 +51,6 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
     );
 }
 
-/** `numeric` right-aligns the column and swaps the caret to the label's left. */
 function TableHead({ className, numeric = false, ...props }: React.ComponentProps<'th'> & { numeric?: boolean }) {
     return (
         <th
@@ -91,13 +66,6 @@ function TableHead({ className, numeric = false, ...props }: React.ComponentProp
     );
 }
 
-/**
- * The sortable head is a real <button> inside the <th>, so it is reachable and
- * operable from the keyboard (2.1.1) and announces its own name; the sort
- * direction belongs to the column, so `aria-sort` goes on the <th> (4.1.2).
- * The caret only appears on hover or once the column is the sorted one, and at
- * 12px it never competes with the label.
- */
 function TableSortButton({ className, children, ...props }: React.ComponentProps<'button'>) {
     return (
         <button
@@ -109,10 +77,6 @@ function TableSortButton({ className, children, ...props }: React.ComponentProps
                 '[[aria-sort=ascending]_&]:text-foreground [[aria-sort=descending]_&]:text-foreground',
                 '[[data-numeric]_&]:flex-row-reverse',
                 '[&>svg]:text-edge-soft [&>svg]:size-3 [&>svg]:shrink-0 [&>svg]:opacity-0 hover:[&>svg]:opacity-100',
-                // Only the sorted column carries the glyph, so the state keys
-                // off the two real directions rather than the attribute's
-                // presence — an unsorted head declares `aria-sort="none"` and
-                // must still look unsorted.
                 '[[aria-sort=ascending]_&>svg]:text-acc-text [[aria-sort=ascending]_&>svg]:opacity-100',
                 '[[aria-sort=descending]_&>svg]:text-acc-text [[aria-sort=descending]_&>svg]:opacity-100',
                 '[[aria-sort=descending]_&>svg]:rotate-180',

@@ -5,20 +5,6 @@ import { Input } from '@/components/ui/input';
 import { manilaToday } from '@/lib/dates';
 import type { Choice, Holiday } from '@/types';
 
-/**
- * The five columns of `holidays`, in one 560px column.
- *
- * `type` is a **rate**, not a scope, and the hints say so: who a holiday
- * applies to is which agency owns the row — the platform one meaning everyone
- * — while the type decides what a worked or unworked day is worth. The two
- * questions look alike and answering one with the other is how a local
- * ordinance ends up priced as a national regular holiday.
- *
- * `declared_at` is prospective (Res. 2600838 §2.5): workdays before it are not
- * recomputed. So it is the date on the paper, which may be well before today
- * and occasionally after the holiday itself, rather than the moment of data
- * entry.
- */
 export function HolidayFields({
     holiday,
     rates,

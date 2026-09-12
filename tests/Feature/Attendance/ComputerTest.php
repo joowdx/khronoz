@@ -50,11 +50,6 @@ class ComputerTest extends TestCase
         $this->withTenant($this->agency);
     }
 
-    /**
-     * Workday rule 1 counts only days in the employment range (decision 82),
-     * so every fixture here places its employee. Open-ended from 1 January
-     * 2026: these tests are about the pipeline, not about hiring dates.
-     */
     private function employee(): Employee
     {
         $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
@@ -71,8 +66,6 @@ class ComputerTest extends TestCase
     }
 
     /**
-     * Standard week, anchored Monday 7 September 2026.
-     *
      * @return array{employee: Employee, enrollment: Enrollment, standard: Shift, off: Shift}
      */
     private function standardWeek(?Employee $employee = null): array
@@ -97,12 +90,7 @@ class ComputerTest extends TestCase
         return compact('employee', 'enrollment', 'standard', 'off');
     }
 
-    /**
-     * Night then Standard, so 1 October would steal 06:00 if 30 September
-     * had not claimed it first.
-     *
-     * @return array{employee: Employee, enrollment: Enrollment, night: Shift, standard: Shift}
-     */
+    /** @return array{employee: Employee, enrollment: Enrollment, night: Shift, standard: Shift} */
     private function nightThenStandard(): array
     {
         $employee = $this->employee();
@@ -147,11 +135,7 @@ class ComputerTest extends TestCase
         return compact('employee', 'enrollment', 'night', 'standard');
     }
 
-    /**
-     * Duty48, Off, Off, Off — the 48-hour duty across a month end.
-     *
-     * @return array{employee: Employee, enrollment: Enrollment, duty: Shift, off: Shift}
-     */
+    /** @return array{employee: Employee, enrollment: Enrollment, duty: Shift, off: Shift} */
     private function dutyFortyEight(): array
     {
         $employee = $this->employee();
@@ -222,10 +206,6 @@ class ComputerTest extends TestCase
         return $workday->refresh();
     }
 
-    /**
-     * 06-attendance.md, "The chain, one day". Five timelogs, void missing
-     * side: morning only is presence, excess 5, afternoon out is not.
-     */
     public function test_the_ordinary_day_stores_the_chain_under_void(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment, 'standard' => $standard] = $this->standardWeek();
@@ -282,10 +262,6 @@ class ComputerTest extends TestCase
         $this->assertSame([], $snapshot['suspensions']);
     }
 
-    /**
-     * Same taps under assume: the half-filled afternoon is credited, the
-     * five leftover minutes become excess, tardy and undertime stay 0.
-     */
     public function test_the_ordinary_day_under_assume_credits_the_half_filled_slot(): void
     {
         $this->agency->update(['settings' => ['missing_side' => MissingSide::Assume->value]]);
@@ -308,11 +284,6 @@ class ComputerTest extends TestCase
         $this->assertSame(MissingSide::Assume->value, $workday->shift['settings']['missing_side']);
     }
 
-    /**
-     * Night 22:00–30:00 on 30 September; the 06:00 out is 1 October and
-     * still belongs to September. 1 October has its own shift and must
-     * not claim that tap.
-     */
     public function test_the_night_shift_out_on_1_october_belongs_to_the_september_ledger(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment, 'night' => $night, 'standard' => $standard] = $this->nightThenStandard();
@@ -345,10 +316,6 @@ class ComputerTest extends TestCase
         $this->assertSame($september->id, Punch::query()->where('timelog_id', $out->id)->value('workday_id'));
     }
 
-    /**
-     * Duty48 08:00–56:00 starting 30 September. All 2880 minutes, and
-     * both nightly windows (1440), belong to September — never split.
-     */
     public function test_the_forty_eight_hour_duty_credits_september_with_the_october_hours(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment, 'duty' => $duty] = $this->dutyFortyEight();
@@ -378,7 +345,6 @@ class ComputerTest extends TestCase
         $this->assertSame($workday->id, Punch::query()->where('timelog_id', $out->id)->value('workday_id'));
     }
 
-    /** Decision 70: a locked month is skipped, not written and not thrown on. */
     public function test_a_locked_ledger_skips_the_date(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
@@ -395,7 +361,6 @@ class ComputerTest extends TestCase
         $this->assertFalse(Punch::query()->where('employee_id', $employee->id)->exists());
     }
 
-    /** A recompute replaces the day's punches wholesale rather than stacking them. */
     public function test_a_recompute_replaces_the_days_punches(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
@@ -414,7 +379,6 @@ class ComputerTest extends TestCase
         $this->assertSame(1, Workday::query()->where('employee_id', $employee->id)->count());
     }
 
-    /** Decision 57: a voided tap is not a candidate, so the day does not count it. */
     public function test_a_voided_timelog_is_not_claimed(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
@@ -432,10 +396,6 @@ class ComputerTest extends TestCase
         $this->assertSame(480, $this->workday($employee, '2026-09-08')->worked);
     }
 
-    /**
-     * Decision 69: holidays of the date are frozen into the snapshot.
-     * Saturday is Off, so the figures stay zero; the copy is the point.
-     */
     public function test_the_snapshot_copies_holidays_of_the_date(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -456,11 +416,6 @@ class ComputerTest extends TestCase
         $this->assertArrayNotHasKey('reference', $snapshot['holidays'][0]);
     }
 
-    /**
-     * Decisions 66 and 68: a regular holiday looks back past rest days
-     * to the preceding work day. An unexcused absence there withholds
-     * the credit; the in-run row is the authority.
-     */
     public function test_a_regular_holiday_withholds_credit_after_an_unexcused_absence(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -494,10 +449,6 @@ class ComputerTest extends TestCase
         $this->assertSame(480, $workday->worked);
     }
 
-    /**
-     * The load window is `to + 4 days`, not `to`. Computing only the
-     * duty's start date must still see the out two days later.
-     */
     public function test_a_single_date_compute_still_claims_the_duty_out_two_days_later(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->dutyFortyEight();
@@ -511,10 +462,6 @@ class ComputerTest extends TestCase
         $this->assertTrue($workday->punches()->where('timelog_id', $out->id)->exists());
     }
 
-    /**
-     * The load window is `from − 1 day`, not `from`. A 00:30 in with
-     * window −120 opens at 22:30 the evening before.
-     */
     public function test_an_in_window_that_opens_the_evening_before_still_claims_that_tap(): void
     {
         $employee = $this->employee();
@@ -553,11 +500,6 @@ class ComputerTest extends TestCase
         $this->assertSame('2026-09-08 23:50:00', $punch->actual_at->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * The immediately preceding **work** day: an Off turn between the
-     * absence and the holiday is skipped, not a stop, so it does not
-     * launder the absence.
-     */
     public function test_a_rest_day_between_the_absence_and_the_holiday_does_not_launder_the_absence(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -576,15 +518,6 @@ class ComputerTest extends TestCase
         $this->assertSame(0, $holiday->worked);
     }
 
-    /**
-     * Decision 82: Workday rule 1 is "one row per employee per calendar day
-     * **in their employment range**", and the orchestrator was writing one
-     * for every date it was handed. `Resolver`'s docblock assigns this
-     * question here in as many words — "no roster" and "not employed" are
-     * different outcomes — and nothing was asking it, so a recompute
-     * spanning a hiring date wrote absences against days the person did not
-     * work here.
-     */
     public function test_dates_outside_the_employment_range_get_no_workday(): void
     {
         $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
@@ -610,11 +543,6 @@ class ComputerTest extends TestCase
         );
     }
 
-    /**
-     * And no ledger either. `firstOrCreate` runs per date inside `persist`,
-     * so skipping the date skips the month it would have opened — a person
-     * hired in October has no September DTR to lock.
-     */
     public function test_a_month_entirely_outside_employment_opens_no_ledger(): void
     {
         $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
@@ -632,10 +560,6 @@ class ComputerTest extends TestCase
         $this->assertSame(0, Ledger::query()->where('employee_id', $employee->id)->count());
     }
 
-    /**
-     * A gap between placements is outside employment too — the range is the
-     * union of the deployments, not the span from the first to the last.
-     */
     public function test_a_gap_between_placements_gets_no_workday(): void
     {
         $employee = Employee::factory()->create(['agency_id' => $this->agency->id]);
@@ -666,15 +590,6 @@ class ComputerTest extends TestCase
         );
     }
 
-    /**
-     * Decision 78, end to end. Nine hours of duty on a rest day, and before
-     * this the whole day recorded `worked 0 credited 0 excess 0` with no
-     * punch rows: `Matcher::match()` returned nothing when the expectation
-     * was empty, so daily rule 10's "first 480 minutes of actual attendance"
-     * had no attendance to read. Status stays `off` — rule 1, the status
-     * describes the expectation — and the work shows in `credited`,
-     * `excess` and `premium`.
-     */
     public function test_a_rest_day_worked_records_its_minutes_and_its_punches(): void
     {
         $this->agency->update(['settings' => ['premium_hours' => true]]);
@@ -712,13 +627,6 @@ class ComputerTest extends TestCase
         );
     }
 
-    /**
-     * The same for a non-working holiday, which the calendar empties by a
-     * different road (05-calendar.md rule 1) and which arrives at the same
-     * matcher. `credited` stays 0 under CSC, where `premium_hours` is false
-     * and holiday work is `excess` against an authority — the minutes are
-     * recorded either way, which is the point.
-     */
     public function test_a_non_working_holiday_worked_records_its_minutes(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
@@ -741,13 +649,6 @@ class ComputerTest extends TestCase
         $this->assertSame(2, $workday->punches()->count());
     }
 
-    /**
-     * Decision 77: a holiday between the absence and the holiday does not
-     * launder it either. A special non-working holiday expects no work, so
-     * it is not "the immediately preceding work day" and the walk goes past
-     * it — the Christmas case, where an employee absent without leave on
-     * the 23rd was paid the 25th because Christmas Eve sat in between.
-     */
     public function test_a_holiday_between_the_absence_and_the_holiday_does_not_launder_the_absence(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -771,14 +672,6 @@ class ComputerTest extends TestCase
         $this->assertSame(0, $holiday->worked);
     }
 
-    /**
-     * The other side of decision 77's `Exempt => true`: an excusing
-     * exemption **is** the answer when it is the preceding work day's own
-     * status. Absent without leave Monday, on approved leave Tuesday,
-     * regular holiday Wednesday — section F asks about Tuesday and
-     * Tuesday alone, so the credit stands. The walk stops at `exempt`; it
-     * only walks past days nothing was required on.
-     */
     public function test_an_excused_day_stops_the_walk_short_of_an_earlier_absence(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -800,11 +693,6 @@ class ComputerTest extends TestCase
         $this->assertSame(480, $this->workday($employee, '2026-09-09')->worked);
     }
 
-    /**
-     * The third day nothing was required on. A whole-day work suspension is
-     * not the preceding work day either — the employee could not have been
-     * present on it — so it does not launder the absence before it.
-     */
     public function test_a_suspended_day_between_the_absence_and_the_holiday_does_not_launder_it(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -825,14 +713,6 @@ class ComputerTest extends TestCase
         $this->assertSame(0, $this->workday($employee, '2026-09-10')->worked);
     }
 
-    /**
-     * Decision 77: an excusing exemption covering **part** of a day of no
-     * attendance leaves the day `absent`, and an absence it does not cover
-     * is not excused. `Calendar::status()` reaches `exempt` only for a
-     * whole-day excuse, so this is the only shape an excusing stamp can
-     * take on an `absent` day — and reading that stamp paid the holiday
-     * off two excused hours.
-     */
     public function test_a_partial_excusing_exemption_does_not_excuse_a_day_of_no_attendance(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -855,11 +735,6 @@ class ComputerTest extends TestCase
         $this->assertSame(0, $this->workday($employee, '2026-09-09')->worked);
     }
 
-    /**
-     * Decision 19 / 68: "on leave with pay" is an *excusing* exemption,
-     * not a stamp. A whole-day leave still credits the holiday; a
-     * `personal` slip on an otherwise absent day does not.
-     */
     public function test_a_regular_holiday_credits_after_an_excused_absence_and_withholds_after_a_personal_slip(): void
     {
         Holiday::factory()->create([
@@ -891,15 +766,6 @@ class ComputerTest extends TestCase
         $this->assertSame(0, $this->workday($personal, '2026-09-09')->worked);
     }
 
-    /**
-     * The same rule, reached by the other road. The test above computes each
-     * date in its own call, so the preceding day is read back from
-     * `workdays` — but `RecomputeWorkdays` walks four dates inside **one**
-     * job, and there the preceding day is still only in `$computed`. The two
-     * branches ask the same question of different data and either can be
-     * wrong alone: mutating the in-run one to read `exemptionId !== null`
-     * killed nothing until this test existed.
-     */
     public function test_the_preceding_day_is_judged_the_same_way_within_one_run(): void
     {
         Holiday::factory()->create([
@@ -952,13 +818,6 @@ class ComputerTest extends TestCase
         $this->assertSame($actual, $punch->actual_at->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * Decision 86, the other half of decision 82. The gate stops a date
-     * outside employment being *written*; it says nothing about a row
-     * already there, and narrowing a deployment is exactly what turns
-     * yesterday's honest workday into an absence recorded against somebody
-     * who did not work here.
-     */
     public function test_a_workday_outside_the_employment_range_is_deleted(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -974,7 +833,6 @@ class ComputerTest extends TestCase
         $this->assertFalse($this->exists($employee, '2026-09-10'));
     }
 
-    /** And its punches go with it, because `punches.workday_id` cascades. */
     public function test_deleting_an_orphaned_workday_takes_its_punches(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
@@ -992,12 +850,6 @@ class ComputerTest extends TestCase
         $this->assertFalse(Punch::query()->where('workday_id', $workday->id)->exists());
     }
 
-    /**
-     * Never out of a locked month. `deployments_frozen_month` already refuses
-     * the change that would orphan one, so this filter is what keeps
-     * `workdays_ledger_open` from aborting the transaction over a row this
-     * pass has no business touching.
-     */
     public function test_an_orphaned_workday_in_a_locked_month_is_left_alone(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -1012,13 +864,6 @@ class ComputerTest extends TestCase
         $this->assertTrue($this->exists($employee, '2026-09-10'));
     }
 
-    /**
-     * And the discard leaves the days it has no business touching *as they
-     * are*, not deleted and rewritten. A workday is `updateOrCreate`d, so its
-     * row survives every later recompute; deleting the range wholesale and
-     * rebuilding it would reach the same figures through a new id every time
-     * a punch arrived, and a DTR row is a handle somebody keeps.
-     */
     public function test_recomputing_a_day_keeps_the_row_it_already_had(): void
     {
         ['employee' => $employee] = $this->standardWeek();
@@ -1031,17 +876,6 @@ class ComputerTest extends TestCase
         $this->assertSame($id, $this->workday($employee, '2026-09-10')->id);
     }
 
-    /**
-     * The defect decision 87 fixes, in the shape that produced it: an
-     * expectation-free day early in a range, and the taps of a working day
-     * later in it.
-     *
-     * `over()` walks ascending and loads the candidate timelogs for the whole
-     * range once, so Saturday was computed first and `transits()` — which had
-     * no date to bound it — paired Monday's arrival with Monday's departure
-     * as Saturday's own. Over a three-month seed that was one arrival in June
-     * against one departure in August, and `excess` overflowed a smallint.
-     */
     public function test_a_rest_day_does_not_claim_a_later_days_taps(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();
@@ -1064,7 +898,6 @@ class ComputerTest extends TestCase
         $this->assertSame(2, $monday->punches()->whereNotNull('timelog_id')->count());
     }
 
-    /** A rest day that *was* worked still records its own taps. */
     public function test_a_rest_day_worked_records_the_taps_of_that_day(): void
     {
         ['employee' => $employee, 'enrollment' => $enrollment] = $this->standardWeek();

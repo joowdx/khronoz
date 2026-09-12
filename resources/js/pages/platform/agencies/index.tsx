@@ -27,12 +27,6 @@ import AppLayout from '@/layouts/app-layout';
 import { create, edit, enter, index } from '@/routes/platform/agencies';
 import type { Agency, SharedProps } from '@/types';
 
-/**
- * `AgencyResource` plus the one column only this list asks for. The count is
- * a `withCount` aggregate, so it is present here and absent everywhere else
- * (see the resource's docblock) — which is why it lives in a row type rather
- * than on `Agency` itself.
- */
 interface AgencyRow extends Agency {
     users_count: number;
 }
@@ -53,15 +47,6 @@ interface Pagination {
     next: string | null;
 }
 
-/**
- * Search and sort are the query string, not component state: the list a
- * superuser is looking at has to be a link they can send to a colleague. The
- * pager stays a plain `<Link>`, so a page is as shareable as a search.
- *
- * `only` makes it an Inertia partial reload, so the sidebar, the user menu and
- * the flash bag are all left alone — a re-sent flash would fire its toast a
- * second time on every keystroke.
- */
 function refine(query: Record<string, string | undefined>, replace = false) {
     router.get(index().url, query, {
         preserveState: true,
@@ -71,11 +56,6 @@ function refine(query: Record<string, string | undefined>, replace = false) {
     });
 }
 
-/**
- * The footer's range, which §5.13 makes the table's live status. `from` and
- * `to` are null both when there is nothing at all and when a page number
- * lands past the end of the list, and those two are not the same sentence.
- */
 function range({ from, to, total }: Pagination): string {
     if (total === 0) {
         return 'No agencies';
@@ -84,12 +64,6 @@ function range({ from, to, total }: Pagination): string {
     return from === null ? `0 of ${total}` : `${from} to ${to} of ${total}`;
 }
 
-/**
- * A real `<button>` inside the `<th>`, because `aria-sort` is announced but
- * cannot be activated (§5.13, WCAG 2.1.1). Every sortable head declares
- * `aria-sort`, `"none"` included — the artboard's own markup, and what makes a
- * screen reader say "not sorted" on a column that can be.
- */
 function SortHead({
     column,
     label,
@@ -126,7 +100,6 @@ function SortHead({
     );
 }
 
-/** Enter, then Edit. Nothing destructive: an agency with users cannot be deleted, and the route does not exist. */
 function RowActions({ agency, entered }: { agency: AgencyRow; entered: boolean }) {
     return (
         <DropdownMenu>
@@ -166,13 +139,9 @@ export default function Index({
     filters: Filters;
     pagination: Pagination;
 }) {
-    // Which agency this superuser has entered is already shared with every
-    // page for the sidebar's switcher, so the marker needs no prop of its own.
     const { agency } = usePage<SharedProps>().props;
     const [search, setSearch] = useState(filters.search);
 
-    // Typing is debounced and replaces the history entry, so Back does not
-    // walk through every keystroke; the settled query still lands in the URL.
     useEffect(() => {
         if (search === filters.search) {
             return;
@@ -204,9 +173,6 @@ export default function Index({
             />
 
             {nothingYet ? (
-                // The screen a fresh install lands on: one panel, one sentence
-                // that teaches what an agency is, and the same action the bar
-                // offers (§5.20).
                 <Card className="p-8">
                     <EmptyState
                         className="py-0"
@@ -217,13 +183,6 @@ export default function Index({
                 </Card>
             ) : (
                 <Card
-                    // ui/table.tsx wraps the table in `overflow-x-auto`, and an
-                    // overflow ancestor becomes the sticky scrollport — which
-                    // silently stops the head pinning under the 56px bar
-                    // (components.md). A code, a name and a count have nothing
-                    // to scroll sideways, so the container is handed back to
-                    // the shell's own scroller. MEASURED: with the primitive's
-                    // own overflow the head lands at -75 instead of 56.
                 >
                     <CardHeader className="min-h-[60px]">
                         <div className="relative w-[260px] max-w-full">
@@ -265,10 +224,6 @@ export default function Index({
                         <TableBody>
                             {agencies.length === 0 ? (
                                 <TableRow className="hover:[&>td]:bg-transparent">
-                                    {/* The head and the filters stay on screen,
-                                        because a filter can bring rows back
-                                        (§5.13) — so the search that emptied the
-                                        table is also the way out of it. */}
                                     <TableCell colSpan={4} className="h-auto border-b-0 py-2 whitespace-normal">
                                         {searching ? (
                                             <EmptyState
@@ -282,11 +237,6 @@ export default function Index({
                                                 }
                                             />
                                         ) : (
-                                            // A page number past the end of the
-                                            // list. Nobody links here, but the
-                                            // query string is public, so it says
-                                            // what happened rather than blaming a
-                                            // search that was never typed.
                                             <EmptyState
                                                 className="py-6"
                                                 title="Nothing on this page"
@@ -307,11 +257,6 @@ export default function Index({
                                     return (
                                         <TableRow
                                             key={row.id}
-                                            // The selected-row tint (§5.13). Not
-                                            // `aria-selected`: that is only valid
-                                            // inside a grid, and the word in the
-                                            // row is what actually carries the
-                                            // meaning.
                                             data-state={entered ? 'selected' : undefined}
                                         >
                                             <TableCell className="font-medium">{row.code}</TableCell>
@@ -350,11 +295,6 @@ export default function Index({
     );
 }
 
-/**
- * A page link while there is a page to go to, and a disabled button when there
- * is not — a link with nowhere to go is worse than an obviously spent control.
- * Real hrefs, so a page of the list is as shareable as a search of it.
- */
 function Pager({ href, label, children }: { href: string | null; label: string; children: ReactNode }) {
     if (!href) {
         return (

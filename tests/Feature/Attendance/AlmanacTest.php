@@ -34,11 +34,6 @@ class AlmanacTest extends TestCase
         $this->agency = Agency::factory()->create();
     }
 
-    /**
-     * National holidays must be written before the tenant is set:
-     * BelongsToAgency refuses an explicit agency_id that disagrees with it,
-     * and a national row belongs to the platform agency.
-     */
     private function enter(): void
     {
         $this->withTenant($this->agency);
@@ -51,7 +46,6 @@ class AlmanacTest extends TestCase
         return Employee::factory()->create(['agency_id' => $this->agency->id]);
     }
 
-    /** An employee whose substantive placement covers 2026. */
     private function deployedIn(Workgroup $workgroup): Employee
     {
         $this->enter();
@@ -68,17 +62,14 @@ class AlmanacTest extends TestCase
         return $employee;
     }
 
-    /** @param  Collection<int, mixed>  $rows */
+    /**
+     * @param  Collection<int, mixed>  $rows
+     */
     private function ids(Collection $rows): array
     {
         return $rows->pluck('id')->sort()->values()->all();
     }
 
-    /**
-     * A national holiday is owned by the platform agency and applies to
-     * every tenant through AgencyOrPlatformScope. Adding an agency_id
-     * filter of our own would silently drop it.
-     */
     public function test_a_national_holiday_reaches_a_tenant_employee(): void
     {
         $holiday = Holiday::factory()->national()->create([
@@ -93,11 +84,6 @@ class AlmanacTest extends TestCase
         $this->assertSame([$holiday->id], $this->ids($almanac->holidays($date)));
     }
 
-    /**
-     * Two holidays on one date is the normal case this milestone exists
-     * to preserve: a local charter day on a national special day, both
-     * owed. Deciding which governs is the next chunk's job.
-     */
     public function test_two_holidays_on_one_date_are_both_returned(): void
     {
         $national = Holiday::factory()->national()->create([
@@ -120,7 +106,6 @@ class AlmanacTest extends TestCase
         );
     }
 
-    /** Agency-wide (`workgroup_id` null): everyone deployed on the date. */
     public function test_an_agency_wide_suspension_reaches_a_deployed_employee(): void
     {
         $workgroup = Workgroup::factory()->create(['agency_id' => $this->agency->id]);
@@ -135,10 +120,6 @@ class AlmanacTest extends TestCase
         $this->assertSame([$suspension->id], $this->ids($almanac->suspensions($this->date)));
     }
 
-    /**
-     * A workgroup suspension reaches an employee through their substantive
-     * placement — no movement covering the date, placement in the subtree.
-     */
     public function test_a_workgroup_suspension_reaches_an_employee_through_their_placement(): void
     {
         $mother = Workgroup::factory()->create(['agency_id' => $this->agency->id]);
@@ -150,12 +131,6 @@ class AlmanacTest extends TestCase
         $this->assertSame([$suspension->id], $this->ids($almanac->suspensions($this->date)));
     }
 
-    /**
-     * The clause rule 3 exists to keep: the same mother-office closure must
-     * not reach someone detailed *out* of it. Their operative deployment
-     * that day is the receiving office; dropping the negative "no movement"
-     * clause would excuse a day they actually worked elsewhere.
-     */
     public function test_a_workgroup_suspension_does_not_reach_an_employee_detailed_out(): void
     {
         $mother = Workgroup::factory()->create(['agency_id' => $this->agency->id]);
@@ -174,12 +149,6 @@ class AlmanacTest extends TestCase
         $this->assertSame([], $this->ids($almanac->suspensions($this->date)));
     }
 
-    /**
-     * An exemption is a closed date range, not a date. RA 11210's 105 days
-     * is one row that must appear under every day it covers, including
-     * Saturdays — and still appear when the Almanac range is a slice of
-     * the leave, which is the case a `whereBetween('date', …)` would miss.
-     */
     public function test_a_multi_day_exemption_appears_under_every_date_it_covers(): void
     {
         $employee = $this->employee();
@@ -204,11 +173,6 @@ class AlmanacTest extends TestCase
         $this->assertSame([], $this->ids($almanac->exemptions($first->addDays(105))));
     }
 
-    /**
-     * `personal` excuses no minute (decision 19) but is still recorded and
-     * printed. Dropping it here would lose it from the form; whether it
-     * excuses anything is the deriver's question, asked through excused().
-     */
     public function test_a_personal_slip_is_still_returned(): void
     {
         $employee = $this->employee();
@@ -223,11 +187,6 @@ class AlmanacTest extends TestCase
         $this->assertSame([$slip->id], $this->ids($almanac->exemptions($this->date)));
     }
 
-    /**
-     * Three loads for the range, plus at most one appliesTo() exists() per
-     * suspension found. Thirty days and one day, covering the same rows,
-     * must cost the same. The readers themselves must not query.
-     */
     public function test_loading_thirty_days_issues_the_same_queries_as_one(): void
     {
         $workgroup = Workgroup::factory()->create(['agency_id' => $this->agency->id]);
@@ -262,7 +221,6 @@ class AlmanacTest extends TestCase
         $this->assertSame(0, $queries, 'readers filter the already-loaded set in PHP');
     }
 
-    /** from after to loads nothing; every reader is empty. */
     public function test_from_after_to_loads_nothing(): void
     {
         $employee = $this->employee();

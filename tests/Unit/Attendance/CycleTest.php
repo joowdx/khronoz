@@ -23,7 +23,6 @@ class CycleTest extends TestCase
         return CarbonImmutable::parse('2026-09-07');
     }
 
-    /** The anchor is cycle day zero, not a start date. */
     public function test_the_anchor_date_is_position_zero(): void
     {
         $anchor = $this->monday();
@@ -32,7 +31,6 @@ class CycleTest extends TestCase
         $this->assertSame(0, Cycle::position($anchor, $anchor, 21));
     }
 
-    /** Days after the anchor count forward and wrap at length, so next Monday is 0 again. */
     public function test_days_after_the_anchor_count_forward_and_wrap(): void
     {
         $anchor = $this->monday();
@@ -43,15 +41,6 @@ class CycleTest extends TestCase
         $this->assertSame(7, Cycle::position(CarbonImmutable::parse('2026-09-14'), $anchor, 21));
     }
 
-    /**
-     * A date before the anchor is ordinary: `rosters.starts` may precede
-     * `rosters.anchor`, and the anchor is only cycle day zero.
-     *
-     * PHP's `%` is remainder, not modulo — `(-3) % 7` is `-3`, not `4` —
-     * so this is the case that ships broken if position is `$diff % $length`.
-     * Taking `abs($diff)` fails the other way: ten days before is position
-     * 4, not 3.
-     */
     public function test_a_date_before_the_anchor_wraps_to_a_positive_position(): void
     {
         $anchor = $this->monday();
@@ -61,11 +50,6 @@ class CycleTest extends TestCase
         $this->assertSame(4, Cycle::position(CarbonImmutable::parse('2026-08-28'), $anchor, 7));
     }
 
-    /**
-     * Roster.anchor is a date, and so is D. A CarbonInterface may still
-     * carry a time of day; two hours apart across midnight is one calendar
-     * day, not zero elapsed 86400-second days.
-     */
     public function test_position_uses_the_calendar_date_not_elapsed_hours(): void
     {
         $anchor = CarbonImmutable::parse('2026-09-07 23:00:00');
@@ -74,10 +58,6 @@ class CycleTest extends TestCase
         $this->assertSame(1, Cycle::position($date, $anchor, 7));
     }
 
-    /**
-     * Eloquent dates are mutable Carbon. startOfDay() on those would rewind
-     * the caller's instance, so the class must copy first.
-     */
     public function test_a_mutable_date_is_not_rewound_to_midnight(): void
     {
         $date = Carbon::parse('2026-09-08 15:00:00');
@@ -88,11 +68,6 @@ class CycleTest extends TestCase
         $this->assertSame('2026-09-07 09:00:00', $anchor->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * `schedules_length_bounded` makes 1..366 the only legal values from
-     * the database, but this class is pure and takes an int. Zero must
-     * throw rather than emit a DivisionByZeroError from `%`.
-     */
     public function test_a_zero_length_is_refused_rather_than_dividing(): void
     {
         $this->expectException(InvalidArgumentException::class);

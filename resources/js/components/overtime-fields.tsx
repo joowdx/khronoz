@@ -4,19 +4,6 @@ import { Field } from '@/components/field';
 import { Input } from '@/components/ui/input';
 import type { Choice, Employee, Overtime } from '@/types';
 
-/**
- * Authorising overtime.
- *
- * Both bounds are `datetime-local` rather than a date plus two clock times,
- * and that is the design rather than convenience: an authorisation routinely
- * crosses midnight, and 22:00–02:00 is one stretch of work. A date-and-times
- * form has to invent a rule for which day the end belongs to, and every such
- * rule is wrong for somebody; two timestamps simply say it.
- *
- * There is no field for the day it counts against — `overtimes.date` is
- * generated from `starts`, so an overnight stretch belongs to the day it began
- * on, and Postgres refuses an insert into that column outright.
- */
 export function OvertimeFields({
     overtime,
     employees,
@@ -31,7 +18,6 @@ export function OvertimeFields({
     const [employee, setEmployee] = useState<string | null>(overtime?.employee_id ?? null);
     const [mode, setMode] = useState<string>(overtime?.mode.value ?? 'pay');
 
-    // `datetime-local` wants `YYYY-MM-DDTHH:MM`; the API sends a space and seconds.
     const local = (value?: string) => (value ? value.slice(0, 16).replace(' ', 'T') : undefined);
 
     return (

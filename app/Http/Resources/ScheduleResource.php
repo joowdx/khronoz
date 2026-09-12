@@ -18,7 +18,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class ScheduleResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [
@@ -30,11 +32,6 @@ class ScheduleResource extends JsonResource
                 'fallbackShift',
                 fn (Shift $shift) => ShiftResource::make($shift)->resolve(),
             ),
-            // The closure form for a collection too, and for the same reason
-            // resources.md gives for a nullable belongsTo: the one-argument
-            // `whenLoaded` returns a MissingValue, and ResourceCollection calls
-            // ->first() on it, which is "Call to a member function first() on
-            // null" and reaches a test as "Not a valid Inertia response".
             'turns' => $this->whenLoaded('turns', fn () => TurnResource::collection($this->turns)->resolve()),
             'origin_id' => $this->origin_id,
             'origin' => $this->whenLoaded('origin', fn (Schedule $origin) => ScheduleResource::make($origin)->resolve()),

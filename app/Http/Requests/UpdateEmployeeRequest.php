@@ -8,15 +8,11 @@ use Illuminate\Validation\Rule;
 
 class UpdateEmployeeRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return $this->user()->can('update', $this->route('employee'));
     }
 
-    /** Default a wholly-unchecked tag list to [], the same way StoreEmployeeRequest does. */
     protected function prepareForValidation(): void
     {
         $this->merge([
@@ -25,11 +21,7 @@ class UpdateEmployeeRequest extends FormRequest
         ]);
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, array<int, mixed>>
-     */
+    /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
         $employee = $this->route('employee');

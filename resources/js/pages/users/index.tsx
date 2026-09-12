@@ -52,12 +52,6 @@ import AppLayout from '@/layouts/app-layout';
 import { create, destroy, edit, index, invite } from '@/routes/users';
 import type { User } from '@/types';
 
-/**
- * The list row's shape: `UserResource` plus the three things it computes for
- * this screen. Declared here rather than in types/index.d.ts because nothing
- * else consumes them — the Access label, the status and the invitation link
- * exist for this table and its row menu.
- */
 interface UserRow extends User {
     access: { label: string; preset: string | null };
     status: 'active' | 'invited';
@@ -85,15 +79,8 @@ interface Pagination {
     next: string | null;
 }
 
-/** Only the props the list itself owns come back on a filter change. */
 const PARTIAL = ['users', 'pagination', 'filters'];
 
-/**
- * Everything the list is looking at travels in the query string, so the view
- * is a link: `/users?status=invited` is what the dashboard's "Invitations not
- * yet accepted" row points at. Defaults are dropped rather than spelled out,
- * so an unfiltered list is `/users` and nothing else.
- */
 function query(filters: Filters, page?: string): Record<string, string> {
     const params: Record<string, string> = {};
 
@@ -121,7 +108,6 @@ function query(filters: Filters, page?: string): Record<string, string> {
     return params;
 }
 
-/** A row's own colour comes from the person's name (§7.3), never from a field. */
 function Person({ user }: { user: UserRow }) {
     return (
         <span className="flex items-center gap-2.5">
@@ -151,10 +137,6 @@ export default function Index({
 }) {
     const [search, setSearch] = useState(filters.search);
 
-    // Typing reloads the list, not the page: only the three props the table
-    // reads come back, the scroll position and this box's own state stay put,
-    // and the history entry is replaced so a search does not fill the back
-    // button with keystrokes.
     useEffect(() => {
         if (search === filters.search) {
             return;
@@ -184,12 +166,6 @@ export default function Index({
         router.get(url, {}, { only: PARTIAL, preserveState: true });
     }
 
-    /**
-     * A head is sortable, so it is a real button inside the `th`, and the
-     * direction belongs to the column, so `aria-sort` sits on the `th`
-     * (§5.13). Clicking the sorted column reverses it; clicking another
-     * starts that column ascending.
-     */
     function sortable(column: Filters['sort'], label: string, className?: string): ReactNode {
         const sorted = filters.sort === column;
 
@@ -238,9 +214,6 @@ export default function Index({
             />
 
             {users.length === 0 && !filtered ? (
-                // The screen a new agency lands on: one panel, one sentence
-                // that says how access works, and the same action the bar
-                // offers (§5.20).
                 <Card className="p-8">
                     <EmptyState
                         className="py-0"
@@ -251,12 +224,6 @@ export default function Index({
                 </Card>
             ) : (
                 <Card
-                    // ui/table.tsx wraps the table in `overflow-x-auto`, and an
-                    // overflow ancestor becomes the sticky scrollport — which
-                    // silently stops the head pinning under the 56px bar
-                    // (components.md). Four narrow columns have nothing to
-                    // scroll sideways, so the container is handed back to the
-                    // shell's own scroller.
                 >
                     <CardHeader className="min-h-[60px] flex-wrap">
                         <span className="relative">
@@ -279,9 +246,6 @@ export default function Index({
                                 <span className="text-muted-foreground font-normal">Access</span>
                                 <SelectValue />
                             </SelectTrigger>
-                            {/* Below the trigger, not over it: the item-aligned
-                                default covers the trigger's own "Access" label
-                                for as long as the list is open. */}
                             <SelectContent position="popper" align="start" sideOffset={6}>
                                 {accesses.map((option) => (
                                     <SelectItem key={option.value} value={option.value}>
@@ -393,12 +357,6 @@ export default function Index({
     );
 }
 
-/**
- * The row's own actions, in the only other place a shadow is allowed (§5.14).
- * Only what the row can actually do is offered: an accepted invitation has
- * nothing to re-send and no link left to copy, and the fault-coloured item
- * names what it destroys — an outstanding invitation, or an account.
- */
 function RowMenu({ user, onCopy }: { user: UserRow; onCopy: (url: string) => void }) {
     const invited = user.status === 'invited';
 

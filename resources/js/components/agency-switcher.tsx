@@ -11,27 +11,7 @@ import {
 import { enter, index, leave } from '@/routes/platform/agencies';
 import type { Agency, SharedProps } from '@/types';
 
-/**
- * The block at the top of the sidebar: whose records you are looking at.
- *
- * For an agency user it is static — they have exactly one agency and there is
- * nothing to switch to, so it carries no affordance that suggests otherwise.
- * For a platform user it is a menu: enter an agency to adopt it as the tenant
- * for the rest of the session, or leave back to the platform itself (see
- * SetTenant).
- *
- * Geometry is §5.3's agency block: a 32px tile on `--acc-soft` with the code
- * in `--acc-text` at 11/14/600, the name at 14/18/600 over at most two lines,
- * and a second line beneath it. In the artboard that second line is the
- * headcount, "214 employees". There are no employees in Milestone 1 —
- * `Employee` arrives in Milestone 2 — so rather than invent a number it reads
- * the agency's own code, which is also the only place a screen reader hears
- * the code at all: the tile is decoration.
- */
 function tile(agency: Agency): string {
-    // An agency code is short and is the agency's identity: DOH, PHO, LGU-IL.
-    // The platform row's code is the literal word "platform", which is not an
-    // identity anyone reads, so that one falls back to its name's initials.
     return agency.code.length <= 4 ? agency.code.toUpperCase() : initials(agency.name);
 }
 
@@ -48,14 +28,6 @@ function Identity({ agency }: { agency: Agency }) {
             >
                 {tile(agency)}
             </span>
-            {/*
-              The tile survives into the rail and this does not: the tile is
-              already the agency's code, so collapsing loses the full name and
-              nothing else. It is `aria-hidden`, so the name here is the only
-              one a screen reader hears — which is why the switch is `hidden`
-              and not a render branch: the markup stays, the rail just does not
-              draw it.
-            */}
             <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                 <span className="line-clamp-2 block text-sm leading-[18px] font-semibold">{agency.name}</span>
                 <span className="text-muted-foreground block truncate text-xs leading-4">{descriptor(agency)}</span>
@@ -71,10 +43,6 @@ export function AgencySwitcher() {
         return null;
     }
 
-    // Both forms are the same box — 10 of outer padding and 6 of inner, so the
-    // tile lands on the 16 §5.3 asks for and the day strip below starts at the
-    // same offset whichever form is rendered. The inner padding exists so the
-    // menu form's hover tint can bleed past the text.
     if (!auth?.user?.platform) {
         return (
             <div className="px-2.5 pt-2.5 group-data-[collapsible=icon]:px-4">

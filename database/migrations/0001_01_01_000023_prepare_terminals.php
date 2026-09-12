@@ -6,66 +6,12 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * The ingestion tables' shared functions, the arrangement
-     * 0001_01_01_000008_prepare_organization,
-     * 0001_01_01_000012_prepare_scheduling and
-     * 0001_01_01_000018_prepare_calendar all make: they live here rather than
-     * in a table migration because they span two tables each, and one `down()`
-     * means no table migration has to know whether it may drop a function.
-     *
-     * OR REPLACE, for the reason every migration function is: `db:wipe` (what
-     * `migrate:fresh` runs, i.e. every test run) drops tables, views and types
-     * but never functions (.ai/rules/migrations.md).
-     *
-     * Both functions name `timelogs`, which does not exist when this migration
-     * runs. That is legal: plpgsql resolves table names at **first execution**,
-     * not when the function is compiled. The trap is a rowtype —
-     * `DECLARE x timelogs%ROWTYPE` *is* resolved at compile time and would fail
-     * here. Neither function uses one, and neither may gain one.
+     * Shared functions avoid future-table rowtypes because those resolve before timelogs exists.
      */
     public function up(): void
     {
-        // 03-terminals.md rule 3: `employee_id` and `enrollment_id` are set by
-        // the database, not the app. Whatever a client puts in those two
-        // columns is overwritten on every insert path — file import, manual
-        // entry, and the push and pull protocols when they arrive.
-        //
-        // The lookup is deterministic because the two exclusion constraints on
-        // `enrollments` guarantee at most one enrollment covers a given
-        // (terminal_id, uid, date). Finding nothing is not an error: both
-        // columns stay null, the timelog is *unresolved and still visible*,
-        // and `timelogs_resolved_pair` holds the two columns null together.
-        //
-        // FOR SHARE is not decoration, and without it this resolver loses a
-        // race that costs someone their pay. Demonstrated with two sessions:
-        // A opens a transaction and ends an enrollment on 31 January — its
-        // AFTER trigger scans the timelogs that exist *at that moment* and
-        // finds nothing — while B, under READ COMMITTED, inserts a punch dated
-        // 1 February and resolves it against the pre-A snapshot, in which the
-        // enrollment is still open. B commits, then A commits, and a February
-        // punch is attributed through an enrollment that ended in January.
-        // Neither transaction ever sees the other, and the paired FK waves it
-        // through because it does not constrain the date.
-        //
-        // The share lock closes both orderings with one mechanism. B now
-        // blocks on A's uncommitted row and, when A commits, READ COMMITTED
-        // re-evaluates the predicate against the *new* version — so the
-        // enrollment no longer covers 1 February and the punch correctly stays
-        // unresolved. In the reverse ordering B holds the share lock first, so
-        // A's UPDATE waits until B's row is visible and A's own re-resolution
-        // then sees it.
-        //
-        // The cost is that an import blocks while an enrollment is being
-        // edited. Enrollment edits are rare and short; a mis-attributed punch
-        // is neither.
-        //
-        // SECURITY DEFINER, so it keeps writing these columns after commit 5
-        // revokes the app role's UPDATE on the table. That is the whole reason
-        // resolution can be the database's job rather than the app's.
-        //
-        // The first exclusion constraint's gist index serves this lookup
-        // (terminal_id = ? AND uid = ? AND range @> date), so it costs one
-        // index probe and no extra index.
+        // `FOR SHARE` prevents stale attribution during enrollment edits.
+        // SECURITY DEFINER preserves resolution after app-role updates are revoked.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION timelogs_resolve() RETURNS trigger
             LANGUAGE plpgsql SECURITY DEFINER
@@ -83,23 +29,8 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // The same rule re-applied when an enrollment appears or moves.
-        //
-        // It runs for **both** the NEW pair and, on an update that changed
-        // them, the OLD (terminal_id, uid) pair — and that second pass is not
-        // symmetry for its own sake. `timelogs.uid` is what the *device*
-        // reported and is never rewritten (decision 42), so correcting an
-        // enrollment's mistyped uid from '1102' to '01102' leaves every punch
-        // it had resolved still carrying '1102'. Scoped to the NEW pair alone
-        // the function would never look at those rows, and they would stay
-        // attributed through an enrollment that no longer claims them —
-        // a wrong answer that looks exactly like a right one, and a foreign
-        // key violation at commit.
-        //
-        // Two statements per pair. The first attaches every punch the covering
-        // enrollment now claims; the second detaches every punch no enrollment
-        // covers any more. The second is the branch a happy-path test never
-        // reaches and the one that keeps a narrowed range honest.
+        // Re-resolve both NEW and OLD pairs: device-reported timelog UIDs are never rewritten.
+        // Attach covered timelogs, then detach those no enrollment covers.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION enrollments_reresolve() RETURNS trigger
             LANGUAGE plpgsql SECURITY DEFINER
@@ -146,7 +77,9 @@ return new class extends Migration
         SQL);
     }
 
-    /** The one place these are dropped; the argument lists are required. */
+    /**
+     * This is the sole owner of the functions; their argument lists disambiguate the drops.
+     */
     public function down(): void
     {
         DB::statement('DROP FUNCTION IF EXISTS timelogs_resolve()');

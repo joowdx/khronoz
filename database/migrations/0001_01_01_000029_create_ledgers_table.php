@@ -8,18 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * One employee-month, with a lock on it and nothing else
-     * (docs/design/06-attendance.md Ledger rules 1–3). Totals and occurrence
-     * counts are derived from its workdays, which arrive in a later migration.
-     *
-     * No `deployment_id` (decision 30): visibility is a predicate over
-     * overlapping deployment ranges, and a single FK would hand a split month
-     * to exactly one workgroup. The freeze on those ranges is
-     * `deployments_frozen_month`, attached here because it queries `ledgers`,
-     * which did not exist at 000011.
-     *
-     * No `agency_not_platform` trigger: a ledger needs an employee, and
-     * `employees` refuses the platform agency already.
+     * Deployment visibility is range-based, so a split month cannot have one deployment foreign key.
      */
     public function up(): void
     {
@@ -58,11 +47,7 @@ return new class extends Migration
                 EXECUTE FUNCTION ledgers_unlock_clean();
         SQL);
 
-        // Attached here, not in 000011, 000021 and 000022: the functions
-        // query `ledgers`. Decision 81 adds the second and third — a locked
-        // month's figures are read from `overtimes` and `exemptions` as well
-        // as from the frozen workday, so all three tables are frozen against
-        // the months they would move.
+        // Attach these triggers after ledgers exist because their functions query it.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER deployments_frozen_month
                 BEFORE INSERT OR UPDATE OR DELETE ON deployments

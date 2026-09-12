@@ -18,22 +18,7 @@ class StoreExemptionRequest extends FormRequest
         return $this->user()->can('create', Exemption::class);
     }
 
-    /**
-     * Two rules mirror CHECKs that would otherwise arrive as a 500.
-     *
-     * `until` is `after_or_equal:date`, not `after` — a one-day exemption is
-     * `until = date`, which is the canonical spelling since decision 38 made
-     * the column NOT NULL.
-     *
-     * And **a multi-day exemption cannot carry hours**
-     * (`exemptions_span_is_whole_days`). A 10:00–14:00 window repeated across
-     * 105 days is not something an order ever means, and a row saying it would
-     * make the deriver excuse four hours a day of a continuous statutory
-     * leave — under-excusing by an entire entitlement. `prohibited_unless`
-     * puts that on the field rather than in a 23514.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [

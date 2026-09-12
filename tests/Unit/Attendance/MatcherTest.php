@@ -103,12 +103,6 @@ class MatcherTest extends TestCase
         $this->assertSame($actual, $punch['actual_at']->format('Y-m-d H:i:s'));
     }
 
-    /**
-     * 06-attendance.md, the chain for one day. Standard 8–5, five taps.
-     * Decision 67: 19:31 loses the 17:00 out to 17:05 and does not then
-     * fill the missed afternoon in. The 07:58 double tap is equidistant,
-     * so in keeps the earlier.
-     */
     public function test_standard_worked_example_fills_four_punches_and_leaves_the_stray_unused(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -128,13 +122,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 17:00:00', 'd', '2026-09-08 17:05:00', 5);
     }
 
-    /**
-     * Decision 78: nothing was expected, but the device still saw the day.
-     * The taps pair off in time order — first and second are slot 1, third
-     * and fourth slot 2 — with no `expected_at` to be near and therefore no
-     * deviation. Before this a rest day worked recorded nothing at all and
-     * daily rule 10's first 480 minutes had no input.
-     */
     public function test_empty_sides_pair_the_taps_in_time_order(): void
     {
         $matching = Matcher::match([], [
@@ -153,12 +140,6 @@ class MatcherTest extends TestCase
         $this->assertTransit($matching->punches[3], 2, 'out', 'd', '2026-09-12 17:00:00');
     }
 
-    /**
-     * Decision 87. Sides bound a day to its own taps — `fill()` refuses one
-     * outside a slot's window — and a day with no sides had no bound, so it
-     * paired off whatever the caller happened to be holding. `Computer` holds
-     * the whole recompute range.
-     */
     public function test_a_tap_on_another_day_is_no_transit_of_this_one(): void
     {
         $matching = Matcher::match([], [
@@ -173,7 +154,6 @@ class MatcherTest extends TestCase
         $this->assertTransit($matching->punches[1], 1, 'out', 'b', '2026-09-12 17:00:00');
     }
 
-    /** And the day with none of its own records none, not the next day's. */
     public function test_an_expectation_free_day_nobody_attended_records_nothing(): void
     {
         $matching = Matcher::match([], [
@@ -184,7 +164,6 @@ class MatcherTest extends TestCase
         $this->assertSame([], $matching->punches);
     }
 
-    /** No taps, no punches — the day is unattended, not unrecorded. */
     public function test_empty_sides_and_no_taps_return_no_punches(): void
     {
         $matching = Matcher::match([], [], 180, false, $this->day());
@@ -193,7 +172,6 @@ class MatcherTest extends TestCase
         $this->assertSame([], $matching->punches);
     }
 
-    /** An odd tap is an arrival with no departure, and measures nothing. */
     public function test_an_odd_tap_on_an_expectation_free_day_is_a_lone_in(): void
     {
         $matching = Matcher::match([], [
@@ -206,12 +184,6 @@ class MatcherTest extends TestCase
         $this->assertTransit($matching->punches[2], 2, 'in', 'c', '2026-09-12 13:00:00');
     }
 
-    /**
-     * The `state` hint is not consulted here, however the shift is
-     * configured (decision 78): the order already says which side a tap is,
-     * and a hint contradicting it has no conflict rule. Both taps below
-     * claim to be check-ins and the second is still slot 1's out.
-     */
     public function test_the_state_hint_does_not_override_the_order(): void
     {
         $matching = Matcher::match([], [
@@ -223,7 +195,6 @@ class MatcherTest extends TestCase
         $this->assertTransit($matching->punches[1], 1, 'out', 'b', '2026-09-12 17:00:00');
     }
 
-    /** Decision 60 holds here too: seconds are truncated, never rounded. */
     public function test_a_transit_truncates_its_seconds(): void
     {
         $matching = Matcher::match([], [
@@ -233,10 +204,6 @@ class MatcherTest extends TestCase
         $this->assertTransit($matching->punches[0], 1, 'in', 'a', '2026-09-12 08:00:00');
     }
 
-    /**
-     * Decision 60: a device punch at 07:58:12 is 07:58, and its deviation
-     * against an 08:00 in is −2, not −1.8 rounded to −2 by luck.
-     */
     public function test_seconds_are_truncated_not_rounded(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -247,11 +214,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', null, null, null);
     }
 
-    /**
-     * Duty24, 08:00–32:00, window ±60. The slot accepts the whole duty,
-     * and nearest-side (not "morning is in") puts 19:00 on the in and
-     * 21:00 on the out — midpoint 20:00 the same calendar day.
-     */
     public function test_duty_twenty_four_midpoint_splits_in_from_out(): void
     {
         $sides = $this->sides(['in' => '08:00', 'out' => '32:00', 'window' => [-60, 60]]);
@@ -266,11 +228,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-09 08:00:00', 'out', '2026-09-08 21:00:00', -11 * 60);
     }
 
-    /**
-     * A tap exactly at a slot's midpoint is equidistant from both sides.
-     * The earlier side wins: more plausibly a late arrival than an early
-     * departure.
-     */
     public function test_a_tap_at_the_midpoint_fills_the_in(): void
     {
         $sides = $this->sides(['in' => '08:00', 'out' => '32:00', 'window' => [-60, 60]]);
@@ -283,11 +240,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-09 08:00:00', null, null, null);
     }
 
-    /**
-     * Flexitime, arrive 10:30, offset capped at 180. Expected becomes
-     * 10:00–14:00 and 15:00–19:00; the slid window must accept 19:00.
-     * Matching.sides is those slid sides, not the originals.
-     */
     public function test_flexi_slides_first_and_the_slid_window_accepts_the_late_out(): void
     {
         $matching = Matcher::match($this->flexi(), [
@@ -303,10 +255,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 19:00:00', 'out', '2026-09-08 19:00:00', 0);
     }
 
-    /**
-     * The slide's candidate is computed against the unslid slot 1 window.
-     * 06:20 is before Flexi's 06:30 open, so 10:30 defines the offset.
-     */
     public function test_the_flexi_slide_uses_the_earliest_tap_inside_the_unslid_slot(): void
     {
         $matching = Matcher::match($this->flexi(), [
@@ -317,7 +265,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 10:00:00', 'in', '2026-09-08 10:30:00', 30);
     }
 
-    /** Arrive 06:30, on the band open: offset 0, expected stays 07:00. */
     public function test_an_early_flexi_arrival_does_not_slide(): void
     {
         $matching = Matcher::match($this->flexi(), [
@@ -328,10 +275,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 07:00:00', 'in', '2026-09-08 06:30:00', -30);
     }
 
-    /**
-     * trust: state 0 is check-in, so 12:03 fills the afternoon in rather
-     * than the nearer morning out.
-     */
     public function test_trust_restricts_candidates_to_the_device_kind(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -342,10 +285,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', 'c', '2026-09-08 12:03:00', -57);
     }
 
-    /**
-     * trust: state 1 is check-out, so 07:58 fills the morning out rather
-     * than the nearer morning in.
-     */
     public function test_trust_out_state_fills_the_out_not_the_nearer_in(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -356,10 +295,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-08 12:00:00', 'a', '2026-09-08 07:58:00', -242);
     }
 
-    /**
-     * An unknown attlog integer is no hint at all (03-terminals.md rule 6).
-     * 12:03 then takes the nearest side, the morning out.
-     */
     public function test_an_unknown_state_falls_back_to_nearest_side(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -370,7 +305,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', null, null, null);
     }
 
-    /** When the shift has not asked for trust, state is ignored entirely. */
     public function test_untrusted_state_is_ignored(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -381,11 +315,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[2], 2, 'in', '2026-09-08 13:00:00', null, null, null);
     }
 
-    /**
-     * Decision 67: among competitors for one in, nearest fills it. 08:05
-     * is 5 minutes late; 07:50 is 10 minutes early. First-wins would keep
-     * 07:50.
-     */
     public function test_the_nearer_in_fills_the_side_not_the_earlier_one(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -396,11 +325,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'near', '2026-09-08 08:05:00', 5);
     }
 
-    /**
-     * Decision 67: among competitors for one out, nearest fills it. 17:05
-     * is 5 minutes late; 19:31 is 151. Last-wins would keep 19:31, and a
-     * cascade would then fill the afternoon in.
-     */
     public function test_the_nearer_out_fills_the_side_not_the_later_one(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -412,7 +336,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 17:00:00', 'near', '2026-09-08 17:05:00', 5);
     }
 
-    /** Equidistant ins: the kind tie-break keeps the earlier. */
     public function test_equidistant_ins_keep_the_earlier(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -423,7 +346,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[0], 1, 'in', '2026-09-08 08:00:00', 'first', '2026-09-08 07:50:00', -10);
     }
 
-    /** Equidistant outs: the kind tie-break keeps the later. */
     public function test_equidistant_outs_keep_the_later(): void
     {
         $matching = Matcher::match($this->standard(), [
@@ -434,10 +356,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[3], 2, 'out', '2026-09-08 17:00:00', 'second', '2026-09-08 17:10:00', 10);
     }
 
-    /**
-     * Hospital Night. `"out": "30:00"` is 06:00 the next day; the workday
-     * of the 8th owns that punch.
-     */
     public function test_hospital_night_out_lands_on_the_next_day(): void
     {
         $sides = $this->sides(['in' => '22:00', 'out' => '30:00', 'window' => [-120, 120]]);
@@ -451,10 +369,6 @@ class MatcherTest extends TestCase
         $this->assertPunch($matching->punches[1], 1, 'out', '2026-09-09 06:00:00', 'out', '2026-09-09 06:02:00', 2);
     }
 
-    /**
-     * Times are naive local wall clock. Converting to UTC would move a
-     * Manila midnight and break the next-day out.
-     */
     public function test_times_do_not_convert_a_timezone(): void
     {
         $day = CarbonImmutable::parse('2026-09-08', 'Asia/Manila');

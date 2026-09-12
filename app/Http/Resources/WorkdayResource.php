@@ -12,20 +12,13 @@ use Illuminate\Support\Collection;
 /**
  * Matches the `Workday` interface in resources/js/types/index.d.ts.
  *
- * `shift_name` is the frozen snapshot (`$workday->shift['shift']['name']`),
- * never the live `shifts` row — Workday rule 2. `resolvedShift()` is
- * provenance and this resource must not load it. `date` is a date-cast
- * column, sent as `YYYY-MM-DD` (.ai/rules/resources.md).
- *
- * `exemption` is the stamp on the day, not ExemptionResource: id, type as a
- * Choice, and reference. A personal slip still prints (daily rule 7).
- * `exemption_id` is nullable, so this uses the closure form of `whenLoaded`.
- *
  * @mixin Workday
  */
 class WorkdayResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

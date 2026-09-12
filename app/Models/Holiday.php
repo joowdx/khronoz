@@ -16,31 +16,17 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope as EloquentScope;
 
-/**
- * A date on which no work is expected, or on which work is paid at a premium
- * (docs/design/05-calendar.md rule 1).
- *
- * **A date may carry more than one holiday, and both are owed.** Eid al-Fitr
- * can land on Bonifacio Day and a city charter day on a national special day;
- * DOLE's rule (dole-rules.md section I item 6) applies the higher rate and the
- * day may attract both premiums. `holidays_agency_id_date_name_unique` puts
- * `name` in the key precisely so the second row is accepted.
- *
- * Every read of this table is therefore **plural**. `covering()` returns a
- * query and there is deliberately no `firstOnDate()` helper to reach for: a
- * `->first()` here compiles, passes a naive test, and silently discards the
- * more expensive holiday.
- *
- * This is the one model that reads two agencies — its own and the platform
- * row, where national holidays live — via AgencyOrPlatformScope.
- */
 #[Fillable(['agency_id', 'date', 'name', 'type', 'reference', 'declared_at'])]
 class Holiday extends Model
 {
-    /** @use HasFactory<HolidayFactory> */
+    /**
+     * @use HasFactory<HolidayFactory>
+     */
     use BelongsToAgency, HasFactory, HasUlids;
 
-    /** @return array<string, string> */
+    /**
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
@@ -50,14 +36,6 @@ class Holiday extends Model
         ];
     }
 
-    /**
-     * Owned by the platform agency, and so owed by every tenant.
-     *
-     * The predicate lives here because two places need it and they are not
-     * near each other: `HolidayPolicy` refuses an agency editing a national
-     * row, and `HolidayController` fans a recompute out to every agency for
-     * one (decision 86). Written twice it is written differently once.
-     */
     public function national(): bool
     {
         return $this->agency_id === app(Tenant::class)->platformId();
@@ -74,9 +52,8 @@ class Holiday extends Model
     }
 
     /**
-     * Every holiday on a date — plural, and named for the range idiom rather
-     * than for a lookup, so the call site reads as a set. Two rows on one date
-     * is the normal case this milestone exists to preserve.
+     * Every holiday on a date — plural, and named for the range idiom rather than for a lookup,
+     * so the call site reads as a set. Two rows on one date is the normal case.
      */
     #[Scope]
     protected function covering(Builder $query, CarbonInterface $date): void

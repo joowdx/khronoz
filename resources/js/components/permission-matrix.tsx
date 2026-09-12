@@ -11,18 +11,6 @@ export interface PresetOption {
     permissions: Permission[];
 }
 
-/**
- * One row per area of the product, in the order §5.21 lists them, each with
- * the pair of rights that reaches it. `view: null` is an area with no separate
- * view right — the em dash in the artboard — and there are exactly two of
- * them: an agency's own profile and its users.
- *
- * The rows are written out rather than derived from the permission values
- * because the label is the sentence a person reads ("Workgroups, employees,
- * deployments and tags"), not a name the enum holds. Every `Permission`
- * case must appear here or in `ATTEST`, and
- * tests/Unit/PermissionMatrixContractTest.php fails if one does not.
- */
 const AREAS: { label: string; view: Permission | null; manage: Permission }[] = [
     { label: 'Agency profile and settings', view: null, manage: 'agency.manage' },
     { label: 'Users and their permissions', view: null, manage: 'users.manage' },
@@ -33,22 +21,12 @@ const AREAS: { label: string; view: Permission | null; manage: Permission }[] = 
     { label: 'Workdays and daily time records', view: 'ledgers.view', manage: 'ledgers.manage' },
 ];
 
-/** The one right that is not a view/manage pair, so it sits below the table. */
 const ATTEST = {
     permission: 'ledgers.attest' as Permission,
     label: 'Sign daily time records as the timekeeper',
     hint: 'Puts their name on CS Form 48 when a ledger is attested. Only the officer who signs needs this.',
 };
 
-/**
- * A box in a View or Manage column.
- *
- * A locked box is `aria-disabled`, not `disabled`: a disabled control leaves
- * the tab order, and the whole point of the lock is that someone arriving by
- * keyboard learns why the box cannot be unchecked. It stays focusable,
- * announces itself as checked and unavailable, and — being controlled with a
- * fixed `checked` — cannot change.
- */
 function Box({
     permission,
     checked,
@@ -58,7 +36,6 @@ function Box({
 }: {
     permission: Permission;
     checked: boolean;
-    /** The manage right that already grants this view, when one does. */
     lockedBy?: Permission;
     invalid: boolean;
     onToggle: (checked: boolean) => void;
@@ -87,21 +64,6 @@ function Box({
     );
 }
 
-/**
- * The invite and edit forms' core: a real `<table>` so every box is announced
- * with its row and its column, inside the one panel a matrix earns (§5.21).
- *
- * A checked manage right also checks its implied view, because the backend
- * grants it anyway (`Permission::implies()`) and leaving it unchecked would
- * misrepresent what the person can actually do. That box is locked rather
- * than merely drawn checked: unchecking it on its own could never revoke the
- * grant. `implied` comes from useCan()'s own map, which
- * tests/Unit/Enums/PermissionContractTest.php holds to the PHP enum, so this
- * never becomes a third copy of that relationship.
- *
- * Only the rights the person holds directly are submitted. An implied view is
- * never posted, exactly as a preset bundle does not carry one.
- */
 export function PermissionMatrix({
     value,
     onChange,
@@ -111,7 +73,6 @@ export function PermissionMatrix({
     value: Permission[];
     onChange: (value: Permission[]) => void;
     presets: PresetOption[];
-    /** The one-line verdict for the label row: `Choose at least one`. */
     error?: string;
 }) {
     const labelId = useId();
@@ -124,7 +85,6 @@ export function PermissionMatrix({
                 preset.permissions.every((permission) => value.includes(permission)),
         )?.value ?? 'custom';
 
-    /** The manage (or attest) right that grants each implied view, by view. */
     const locks = new Map<Permission, Permission>();
     for (const held of value) {
         const view = implied[held];
@@ -143,8 +103,6 @@ export function PermissionMatrix({
                 <span id={labelId} className="text-[13px] leading-[18px] font-medium">
                     Permissions
                 </span>
-                {/* Always rendered, and never empty — see field.tsx for why
-                    the zero-width space is what keeps the row's height fixed. */}
                 <p
                     id={errorId}
                     aria-live="polite"
@@ -174,13 +132,6 @@ export function PermissionMatrix({
                                 {preset.label}
                             </ToggleGroupItem>
                         ))}
-                        {/*
-                          Not a choice — a status, lit whenever the checked set
-                          matches no preset above. There is no set "Custom"
-                          would select, so it is never selectable; it keeps its
-                          full contrast because a status at 45% opacity reads
-                          as broken rather than as inactive.
-                        */}
                         <ToggleGroupItem value="custom" disabled className="disabled:opacity-100">
                             Custom
                         </ToggleGroupItem>

@@ -6,24 +6,6 @@ import { Input } from '@/components/ui/input';
 import { manilaToday } from '@/lib/dates';
 import type { Schedule, Team } from '@/types';
 
-/**
- * A team is three facts: a name, a schedule, and the date its cycle starts on.
- *
- * **There is no membership field, and adding one would be wrong.** A team has
- * no members of its own — the rosters carrying its `team_id` *are* its
- * membership (04-scheduling.md), so people join a team by being rostered into
- * it on the roster grid, and "who was on it in March" is answered from those
- * rosters' own date ranges. There is no date range here either: a team is a
- * standing definition, not an arrangement that starts and ends.
- *
- * What the anchor buys is the whole point of the model. Three teams on one
- * 21-day rotation, anchored seven days apart, sit seven positions apart on
- * every date — which is how a hospital covers morning, afternoon and night
- * with one schedule and three rows. So the chosen schedule's cycle is drawn
- * under the picker: the anchor decides where in *that* strip the team begins,
- * and choosing it blind is what makes three teams accidentally land on the
- * same shift.
- */
 export function TeamFields({
     team,
     schedules,
@@ -111,9 +93,6 @@ export function TeamFields({
                         id={id}
                         name="anchor"
                         type="date"
-                        // A `YYYY-MM-DD` string straight from the API, never
-                        // through `new Date()` — pages.md: a bare date parsed
-                        // as a UTC instant names the day before in Manila.
                         defaultValue={team?.anchor ?? manilaToday()}
                         className="tabular-nums"
                         aria-invalid={invalid}
@@ -125,7 +104,6 @@ export function TeamFields({
     );
 }
 
-/** "21 days", and "1 day" for the schedule that is every day the same. */
 function cycle(length: number): string {
     return `${length} ${length === 1 ? 'day' : 'days'}`;
 }

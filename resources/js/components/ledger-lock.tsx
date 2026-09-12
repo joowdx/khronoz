@@ -13,14 +13,6 @@ import { useCan } from '@/hooks/use-can';
 import { lock, unlock } from '@/routes/ledgers';
 import type { Ledger } from '@/types';
 
-/**
- * Lock or Unlock for one ledger, gated on `ledgers.manage`.
- *
- * Lock is the ordinary end of a month and needs no confirmation. Unlock
- * reopens frozen numbers, so it goes behind a dialog whose title asks, whose
- * body names that consequence, and whose confirm button repeats the verb
- * (§6.4 / §5.16).
- */
 export function LedgerLockControl({ ledger }: { ledger: Ledger }) {
     const can = useCan();
 

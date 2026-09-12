@@ -15,22 +15,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class SyncFactory extends Factory
 {
-    /**
-     * Define the model's default state: an import that has opened and not yet
-     * closed, which is the state every run passes through.
-     *
-     * All four counters are zero and every span column is null, and that is
-     * the only shape a freshly opened run can legally take: `syncs_counts_
-     * balance` is satisfied by 0 = 0 + 0 + 0, and `syncs_span_paired` by two
-     * nulls. A factory that invented plausible-looking counts would have to
-     * make them add up, and then every test asserting the importer's own
-     * arithmetic would be asserting against numbers the factory chose.
-     *
-     * terminal_id is a callback for the reason every paired parent is: the FK
-     * requires it to share this row's agency.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
@@ -54,7 +39,6 @@ class SyncFactory extends Factory
         ];
     }
 
-    /** Reading from an existing terminal, whose agency the run must share. */
     public function on(Terminal $terminal): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -63,17 +47,6 @@ class SyncFactory extends Factory
         ]);
     }
 
-    /**
-     * Closed, with counts that balance — which the caller must keep balanced
-     * if they override any of them, since `syncs_counts_balance` is the
-     * database's word and not this factory's.
-     *
-     * `finished_at` is a closure for the reason DeploymentFactory::closed()
-     * spells out: computed eagerly it would read the definition's default
-     * `started_at` rather than a caller's, and produce a run that finished
-     * before it began — a 23514 from `syncs_times_ordered` with no schema
-     * cause.
-     */
     public function completed(int $accepted = 8, int $duplicates = 2, int $rejected = 0): static
     {
         return $this->state(fn (array $attributes): array => [
@@ -90,7 +63,6 @@ class SyncFactory extends Factory
         ]);
     }
 
-    /** Could not finish. The counters stay at whatever had been tallied, which is nothing. */
     public function failed(string $error = 'The file could not be read.'): static
     {
         return $this->state(fn (array $attributes): array => [

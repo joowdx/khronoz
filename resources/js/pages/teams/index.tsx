@@ -36,22 +36,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Schedule column needs for a name and a fortnight of marks. */
 const FLEX_MIN = 320;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * The agency's cohorts.
- *
- * The anchor is the column that earns its place: two teams on one schedule are
- * told apart by this date alone, and three teams seven days apart on a 21-day
- * rotation is how a hospital covers every shift every day. So the schedule's
- * own cycle sits beside it, and the dates can be read against each other.
- *
- * `People` counts the rosters carrying the team's id — there is no membership
- * table, and those rosters *are* the membership.
- */
 export default function Index({ teams }: { teams: Team[] }) {
     const can = useCan();
     const manage = can('scheduling.manage');
@@ -120,13 +108,6 @@ export default function Index({ teams }: { teams: Team[] }) {
                                             <TurnStrip turns={team.schedule?.turns ?? []} />
                                         </span>
                                     </TableCell>
-                                    {/*
-                                      A `YYYY-MM-DD` string the resource sent as
-                                      `toDateString()`, formatted by splitting
-                                      it — never `new Date()`, which is UTC
-                                      midnight and names the day before in
-                                      Manila.
-                                    */}
                                     <TableCell className="tabular-nums">{formatDay(team.anchor)}</TableCell>
                                     <TableCell className="tabular-nums">
                                         {team.people_count ? (
@@ -148,15 +129,6 @@ export default function Index({ teams }: { teams: Team[] }) {
     );
 }
 
-/**
- * Remove is offered only on a team no roster has ever named — `(team_id,
- * agency_id)` is RESTRICT, and the count beside the absent item is exactly
- * what stands in the way, so the explanation is already on the row.
- *
- * Hiding it is not translating it, though: this list can be stale and the
- * route is reachable by URL, so TeamController::destroy answers the 23001 with
- * a message as well.
- */
 function RowMenu({ team, manage }: { team: Team; manage: boolean }) {
     if (!manage) {
         return null;

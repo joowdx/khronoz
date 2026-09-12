@@ -2,7 +2,6 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Avatar as AvatarPrimitive } from 'radix-ui';
 
-/** The eight chip-ramp slots, as fill + text pairs. Slot 0 is the neutral one. */
 const tintClasses = [
     'bg-muted text-muted-foreground',
     'bg-c1-fill text-c1-text',
@@ -17,12 +16,6 @@ const tintClasses = [
 
 export type AvatarTint = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
-/**
- * Pick a chip slot from a name, so the same person is the same colour on every
- * screen and across sessions without storing anything. Decorative only: the
- * name is always beside the avatar, so the colour carries no meaning of its
- * own.
- */
 export function avatarTint(name: string): AvatarTint {
     let hash = 0;
 
@@ -33,7 +26,6 @@ export function avatarTint(name: string): AvatarTint {
     return ((hash % 8) + 1) as AvatarTint;
 }
 
-/** "Corazon Dimaano" -> "CD"; a single word gives its first two letters. */
 export function initials(name: string): string {
     const words = name.trim().split(/\s+/).filter(Boolean);
     const first = words.at(0) ?? '';
@@ -46,11 +38,6 @@ export function initials(name: string): string {
     return (words.length === 1 ? first.slice(0, 2) : first.slice(0, 1) + last.slice(0, 1)).toUpperCase();
 }
 
-/**
- * The design draws three avatars — 32, 28 and 24 (§4.3) — each with its own
- * type size. `md` is the 28px one (`.avatar--28`), which is what a two-line
- * table row and the sidebar's user menu use; it is the commonest of the three.
- */
 function Avatar({
     className,
     size = 'default',

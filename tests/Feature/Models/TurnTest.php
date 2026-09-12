@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Models;
 
-use App\Models\Agency;
 use App\Models\Schedule;
 use App\Models\Shift;
 use App\Models\Turn;
@@ -10,14 +9,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-/**
- * turns_agency_id_foreign is untested on the insert side for the reason
- * Ruling P5 gives on deployments: both paired FKs require their parents to
- * carry a valid agency_id, so no row exists where this FK alone fails, and a
- * 23503 caught here could come from either pair. Its delete side is covered
- * transitively — a turn can only exist under an agency that still has the
- * schedule and shift it names.
- */
 class TurnTest extends TestCase
 {
     public function test_turn_needs_an_agency(): void
@@ -36,12 +27,6 @@ class TurnTest extends TestCase
         ]));
     }
 
-    /**
-     * UNIQUE (schedule_id, position): one shift per day of the cycle. This is
-     * the constraint that lets turns_complete get away with checking only the
-     * count and the maximum — with no duplicates and no negatives, those two
-     * facts force exactly the set 0 to length - 1.
-     */
     public function test_a_schedule_cannot_have_two_turns_at_one_position(): void
     {
         $turn = Turn::factory()->create(['position' => 3]);
@@ -67,7 +52,6 @@ class TurnTest extends TestCase
         $this->assertDatabaseRefuses('23514', fn () => Turn::factory()->create(['position' => -1]));
     }
 
-    /** turns_schedule_id_agency_id_foreign, insert side: a schedule of another agency. */
     public function test_schedule_must_share_the_turns_agency(): void
     {
         $foreign = Schedule::factory()->create();
@@ -75,11 +59,6 @@ class TurnTest extends TestCase
         $this->assertDatabaseRefuses('23503', fn () => Turn::factory()->create(['schedule_id' => $foreign->id]));
     }
 
-    /**
-     * Same FK, delete side. Deleting the turns first is what makes dropping a
-     * schedule possible at all — and turns_complete tolerates that, since it
-     * returns early once the schedule is gone.
-     */
     public function test_schedule_with_turns_cannot_be_deleted(): void
     {
         $turn = Turn::factory()->create();
@@ -87,7 +66,6 @@ class TurnTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('schedules')->where('id', $turn->schedule_id)->delete());
     }
 
-    /** turns_shift_id_agency_id_foreign, insert side: a shift of another agency. */
     public function test_shift_must_share_the_turns_agency(): void
     {
         $foreign = Shift::factory()->create();
@@ -95,7 +73,6 @@ class TurnTest extends TestCase
         $this->assertDatabaseRefuses('23503', fn () => Turn::factory()->create(['shift_id' => $foreign->id]));
     }
 
-    /** Same FK, delete side: a shift still used by a cycle cannot be removed. */
     public function test_shift_used_by_a_turn_cannot_be_deleted(): void
     {
         $turn = Turn::factory()->create();
@@ -103,17 +80,6 @@ class TurnTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('shifts')->where('id', $turn->shift_id)->delete());
     }
 
-    /**
-     * turns_complete on the turns side (P0001), and the reason DELETE is on
-     * the trigger: removing a turn from a complete cycle would otherwise
-     * leave a gap the resolver reads as a missing position, silently, since
-     * `(D - anchor) mod length` would land on a position with no row.
-     *
-     * `SET CONSTRAINTS ALL IMMEDIATE` inside the closure for the reason
-     * ScheduleTest explains: the constraint is DEFERRED, the suite never
-     * commits, so without this the assertion passes against no constraint
-     * at all.
-     */
     public function test_a_turn_cannot_be_removed_from_a_complete_cycle(): void
     {
         $schedule = Schedule::factory()->withTurns()->create(['length' => 7]);
@@ -124,11 +90,6 @@ class TurnTest extends TestCase
         });
     }
 
-    /**
-     * Dropping a whole cycle is legitimate and must not be refused: the
-     * function returns early when the schedule itself is gone, which is what
-     * lets the turns and their schedule be deleted in one transaction.
-     */
     public function test_a_schedule_and_its_turns_can_be_dropped_together(): void
     {
         $schedule = Schedule::factory()->withTurns()->create(['length' => 7]);

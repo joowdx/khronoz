@@ -1,10 +1,6 @@
 import { OFF_HATCH, ShiftChip, type Slot } from '@/components/marketing/shift-chip';
 import { cn } from '@/lib/utils';
 
-/**
- * One 21-day rotation, laid out as the cycle of turns it is. Static markup
- * until Milestone 3 gives Schedule and Turn real rows to read.
- */
 
 const CYCLE: (Slot | null)[] = [
     'c2',

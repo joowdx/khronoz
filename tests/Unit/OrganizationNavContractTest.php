@@ -4,30 +4,6 @@ namespace Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 
-/**
- * The Organization nav group must not appear for a platform user who has not
- * entered an agency.
- *
- * That gate is real, not cosmetic. `SetTenant` defaults such a user's tenant
- * to the platform agency itself, `Gate::before` grants a superuser every
- * ability, and `employees`' `agency_not_platform` trigger raises P0001 — so
- * following Employees → Add employee from the platform tenant ends in an
- * uncaught 500, and neither the tenant being set nor the permission check
- * stops it. What decides it is whether the agency they are in is a real one.
- * docs/design/08-interface.md §10 and .ai/rules/components.md both say only
- * what exists is rendered and that a nav item leading nowhere is worse than
- * an absent one.
- *
- * Nothing in the build would notice the gate being dropped: `tsc` is happy
- * either way and the group would simply start rendering. So this reads the
- * component from disk and checks it, the same approach
- * PermissionMatrixContractTest takes to the permission set — a front-end
- * invariant with a back-end consequence, locked from the suite that runs on
- * every commit.
- *
- * SetTenantTest covers the other half: that the shared `agency` prop this
- * gate reads actually reports `platform` truthfully in both cases.
- */
 class OrganizationNavContractTest extends TestCase
 {
     private const SIDEBAR_PATH = __DIR__.'/../../resources/js/components/app-sidebar.tsx';
@@ -60,7 +36,6 @@ class OrganizationNavContractTest extends TestCase
         );
     }
 
-    /** Workgroups and Employees, and nothing that has not landed yet (§10). */
     public function test_the_group_offers_only_the_screens_that_exist(): void
     {
         preg_match(
@@ -85,11 +60,6 @@ class OrganizationNavContractTest extends TestCase
         return $source;
     }
 
-    /**
-     * Everything up to the group's own literal, so the gate has to be the one
-     * standing in front of it rather than any `agency.platform` test that
-     * happens to appear later in the file.
-     */
     private function beforeTheGroup(string $source): string
     {
         $at = strpos($source, "label: 'Organization'");

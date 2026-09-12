@@ -16,8 +16,6 @@
                         : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
                     document.documentElement.dataset.mode = mode;
                 } catch (e) {
-                    /* Private mode can throw on localStorage; the markup's own
-                       data-mode="light" default already stands. */
                 }
             })();
         </script>

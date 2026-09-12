@@ -11,18 +11,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/users';
 import type { Permission } from '@/types';
 
-/**
- * One 560px column: two fields, then the permission matrix, then the submit
- * row (§6.1). Nothing here is a card — a form is not a container, and the
- * matrix is the one thing on the page that earns a panel.
- *
- * A taken address is answered twice, which is the design's rule for a field
- * that needs a sentence as well as a verdict (§6.4): `Already taken` on the
- * label row, where the row's height is already spent, and the sentence in a
- * flat banner under the field with the way out as a link inside it. The
- * server writes the verdict; the fix names a screen and needs a URL, so it
- * is written here.
- */
 export default function Create({ presets }: { presets: PresetOption[] }) {
     const [permissions, setPermissions] = useState<Permission[]>([]);
     const [email, setEmail] = useState('');
@@ -75,11 +63,6 @@ export default function Create({ presets }: { presets: PresetOption[] }) {
                                         }
                                     />
                                     {errors.email_conflict && (
-                                        // The field's own explanation, so it is
-                                        // the field's `aria-describedby` and not
-                                        // a second `role="alert"` competing with
-                                        // the label row that already announced
-                                        // the verdict (§5.17).
                                         <Alert
                                             role={undefined}
                                             id="email-conflict"

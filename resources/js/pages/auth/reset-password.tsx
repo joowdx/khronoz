@@ -16,9 +16,6 @@ export default function ResetPassword({ email, token }: { email: string; token: 
                         <input type="hidden" name="token" value={token} />
                         <input type="hidden" name="email" value={email} />
 
-                        {/* The broker reports a spent or unknown link under `email`, but
-                            that field is hidden here — so it is a form-level failure and
-                            belongs above the fields. */}
                         {errors.email && (
                             <Alert variant="destructive" className="mb-5">
                                 <TriangleAlertIcon />

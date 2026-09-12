@@ -10,25 +10,6 @@ import { store } from '@/routes/rosters';
 import type { Slot } from '@/components/shift-chip';
 import type { Schedule } from '@/types';
 
-/**
- * Assigning a schedule to the people picked on the grid.
- *
- * Four fields, as the artboard has them: schedule, anchor, starts, ends. The
- * people are not a field — they are the selection the sheet was opened from,
- * and they travel as hidden inputs.
- *
- * The sentence under the title is the one piece of explanation the screen owes:
- * assigning **ends the current roster on the day before this one starts**.
- * `AssignSchedule` does that inside its own transaction, and the exclusion
- * constraint `rosters_no_overlap` is what makes it the only possible reading —
- * but somebody about to move forty people should be told before they click,
- * not after.
- *
- * The anchor is deliberately its own field rather than defaulting to `starts`.
- * A rotation's cycle day 1 is a property of the cohort, not of the day this
- * person joined it: three hospital teams on one 21-day schedule differ only by
- * their anchors, seven days apart.
- */
 export function AssignSheet({
     open,
     onOpenChange,

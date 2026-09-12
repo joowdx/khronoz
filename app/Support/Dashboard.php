@@ -13,12 +13,6 @@ use Illuminate\Contracts\Auth\Authenticatable;
  */
 class Dashboard
 {
-    /**
-     * Determine whether the given user may view the operational dashboards.
-     *
-     * Anyone may look locally; outside local, only a superuser of the
-     * platform agency may (docs/design/02-access.md rule 3).
-     */
     public static function allows(?Authenticatable $user): bool
     {
         return app()->environment('local') || ($user instanceof User && $user->isPlatform());

@@ -6,26 +6,16 @@ use App\Models\Holiday;
 use App\Models\Suspension;
 use App\Support\Settings;
 
-/**
- * The frozen json stored on `workdays.shift` (decision 69): the shift,
- * the four settings that shaped the stored columns, and the holidays
- * and suspensions consulted, so a later edit of any of those does not
- * silently rewrite history.
- *
- * `occurrences` and `overtime_after_weekly` are deliberately absent —
- * they shape read-time views. Exemptions are a real foreign key on the
- * workday, not a copy.
- */
 final class Snapshot
 {
     /**
      * @param  iterable<int, Holiday>  $holidays
      * @param  iterable<int, Suspension>  $suspensions
      * @return array{
-     *     shift: ?array{id: string, name: string, slots: mixed, required: int, flex: int, remote: bool, trust: bool},
-     *     settings: array{night_from: string, premium_hours: bool, suspension_charge: bool, missing_side: string},
-     *     holidays: list<array{id: string, name: string, type: string}>,
-     *     suspensions: list<array{id: string, starts: ?string, ends: ?string, declared_at: ?string}>
+     * shift: ?array{id: string, name: string, slots: mixed, required: int, flex: int, remote: bool, trust: bool},
+     * settings: array{night_from: string, premium_hours: bool, suspension_charge: bool, missing_side: string},
+     * holidays: list<array{id: string, name: string, type: string}>,
+     * suspensions: list<array{id: string, starts: ?string, ends: ?string, declared_at: ?string}>
      * }
      */
     public static function of(Day $day, Settings $settings, iterable $holidays, iterable $suspensions): array

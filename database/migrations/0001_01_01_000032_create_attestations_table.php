@@ -9,24 +9,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * One signature per role per ledger (docs/design/06-attendance.md
-     * Attestation rules 1–6). Who may sign which role is Milestone 7; this
-     * table exists now because `ledgers_unlock_clean` already references it.
-     *
-     * There is deliberately **no `created_at` and no `updated_at`**. `at` is
-     * when the signature was made, which is the same instant the row was
-     * created, and two columns holding one fact is the mixed-concern defect
-     * docs/reference/clockwork-audit.md records. `updated_at` would be worse
-     * than redundant: REVOKE UPDATE means it can never move, so it would be
-     * a column that permanently lies about being maintained.
-     *
-     * `user_id` is paired with `agency_id`, unlike suspensions, exemptions
-     * and overtimes. Those three record a platform superuser doing data
-     * entry inside an agency they entered; a signature must come from
-     * inside the agency, so the pair is the constraint, and there is no
-     * `actor_of_agency` trigger because the FK already says it.
-     *
-     * The REVOKE lives in AppRoleGrants::restrict(), not here (decision 41).
+     * A signature must be from its agency; `at` is the immutable creation time.
      */
     public function up(): void
     {
@@ -54,10 +37,7 @@ return new class extends Migration
                 ->restrictOnUpdate();
         });
 
-        // Shape only. Which strings are legal is the agency's
-        // settings.attestations list, checked by the application
-        // (06-attendance.md rule 2) — decision 12's point is that the
-        // signing chain is agency data, not schema.
+        // Valid signing roles are agency configuration, not schema.
         DB::statement("ALTER TABLE attestations ADD CONSTRAINT attestations_role_valid CHECK (role ~ '^[a-z_]{1,32}$')");
 
         // Function created in 0001_01_01_000028_prepare_attendance.

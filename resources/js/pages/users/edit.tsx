@@ -9,15 +9,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/users';
 import type { Permission, User } from '@/types';
 
-/**
- * The invite form's column and matrix again, against a person who already
- * exists — so the title is their name and the primary action is Save changes.
- *
- * The address is shown but read-only: it is not editable in v1, and a person
- * arriving from the row menu needs to see whose permissions they are about to
- * change. It carries no `name`, so nothing about it is submitted and
- * UpdateUserRequest has no rule for it.
- */
 export default function Edit({ user, presets }: { user: User; presets: PresetOption[] }) {
     const [permissions, setPermissions] = useState<Permission[]>(user.permissions);
 

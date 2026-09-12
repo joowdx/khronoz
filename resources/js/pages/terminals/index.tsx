@@ -43,44 +43,14 @@ import { index as timelogs } from '@/routes/timelogs';
 import { store as importTimelogs } from '@/routes/terminals/syncs';
 import type { Terminal } from '@/types';
 
-/**
- * `TerminalResource` plus the two aggregates only this list asks for, which is
- * why they live here rather than on `Terminal` (.ai/rules/resources.md).
- *
- * `enrolled_count` is how many people this device can identify **today** —
- * enrollments covering the current date. It is the most useful thing this list
- * can say about a newly registered terminal, because a device with none cannot
- * resolve a single punch it captures; they arrive and sit unresolved.
- *
- * `timelogs_count` is every punch it has ever captured.
- *
- * Whether Remove is offered takes **all three** of the counts below, because
- * all three foreign keys into `terminals` RESTRICT (decision 41). Gating on
- * the punch count alone offered Remove for a device that had people enrolled
- * or import runs on record, and the refusal then named a constraint that had
- * not fired. `enrolled_count` cannot serve for this: it is scoped to today, so
- * a device whose enrollments have all ended counts zero and still cannot be
- * deleted.
- */
 interface TerminalRow extends Terminal {
     enrolled_count: number;
     timelogs_count: number;
     enrollments_count: number;
     syncs_count: number;
-    /**
-     * When punches were last successfully imported — from the `syncs` row, not
-     * from `synced_at`. Decision 40 forbids an import touching `synced_at`
-     * (a file is not a device read), so that column is null forever on a
-     * file-import terminal and would read "never" for a device imported this
-     * morning. Absent, not null, when the query did not ask for it.
-     */
     last_import_at?: string | null;
 }
 
-/**
- * Fixed column widths, summed into the table's floor rather than hand-typed —
- * the derivation and the `table-layout: auto` caveat are in employees/index.tsx.
- */
 const COLUMNS = {
     code: 90,
     name: 300,
@@ -90,17 +60,6 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/**
- * What the flexible **Where** column needs for a realistic workgroup name.
- *
- * Where flexes and Name is bounded, which is the opposite of the first
- * attempt and the same correction workgroups/index already carries. MEASURED
- * at 1440 with Name flexible: "Lobby entrance" sat in a 520px column and left
- * a ~400px void before the Where label — the eye had to cross a sidebar's
- * width to read a two-word place name. `pages.md` records the identical
- * failure on workgroups/index (538 of 1210, a 280px void) and the identical
- * fix: bound the name, let a later text column take the slack.
- */
 const FLEX_MIN = 220;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
@@ -136,9 +95,6 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                     />
                 </Card>
             ) : (
-                // `min-w-min` plus a clipped, nothing-to-clip container, so the
-                // SHELL scrolls sideways and the sticky head keeps its
-                // scrollport — see employees/index.tsx for the full note.
                 <Card className="min-w-min overflow-visible">
                     <CardHeader>
                         <CardTitle>Devices</CardTitle>
@@ -175,12 +131,6 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                                     <TableCell className="max-w-0">
                                         <span className="flex min-w-0 flex-col">
                                             <span className="truncate">{terminal.name}</span>
-                                            {/*
-                                              Retired devices keep their rows and
-                                              their punches — `active` is a switch,
-                                              not a delete — so the row has to say
-                                              which it is without a second column.
-                                            */}
                                             {!terminal.active && (
                                                 <span className="text-muted-foreground text-xs">Not in service</span>
                                             )}
@@ -193,20 +143,6 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                                             )}
                                         </span>
                                     </TableCell>
-                                    {/*
-                                      A device nobody is enrolled on cannot
-                                      attribute a single punch it captures — they
-                                      arrive and sit unresolved. Zero is the most
-                                      important number on this row, so it is
-                                      stated rather than dashed.
-                                    */}
-                                    {/*
-                                      The question a timekeeper actually opens
-                                      this page with. A device nobody has
-                                      imported from in three weeks is the one
-                                      whose absence from payroll nobody has
-                                      noticed yet.
-                                    */}
                                     <TableCell className="tabular-nums">
                                         {terminal.last_import_at ? (
                                             formatDay(terminal.last_import_at.slice(0, 10))
@@ -214,17 +150,6 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                                             <span className="text-muted-foreground">Never</span>
                                         )}
                                     </TableCell>
-                                    {/*
-                                      The count is a link, because the answer to
-                                      "nobody is enrolled" is always "go and
-                                      enrol somebody" — and because without a
-                                      row there, every punch this device
-                                      captures arrives unattributed. "Nobody" is
-                                      a word rather than a 0 for the same
-                                      reason: it is the most consequential fact
-                                      on the row, and a zero reads as
-                                      unremarkable.
-                                    */}
                                     <TableCell className="text-right tabular-nums">
                                         <Link
                                             href={enrollments(terminal)}
@@ -237,16 +162,6 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
                                             )}
                                         </Link>
                                     </TableCell>
-                                    {/*
-                                      Linked, because this controller's own
-                                      docblock says the row links to the
-                                      punches rather than to a page about the
-                                      device — and it did not. The enrolled
-                                      count above has always linked; this cell
-                                      was plain text, so the one thing a reader
-                                      most wants next was the one thing they
-                                      could not click.
-                                    */}
                                     <TableCell className="text-right tabular-nums">
                                         <Link
                                             href={timelogs.url({ query: { terminal: terminal.id } })}
@@ -268,17 +183,6 @@ export default function Index({ terminals }: { terminals: TerminalRow[] }) {
     );
 }
 
-/**
- * Import always (it is the point of the screen); Edit always; Remove only
- * where it can succeed.
- *
- * Every foreign key into `terminals` RESTRICTs, so a device that has captured
- * anything is refused by the database. The item is absent rather than
- * offered-and-broken — and the Punches count sitting two cells away is what
- * explains the absence. That is the primary defence, not the only one:
- * `TerminalController::destroy` translates the 23001 as well, because this
- * page can be stale while an import is running.
- */
 function RowMenu({ terminal, manage }: { terminal: TerminalRow; manage: boolean }) {
     const [importing, setImporting] = useState(false);
 
@@ -349,25 +253,6 @@ function RowMenu({ terminal, manage }: { terminal: TerminalRow; manage: boolean 
     );
 }
 
-/**
- * Upload an attlog export.
- *
- * The dialog's job is to make the two things that decide the outcome visible
- * **before** submitting, because both fail the whole file rather than a row.
- *
- * The device number is stated in the description, not left implicit: a file
- * recorded by another device is refused whole (decision 44), and an operator
- * holding several exports needs to know which one this terminal will take.
- *
- * The layout is a choice and never a guess, for the reason decision 44 gives:
- * a line like `1 <time> 0 1 0` is valid under both readings and means
- * different things, so any sniffing heuristic is a coin toss on exactly the
- * files where it matters. Both options therefore show their **column order**
- * rather than a name, so the operator matches it against the file in front of
- * them; and the option that includes the device number says what it buys,
- * since it is the one that lets the file be checked against this terminal at
- * all.
- */
 function ImportDialog({
     terminal,
     open,

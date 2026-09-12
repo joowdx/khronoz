@@ -9,22 +9,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Matches the `Exemption` interface in resources/js/types/index.d.ts.
  *
- * `until` is the **last day, inclusive** and is NOT NULL (decision 38): a
- * one-day exemption carries `until = date`. It was nullable once, meaning "one
- * day", and that was a trap — `daterange(date, until, '[]')` with a null upper
- * bound is unbounded above, so a two-hour pass slip would have excused every
- * day thereafter.
- *
- * `starts`/`ends` are hours within a single day, and a multi-day exemption
- * cannot carry them (`exemptions_span_is_whole_days`). `spans_days` is that
- * distinction computed once here rather than re-derived from two date strings
- * in the page.
- *
  * @mixin Exemption
  */
 class ExemptionResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

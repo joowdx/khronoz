@@ -40,11 +40,6 @@ class DashboardControllerTest extends TestCase
                 ->where('counts.invited', 1));
     }
 
-    /**
-     * A bare User::query()->count() would count every user of every agency;
-     * this only fails if the counts stop going through the tenant's own agency
-     * relation (User carries no tenant scope — app/Models/User.php).
-     */
     public function test_dashboard_counts_only_the_current_agencys_users(): void
     {
         $user = User::factory()->create();
@@ -62,12 +57,6 @@ class DashboardControllerTest extends TestCase
                 ->where('counts.invited', 1));
     }
 
-    /**
-     * The platform figures: how many agencies exist, how many users they hold
-     * between them, and how many of them nobody can sign in to yet. The
-     * platform agency's own users are the superusers and are counted as
-     * `counts.users`, not folded into `agency_users`.
-     */
     public function test_dashboard_shows_the_platform_figures_for_the_platform_tenant(): void
     {
         $staffed = Agency::factory()->create();
@@ -95,12 +84,6 @@ class DashboardControllerTest extends TestCase
                 ->missing('counts.empty_agencies'));
     }
 
-    /**
-     * Once a platform user has entered a specific agency, $tenant->agency() is
-     * that agency, not the platform row, so the platform figures must drop and
-     * the people figures must become that agency's — the check is the tenant's
-     * own platform flag, not the user's.
-     */
     public function test_dashboard_omits_the_platform_figures_once_a_platform_user_has_entered_an_agency(): void
     {
         $agency = Agency::factory()->create();
@@ -113,12 +96,6 @@ class DashboardControllerTest extends TestCase
                 ->where('counts.users', 2));
     }
 
-    /**
-     * The needs-attention rows are driven entirely by their counts, and the
-     * page renders a row only when its count is non-zero. Nothing outstanding
-     * must therefore arrive as a zero, not as an absent key, or the page
-     * cannot tell "nothing to do" from "not measured".
-     */
     public function test_a_tenant_with_nothing_outstanding_reports_zero_rather_than_nothing(): void
     {
         $user = User::factory()->create();
@@ -138,11 +115,6 @@ class DashboardControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('counts.empty_agencies', 0));
     }
 
-    /**
-     * An invited user has not verified their address, so they are neither
-     * active nor able to reach this page. Both halves matter: `active` must not
-     * count them, and `invited` must stop counting them the moment they accept.
-     */
     public function test_accepting_an_invitation_moves_a_user_from_invited_to_active(): void
     {
         $user = User::factory()->create();
@@ -161,17 +133,6 @@ class DashboardControllerTest extends TestCase
                 ->where('counts.invited', 0));
     }
 
-    /**
-     * Smoke: an agency tenant gets the month and everything hanging off it.
-     * The queries are what this proves — the figure strip's conditional
-     * aggregates, the ledger split, today, the night outs, the tardiness join
-     * and the lane chart's cycle arithmetic all run against real rows, and a
-     * broken one throws rather than answering an empty page. The full matrix
-     * of what each figure counts is a later hardening pass.
-     *
-     * The clock is pinned because every section is dated: 14:42 on 9 September
-     * 2026 is the artboard's own moment, nine days into the month.
-     */
     public function test_the_dashboard_reports_the_month_for_an_agency_tenant(): void
     {
         $this->travelTo('2026-09-09 14:42:00');
@@ -309,12 +270,6 @@ class DashboardControllerTest extends TestCase
             ->where('counts.unresolved_timelogs', 0));
     }
 
-    /**
-     * Smoke: the platform tenant gets the estate and nothing dated.
-     * `employees` carries an agency_not_platform trigger, so the platform row
-     * can hold no people — every attendance section would be a measured zero
-     * pretending to be news, and absent is the honest answer.
-     */
     public function test_the_dashboard_omits_every_month_scoped_section_for_the_platform_tenant(): void
     {
         Agency::factory()->create();

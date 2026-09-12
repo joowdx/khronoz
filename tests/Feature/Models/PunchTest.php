@@ -12,19 +12,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
-/**
- * One test per constraint and trigger on `punches` (docs/design/07-constraints.md).
- *
- * No agency_not_platform test: a punch needs a workday, and a workday needs
- * a ledger, and employees refuse the platform agency already.
- *
- * The row helper is a missed punch on slot 2 out, so it does not collide
- * with the factory default (slot 1 in, filled) on either UNIQUE
- * (workday_id, slot, kind) or punches_timelog.
- */
 class PunchTest extends TestCase
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function punchRow(Punch $like, array $overrides = []): array
     {
         return [
@@ -61,11 +53,6 @@ class PunchTest extends TestCase
         ));
     }
 
-    /**
-     * employee_id NOT NULL, and one nullable column would defeat both
-     * composite FKs: MATCH SIMPLE skips them entirely once a referencing
-     * column is null.
-     */
     public function test_employee_is_required(): void
     {
         $punch = Punch::factory()->create();
@@ -93,12 +80,6 @@ class PunchTest extends TestCase
         ));
     }
 
-    /**
-     * punches_records_a_time. `expected_at` is nullable since decision 78 —
-     * a tap on a day that expected nothing is a real punch — so what the
-     * schema still refuses is a row holding neither instant, which records
-     * nothing whatever.
-     */
     public function test_a_punch_must_hold_an_expectation_or_an_arrival(): void
     {
         $punch = Punch::factory()->create();
@@ -113,7 +94,6 @@ class PunchTest extends TestCase
         ), 'punches_records_a_time');
     }
 
-    /** Decision 78: the transit itself is accepted, expectation and deviation null. */
     public function test_a_tap_with_no_expectation_is_accepted(): void
     {
         $punch = Punch::factory()->create();
@@ -129,13 +109,11 @@ class PunchTest extends TestCase
         $this->assertDatabaseHas('punches', ['timelog_id' => $spare->id, 'expected_at' => null]);
     }
 
-    /** Ruling P4: the primary key masks the pair, so assert the catalog. */
     public function test_id_and_agency_id_pair_is_declared_unique(): void
     {
         $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'punches_id_agency_id_unique'"));
     }
 
-    /** punches_workday_id_slot_kind_unique. */
     public function test_one_slot_side_cannot_be_punched_twice(): void
     {
         $punch = Punch::factory()->create();
@@ -166,11 +144,6 @@ class PunchTest extends TestCase
         $this->assertDatabaseHas('punches', ['id' => $out->id]);
     }
 
-    /**
-     * punches_timelog. One timelog fills one slot side, ever. The colliding
-     * insert is a different workday so (workday_id, slot, kind) is not the
-     * constraint doing the work.
-     */
     public function test_one_timelog_cannot_fill_two_punches(): void
     {
         $workday = Workday::factory()->create(['date' => '2026-09-15']);
@@ -196,12 +169,6 @@ class PunchTest extends TestCase
         ));
     }
 
-    /**
-     * The reason that index is **partial**. A missed punch has no timelog, and
-     * an unlimited number of those may exist. NULLS DISTINCT would permit the
-     * same inserts, so the predicate is read off the catalog the way
-     * terminals_serial is.
-     */
     public function test_missed_punches_may_share_a_null_timelog(): void
     {
         $workday = Workday::factory()->create();
@@ -230,7 +197,6 @@ class PunchTest extends TestCase
         );
     }
 
-    /** punches_kind_valid. EnumCheckContractTest holds the list to the enum. */
     public function test_kind_must_be_in_or_out(): void
     {
         $punch = Punch::factory()->create();
@@ -240,7 +206,6 @@ class PunchTest extends TestCase
         ), 'punches_kind_valid');
     }
 
-    /** punches_slot_positive. */
     public function test_slot_must_be_positive(): void
     {
         $punch = Punch::factory()->create();
@@ -253,7 +218,6 @@ class PunchTest extends TestCase
         ), 'punches_slot_positive');
     }
 
-    /** punches_actual_pairs_timelog. A fresh timelog so punches_timelog is not the refusal. */
     public function test_actual_at_and_timelog_id_are_both_set_or_both_null(): void
     {
         $punch = Punch::factory()->create();
@@ -267,12 +231,6 @@ class PunchTest extends TestCase
         ), 'punches_actual_pairs_timelog');
     }
 
-    /**
-     * punches_deviation_pairs_both. A deviation is actual minus expected, so
-     * it exists exactly when both do (decision 78) — three refusals, one per
-     * way of holding one instant and a number derived from two. Isolated
-     * from actual_pairs_timelog by setting timelog and actual together.
-     */
     public function test_deviation_needs_both_an_expectation_and_an_arrival(): void
     {
         $punch = Punch::factory()->create();
@@ -298,7 +256,6 @@ class PunchTest extends TestCase
         ), 'punches_deviation_pairs_both');
     }
 
-    /** punches_workday_id_employee_id_foreign, insert side. */
     public function test_employee_must_be_the_workdays_employee(): void
     {
         $workday = Workday::factory()->create();
@@ -311,10 +268,6 @@ class PunchTest extends TestCase
         ]));
     }
 
-    /**
-     * ON DELETE CASCADE: punches are derived rows with no independent
-     * existence. This is the one place in the schema that cascades.
-     */
     public function test_deleting_a_workday_deletes_its_punches(): void
     {
         $punch = Punch::factory()->missed()->create();
@@ -324,7 +277,6 @@ class PunchTest extends TestCase
         $this->assertDatabaseMissing('punches', ['id' => $punch->id]);
     }
 
-    /** Same FK, update side stays RESTRICT. */
     public function test_a_workday_with_punches_cannot_change_its_id(): void
     {
         $punch = Punch::factory()->missed()->create();
@@ -334,12 +286,6 @@ class PunchTest extends TestCase
         ]));
     }
 
-    /**
-     * The composite FK (timelog_id, employee_id) is load-bearing beyond
-     * existence. An unresolved timelog has employee_id null, so it can never
-     * match a punch's non-null employee_id — a punch can only ever use a
-     * resolved timelog, structurally.
-     */
     public function test_an_unresolved_timelog_cannot_fill_a_punch(): void
     {
         $workday = Workday::factory()->create();
@@ -357,7 +303,6 @@ class PunchTest extends TestCase
         ]));
     }
 
-    /** Same FK: a resolved timelog of somebody else. No punch claims it, so punches_timelog is not the refusal. */
     public function test_a_punch_cannot_use_another_employees_timelog(): void
     {
         $workday = Workday::factory()->create();
@@ -374,11 +319,6 @@ class PunchTest extends TestCase
         ]));
     }
 
-    /**
-     * punches_timelog_live. The signature takes an actor since decision 48.
-     * INSERT only: a punch that already claimed a record survives a later
-     * void (decision 57).
-     */
     public function test_a_punch_cannot_use_a_voided_timelog(): void
     {
         $workday = Workday::factory()->create();
@@ -420,17 +360,6 @@ class PunchTest extends TestCase
         return Timelog::factory()->resolving($enrollment)->create();
     }
 
-    /**
-     * punches_ledger_open, insert side (decision 80). Decision 70 said
-     * punches needed no guard of their own because they cascade from a
-     * workday that can no longer be deleted — which answers deleting the
-     * parent and not writing the child. The app role holds INSERT, UPDATE
-     * and DELETE here, so a signed month's chain was rewritable a row at a
-     * time with every guard around it intact.
-     *
-     * The ledger is created unlocked and locked afterwards, so the factory's
-     * own inserts are not the refusal.
-     */
     public function test_a_punch_cannot_be_inserted_on_a_locked_ledger(): void
     {
         $punch = Punch::factory()->create();
@@ -442,7 +371,6 @@ class PunchTest extends TestCase
         ), 'a punch cannot be written against a locked ledger');
     }
 
-    /** punches_ledger_open, update side — the shape that rewrites a time. */
     public function test_a_punch_cannot_be_updated_on_a_locked_ledger(): void
     {
         $punch = Punch::factory()->create();
@@ -455,7 +383,6 @@ class PunchTest extends TestCase
         ]));
     }
 
-    /** punches_ledger_open, delete side. Reads OLD: NEW is unassigned. */
     public function test_a_punch_cannot_be_deleted_on_a_locked_ledger(): void
     {
         $punch = Punch::factory()->create();
@@ -465,12 +392,6 @@ class PunchTest extends TestCase
         $this->assertDatabaseRefuses('P0001', fn () => DB::table('punches')->where('id', $punch->id)->delete());
     }
 
-    /**
-     * punches_ledger_open, the branch that reads OLD on an UPDATE. Moving a
-     * punch **out** of a locked month is as much a rewrite as moving one in,
-     * and the NEW check cannot see it — the destination workday is open, so
-     * only OLD's ledger is locked.
-     */
     public function test_a_punch_cannot_be_moved_out_of_a_locked_ledger(): void
     {
         $punch = Punch::factory()->create();
@@ -487,12 +408,6 @@ class PunchTest extends TestCase
         ]));
     }
 
-    /**
-     * punches_ledger_open, permitting path. The legitimate sequence is
-     * unlock then recompute, and `Computer` deletes and recreates a day's
-     * punches inside one transaction — so the trigger must read current
-     * state rather than anything cached at insert.
-     */
     public function test_punch_writes_succeed_once_the_ledger_is_unlocked(): void
     {
         $punch = Punch::factory()->create();
@@ -512,15 +427,6 @@ class PunchTest extends TestCase
         $this->assertDatabaseHas('punches', ['id' => $id]);
     }
 
-    /**
-     * A transit is never "still due" and so never blocks a lock
-     * (decisions 78 and 80): `ledgers_lock_complete` compares
-     * `expected_at > locked_at`, and a null expectation makes that NULL. It
-     * is the right answer — a tap on a day that expected nothing has
-     * already happened and no later punch can be owed against it — but it
-     * follows from three-valued logic rather than from an explicit clause,
-     * so it is written down here.
-     */
     public function test_a_transit_does_not_hold_a_ledger_open(): void
     {
         $punch = Punch::factory()->create();
@@ -536,12 +442,6 @@ class PunchTest extends TestCase
         $this->assertDatabaseHas('ledgers', ['locked_at' => '2026-09-01 12:00:00']);
     }
 
-    /**
-     * Lock the ledger the punch's workday belongs to. The timestamp is after
-     * the factory's `expected_at` on purpose: `ledgers_lock_complete`
-     * refuses a lock while any punch is still due, so an earlier one would
-     * fail these tests on the arrange rather than the act.
-     */
     private function lock(Punch $punch): void
     {
         DB::table('ledgers')

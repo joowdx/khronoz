@@ -10,19 +10,6 @@ use App\Models\Turn;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
-/**
- * Smoke cover for the schedules vertical: it writes what it says it writes,
- * and it is behind the scheduling permission. Scoping, prop shape, refusal
- * translation and the validation matrix are a later hardening wave's.
- *
- * Note what the happy path can and cannot prove. `turns_complete` is
- * DEFERRABLE INITIALLY DEFERRED and the suite runs inside a transaction that
- * is rolled back, so the constraint never fires during a test at all — a
- * COMMIT it could fire at never happens. What this asserts is therefore the
- * controller's own half: the schedule and exactly `length` turns at positions
- * `0 .. length - 1` are on the table when the request is over. The database's
- * half is `ScheduleTest`'s, where the deferred check is made to run for real.
- */
 class ScheduleControllerTest extends TestCase
 {
     public function test_viewing_requires_scheduling_view(): void
@@ -63,11 +50,6 @@ class ScheduleControllerTest extends TestCase
                 ->all(),
         );
 
-        // The redirect's own destination, rendered. `ScheduleResource`
-        // resolves `turns`, `fallback_shift` and `origin` through
-        // `whenLoaded`, and a relation the index forgot to eager-load surfaces
-        // as "Not a valid Inertia response" rather than as anything naming the
-        // column — so the list is asked for, not assumed.
         $this->get(route('schedules.index'))->assertInertia(
             fn (Assert $page) => $page
                 ->component('schedules/index')

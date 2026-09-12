@@ -8,28 +8,6 @@ use PHPUnit\Framework\TestCase;
 use ReflectionEnum;
 use SplFileInfo;
 
-/**
- * `.ai/rules/resources.md`: enum labels come from the enum, never a map in
- * TypeScript. That rule has now been broken twice — once by
- * `resources/js/lib/calendar.ts`, which dropped a case and invented one, and
- * then in five more places the rule itself did not catch because it was
- * recorded without sweeping for existing violations.
- *
- * A rule nothing enforces is a note. So this file enforces two halves of it:
- *
- * 1. Every labelled enum exposes `choices()`, and it covers every case — a
- *    case added without a label is a picker missing an option.
- * 2. **No `.tsx` file contains an enum's label as a string literal.** That is
- *    the check that actually bites: the two live defects were a `RATES` map
- *    and a hardcoded `options={[…]}` list, and both are exactly "this label,
- *    written out in TypeScript".
- *
- * Single-word labels are exempt from (2) and the exemption is listed rather
- * than inferred: "User", "Manual" and "Male" are ordinary English that a page
- * may legitimately contain for unrelated reasons, so matching them would make
- * the test a nuisance instead of a guard. The labels that drifted in practice
- * were all multi-word.
- */
 class EnumLabelContractTest extends TestCase
 {
     /** @return array<string, array{0: class-string}> */
@@ -111,13 +89,6 @@ class EnumLabelContractTest extends TestCase
         )));
     }
 
-    /**
-     * A file's code with its comments removed.
-     *
-     * Without this the test flags its own explanations: a docblock saying why
-     * "Super administrator" must not be hardcoded contains the string
-     * "Super administrator". Prose about a label is not a restatement of it.
-     */
     private function code(string $path): string
     {
         $contents = file_get_contents($path) ?: '';
@@ -129,7 +100,6 @@ class EnumLabelContractTest extends TestCase
         return preg_replace('#^\s*//.*$#m', '', $contents) ?? $contents;
     }
 
-    /** The repository root. `base_path()` needs an application; this test has none. */
     private function root(): string
     {
         return dirname(__DIR__, 3);

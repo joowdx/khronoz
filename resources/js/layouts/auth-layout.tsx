@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 
-/** The mark: three squares rising off a rule. Accent-coloured; the wordmark stays ink. */
 function Mark({ className }: { className?: string }) {
     return (
         <svg
@@ -20,7 +19,6 @@ function Mark({ className }: { className?: string }) {
     );
 }
 
-/** A shift letter in the roster grid: 21x22, chip radius, one ramp slot. */
 function Chip({ slot, children }: { slot: 'c2' | 'c5' | 'c8'; children: ReactNode }) {
     const ramp = {
         c2: 'bg-c2-fill border-c2-edge text-c2-text',
@@ -37,21 +35,13 @@ function Chip({ slot, children }: { slot: 'c2' | 'c5' | 'c8'; children: ReactNod
     );
 }
 
-/** A rest day: the hatched cell, so an empty cell and a day off never look alike. */
 const OFF_CELL =
     'bg-off-fill [background-image:repeating-linear-gradient(45deg,var(--off-hatch)_0_1px,transparent_1px_5px)]';
 
-/** One 27px day column. `off` hatches it, `chip` puts a shift letter in it. */
 function DayCell({ off = false, children }: { off?: boolean; children?: ReactNode }) {
     return <i className={`flex w-[27px] flex-none items-center justify-center ${off ? OFF_CELL : ''}`}>{children}</i>;
 }
 
-/**
- * A night run: one band spanning the two calendar days it actually covers,
- * opening 12px into its own day and closing 15px into the next. It is the
- * single hardest fact in this product to draw, which is why it is on the
- * sign-in screen at all.
- */
 function NightBand({ left, width, padLeft, hours }: { left: number; width: number; padLeft: number; hours?: string }) {
     return (
         <span
@@ -81,7 +71,6 @@ const DAYS = [
     { weekday: 'M', date: 14 },
 ];
 
-/** Weekend column and now-line offsets, measured from the grid's own origin: 200px of name column, then 27px a day. */
 const WEEKEND_OFFSETS = [308, 335, 497, 524];
 const NOW_OFFSET = 416;
 
@@ -97,16 +86,6 @@ const LANE_RAMP = {
     c8: 'bg-c8-fill border-c8-edge text-c8-text',
 } as const;
 
-/**
- * The product, as the hero. This is deliberately static presentational markup:
- * Milestone 1 has no roster data to render, and a sign-in page must not query
- * for any. Milestone 3 replaces the two panels below with the real roster grid
- * and the real on-duty strip — this whole component is the seam, so nothing
- * outside it has to change when that happens.
- *
- * Its geometry is the roster screen's own: 200px of name column, 27px a day,
- * 34px rows, 32px lanes on a 06:00 -> 30:00 axis.
- */
 function ProductHero() {
     return (
         <div className="flex flex-col items-start gap-4" aria-hidden="true">
@@ -333,14 +312,6 @@ function ProductHero() {
     );
 }
 
-/**
- * The auth split: the product on the sidebar tint, the form on the canvas.
- *
- * Below `lg` it becomes one column — the tint band carrying the wordmark and
- * the promise, then the form — and the hero drops out, because a 580px grid
- * cannot say anything useful at 390px wide. Pages raise their own controls to
- * 44px at that width.
- */
 export default function AuthLayout({
     title,
     description,

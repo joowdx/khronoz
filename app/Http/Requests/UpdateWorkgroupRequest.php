@@ -8,32 +8,17 @@ use Illuminate\Validation\Rule;
 
 class UpdateWorkgroupRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return $this->user()->can('update', $this->route('workgroup'));
     }
 
-    /**
-     * Upper-case the code before it is validated — see StoreWorkgroupRequest for
-     * why.
-     */
     protected function prepareForValidation(): void
     {
         $this->merge(['code' => Str::upper((string) $this->input('code'))]);
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * See StoreWorkgroupRequest for why parent_id/head_id are explicitly scoped
-     * by agency_id, why head_id also refuses a removed, departed or unplaced employee,
-     * and why a self-parent or a cycle is left to the database.
-     *
-     * @return array<string, array<int, mixed>>
-     */
+    /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
         $workgroup = $this->route('workgroup');

@@ -36,11 +36,6 @@ class OvertimeControllerTest extends TestCase
         );
     }
 
-    /**
-     * `overtimes_no_overlap` is a gist exclusion over `tsrange(starts, ends)`
-     * and no validation rule can express it, so the controller translates the
-     * 23P01 into a message rather than letting a 500 out.
-     */
     public function test_overlapping_authorisations_for_one_person_are_refused(): void
     {
         $agency = Agency::factory()->create();
@@ -65,7 +60,6 @@ class OvertimeControllerTest extends TestCase
         $this->assertSame(1, Overtime::count());
     }
 
-    /** Two people may of course work the same hours. */
     public function test_two_people_may_be_authorised_for_the_same_hours(): void
     {
         $agency = Agency::factory()->create();
@@ -86,10 +80,6 @@ class OvertimeControllerTest extends TestCase
         $this->assertSame(2, Overtime::count());
     }
 
-    /**
-     * Back-to-back is not overlapping: `tsrange` is half-open, so a stretch
-     * ending at 20:00 and one starting at 20:00 share no instant.
-     */
     public function test_back_to_back_authorisations_are_accepted(): void
     {
         $agency = Agency::factory()->create();
@@ -109,11 +99,6 @@ class OvertimeControllerTest extends TestCase
         $this->assertSame(2, Overtime::count());
     }
 
-    /**
-     * The reason both bounds are timestamps: 22:00–02:00 is one stretch of
-     * work, and the generated `date` puts it on the day it began — which is
-     * how a DTR reads it.
-     */
     public function test_an_overnight_stretch_is_one_row_dated_to_the_day_it_began(): void
     {
         $agency = Agency::factory()->create();
@@ -149,10 +134,6 @@ class OvertimeControllerTest extends TestCase
         ])->assertSessionHasErrors('ends');
     }
 
-    /**
-     * `overtimes_mode_valid` allows `pay` and `cto` and nothing else, so a
-     * third value is refused on the field rather than as a 23514.
-     */
     public function test_a_mode_the_check_does_not_allow_is_refused(): void
     {
         $agency = Agency::factory()->create();
@@ -168,7 +149,6 @@ class OvertimeControllerTest extends TestCase
         ])->assertSessionHasErrors('mode');
     }
 
-    /** The picker offers exactly what the CHECK allows — two, not three. */
     public function test_the_form_offers_only_the_modes_the_check_allows(): void
     {
         $this->actingAsAgency(Agency::factory()->create(), Permission::ManageCalendar);
@@ -212,11 +192,6 @@ class OvertimeControllerTest extends TestCase
         ])->assertSessionHasErrors('employee_id');
     }
 
-    /**
-     * The same offboarding lock as on exemptions: an authorised stretch that
-     * is already on the record stays correctable after the person is removed,
-     * while a *new* employee_id is still held to the picker.
-     */
     public function test_an_authorisation_for_a_removed_employee_is_still_correctable(): void
     {
         $agency = Agency::factory()->create();
@@ -259,13 +234,6 @@ class OvertimeControllerTest extends TestCase
         $this->get(route('overtimes.edit', Overtime::factory()->create()))->assertNotFound();
     }
 
-    /**
-     * Decision 81 froze this table against a locked month — `Ledger::view()`
-     * reads it live, so a slip withdrawn after the fact would move a figure
-     * somebody has signed. Nothing here translated the P0001, so an ordinary
-     * withdrawal answered a 500 and the trigger doing its job looked like a
-     * fault of the application.
-     */
     public function test_withdrawing_an_authority_in_a_locked_month_is_refused_with_a_message(): void
     {
         $agency = Agency::factory()->create();
@@ -286,7 +254,6 @@ class OvertimeControllerTest extends TestCase
         $this->assertDatabaseHas('overtimes', ['id' => $overtime->id]);
     }
 
-    /** The exclusion constraint's own message survives the same translation. */
     public function test_overlapping_hours_are_still_refused_by_their_own_message(): void
     {
         $agency = Agency::factory()->create();

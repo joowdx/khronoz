@@ -17,22 +17,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class WorkdayFactory extends Factory
 {
-    /**
-     * Define the model's default state: a present ordinary day in September
-     * 2026, against a Standard shift snapshot.
-     *
-     * **`month` is deliberately not set**, which is the one departure from
-     * .ai/rules/factories.md's "set every real column explicitly". It is a
-     * generated column, and Postgres refuses any value supplied for one
-     * (428C9) — so the rule's reason, that a column left out is a column
-     * nobody controls, does not apply: `date`'s month controls it absolutely.
-     *
-     * The ledger's `month` is derived from `date` rather than faked
-     * independently: the three-column FK refuses a workday whose generated
-     * month is not that ledger's.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
@@ -49,10 +34,7 @@ class WorkdayFactory extends Factory
             'shift_id' => fn (array $attributes) => Shift::factory()->create([
                 'agency_id' => $attributes['agency_id'],
             ])->id,
-            // Snapshot::of() (decision 69). A flat {name, slots, …} here is a
-            // test that proves nothing — WorkdayResource read shift['name'],
-            // the assertion passed, and the Shift column was empty on every
-            // real row. Keys are held to the orchestrator by WorkdayTest.
+            // Fixture shape mirrors the persisted shift snapshot.
             'shift' => fn (array $attributes) => [
                 'shift' => [
                     'id' => $attributes['shift_id'],
@@ -89,14 +71,6 @@ class WorkdayFactory extends Factory
         ];
     }
 
-    /**
-     * Read the generated `month` back after the insert.
-     *
-     * Without this, `Workday::factory()->create()->month` raises
-     * MissingAttributeException under Model::shouldBeStrict(): create() never
-     * re-selects the row, so a column the INSERT did not supply is absent
-     * rather than null.
-     */
     public function configure(): static
     {
         return $this->afterCreating(fn (Workday $workday) => $workday->refresh());

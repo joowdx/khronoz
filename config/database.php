@@ -44,8 +44,7 @@ return [
             'transaction_mode' => 'DEFERRED',
         ],
 
-        // Telescope's own store. Local only, and deliberately not Postgres:
-        // one request can write dozens of entries and none of it is domain data.
+        // Telescope is local observability data, not domain data.
         'telescope' => [
             'driver' => 'sqlite',
             'database' => env('TELESCOPE_DB_DATABASE', database_path('telescope.sqlite')),
@@ -112,18 +111,8 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
-        // Migrations and schema changes run as the database owner. The application
-        // itself connects as `chronoz`, which cannot alter schema or bypass the
-        // column-level grants declared in the migrations (docs/design/07-constraints.md).
-        //
-        // No fallback defaults on username/password: a fallback would let the
-        // connection quietly resolve to a superuser even when DB_OWNER_* is
-        // unset, defeating the one thing that is supposed to close it off in
-        // the Octane/Horizon runtime (AppServiceProvider::guardOwnerConnection()
-        // backs this with an actual refusal, not just absent credentials). A
-        // separate DB_OWNER_URL, rather than sharing the pgsql connection's
-        // DB_URL, keeps one shared DB_URL in production from collapsing both
-        // identities into the same connection string.
+        // The owner migrates; the application role cannot alter schema or bypass grants.
+        // Owner credentials have no fallback, preventing an accidental superuser connection.
         'owner' => [
             'driver' => 'pgsql',
             'url' => env('DB_OWNER_URL'),
@@ -219,9 +208,7 @@ return [
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
         ],
 
-        // Horizon keeps its supervisors, metrics and failed jobs here. A
-        // separate database means "cache:clear" can never take the queue
-        // dashboard with it. read_write_timeout of -1 survives blocking pops.
+        // Keep Horizon data outside the cache; blocking pops require no read timeout.
         'horizon' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),

@@ -8,17 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * The people an agency keeps a DTR for (docs/design/01-organization.md).
-     * Created after `users` so it can complete the user-to-employee pairing,
-     * and before `workgroups`, whose head can pair to this table's
-     * `UNIQUE (id, agency_id)` in its create migration.
-     *
-     * Every constraint the per-table block in docs/design/07-constraints.md
-     * does not name is here anyway: `agency_id NOT NULL`, its FK, that FK's
-     * explicit RESTRICT on both sides, and `UNIQUE (id, agency_id)` all come
-     * from the file's "Defaults unless stated" sentence, and the `sex` CHECK
-     * from the same sentence's rule that every enum is a varchar plus a CHECK
-     * mirrored by a PHP enum (App\Enums\Sex).
+     * Employees precede workgroups so their paired key can constrain group heads.
      */
     public function up(): void
     {
@@ -40,17 +30,10 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            // The employee number is the agency's own, so it is unique per
-            // agency and not globally. Both this and the pair below mean
-            // nothing without `number` and `agency_id` being NOT NULL: nulls
-            // are distinct in a unique index, so a nullable column would let
-            // unlimited "duplicates" through.
+            // NOT NULL makes the agency-scoped unique number effective.
             $table->unique(['agency_id', 'number']);
 
-            // Trivially satisfied by the primary key, and the whole point of
-            // the tenancy design: `workgroups.head_id`, `deployments.employee_id`
-            // and `users.employee_id` each reference this pair, which is what
-            // proves a child never points at an employee of another agency.
+            // This paired-key target prevents cross-agency employee references.
             $table->unique(['id', 'agency_id']);
         });
 
@@ -71,21 +54,9 @@ return new class extends Migration
                 ADD CONSTRAINT employees_tags_bounded CHECK (jsonb_typeof(tags) <> 'array' OR jsonb_array_length(tags) <= 20);
         SQL);
 
-        // Postgres does not order CHECK evaluation, and jsonb_array_length()
-        // raises 22023 on a non-array instead of returning false — so
-        // employees_tags_bounded is guarded by its own typeof test. Without
-        // the guard, inserting `'{}'::jsonb` could surface 22023 from the
-        // bound rather than the 23514 that employees_tags_valid owes it,
-        // depending on which constraint Postgres happens to check first.
-        //
-        // The bound is 20: tags are labels an agency edits by hand, not a
-        // payload. A per-tag character bound is the Form Request's job; that
-        // number is a UI decision that will change, and a CHECK is the wrong
-        // place to keep a changing number.
+        // A type guard preserves this CHECK's SQLSTATE when JSON is not an array.
 
-        // Nothing operational hangs under the platform agency. `deployments`
-        // deliberately has no such trigger: it needs an employee and a workgroup,
-        // and both refuse the platform row already.
+        // Deployments already require non-platform employee and workgroup parents.
         DB::unprepared(<<<'SQL'
             CREATE TRIGGER agency_not_platform
                 BEFORE INSERT OR UPDATE OF agency_id ON employees

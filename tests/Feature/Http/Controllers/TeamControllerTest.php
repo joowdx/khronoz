@@ -10,10 +10,9 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 /**
- * Smoke cover for the teams vertical: it writes a `(name, schedule, anchor)`
- * row and it is behind the scheduling permission. Scoping, prop shape, the
- * 23001 on a team whose rosters still name it, and the validation matrix are a
- * later hardening wave's.
+ * Smoke cover for the teams vertical: it writes a `(name, schedule, anchor)` row and it is behind
+ * the scheduling permission. Scoping, prop shape, the 23001 on a team whose rosters still name it,
+ * and the validation matrix are not asserted here.
  */
 class TeamControllerTest extends TestCase
 {
@@ -47,11 +46,6 @@ class TeamControllerTest extends TestCase
         $this->assertSame($schedule->id, $team->schedule_id);
         $this->assertSame('2026-09-07', $team->anchor->toDateString());
 
-        // The redirect's own destination, rendered: `TeamResource` resolves
-        // its schedule through `ScheduleResource`, which resolves that
-        // schedule's turns in turn, and a relation the index forgot to load
-        // surfaces as "Not a valid Inertia response" rather than as anything
-        // naming the column.
         $this->get(route('teams.index'))->assertInertia(
             fn (Assert $page) => $page
                 ->component('teams/index')

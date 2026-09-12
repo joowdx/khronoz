@@ -34,7 +34,6 @@ interface LedgerRow extends Ledger {
     undertime: number;
 }
 
-/** Only the props the list owns. */
 const PARTIAL = ['ledgers', 'pagination', 'filters'];
 
 const COLUMNS = {
@@ -46,7 +45,6 @@ const COLUMNS = {
     actions: 110,
 } as const;
 
-/** What the flexible Person column needs for a full Filipino name. */
 const FLEX_MIN = 240;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;

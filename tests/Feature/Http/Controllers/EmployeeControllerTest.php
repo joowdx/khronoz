@@ -33,13 +33,7 @@ class EmployeeControllerTest extends TestCase
             ->mapWithKeys(fn (Permission $p) => [$p->value => [$p]])->all();
     }
 
-    /**
-     * Every write route, exercised by a ViewOrganization-only holder: proves
-     * view access does not imply manage access. Mirrors
-     * UserControllerTest::userManagementRouteCases.
-     *
-     * @return array<string, array{0: string, 1: string, 2: bool}>
-     */
+    /** @return array<string, array{0: string, 1: string, 2: bool}> */
     public static function organizationManagementRouteCases(): array
     {
         return [
@@ -63,15 +57,6 @@ class EmployeeControllerTest extends TestCase
         $this->{$verb}($url)->assertForbidden();
     }
 
-    /**
-     * phpunit.xml pins SCOUT_DRIVER=null for the suite (so unrelated tests
-     * never depend on a search backend at all) — Laravel\Scout\Engines\NullEngine
-     * always reports zero results, silently, no matter what data exists. Any
-     * test that exercises EmployeeController::index (which searches through
-     * Scout unconditionally, even for a blank term) must opt back into the
-     * real driver first, or it is testing NullEngine's empty result, not this
-     * controller.
-     */
     private function useDatabaseSearchDriver(): void
     {
         config(['scout.driver' => 'database']);
@@ -90,15 +75,6 @@ class EmployeeControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('employees/index', false)->has('employees', 2));
     }
 
-    /**
-     * The eager-loading trap (task-5-brief.md): Model::shouldBeStrict() arms
-     * the lazy-loading guard on a hydrated collection only once it holds
-     * more than one model (Builder::hydrate()), so a single-employee test
-     * cannot exercise EmployeeController::index's `->with('currentDeployment.workgroup')`
-     * — this fixture is deliberately two employees, one with an open
-     * deployment and one without, so both branches of
-     * EmployeeResource::current_deployment render.
-     */
     public function test_index_renders_two_employees_including_their_current_workgroup(): void
     {
         $this->useDatabaseSearchDriver();
@@ -126,20 +102,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('employees.1.current_deployment', null));
     }
 
-    /**
-     * R10, scope half: proves AgencyScope itself, not the explicit
-     * ->where('agency_id', ...) filter in EmployeeController::index. Both
-     * employees share the searched term, so narrowing to one row is real
-     * coverage — it would fail if AgencyScope broke — but under the shipped
-     * `database` driver it is NOT falsifiable evidence for the explicit
-     * filter specifically: DatabaseEngine::newSearchQuery() falls back to
-     * $builder->model->newQuery() (Employee::toSearchableArray()'s docblock),
-     * which already carries AgencyScope, so removing only the controller's
-     * ->where('agency_id', ...) would leave this test passing unchanged.
-     * test_search_where_clause_carries_the_current_agency below covers the
-     * explicit filter itself, by inspecting the SQL the database driver
-     * actually sends rather than the result set.
-     */
     public function test_search_results_are_scoped_to_the_current_agency(): void
     {
         $this->useDatabaseSearchDriver();
@@ -156,36 +118,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('employees.0.id', $inX->id));
     }
 
-    /**
-     * R10, explicit-filter half: the ->where('agency_id', ...) at the
-     * EmployeeController::index call site exists for an external search
-     * engine (Meilisearch, Algolia, Typesense) that matches against its own
-     * index and never applies AgencyScope — under the shipped `database`
-     * driver, results alone can't distinguish that filter from AgencyScope
-     * (see the test above), so this asserts on the SQL Postgres actually
-     * receives instead. DatabaseEngine::newSearchQuery() falls back to
-     * Model::newQuery(), so AgencyScope alone already contributes one
-     * `agency_id` condition; the controller's explicit
-     * ->where('agency_id', ...) contributes a second, independent one.
-     * Deleting the controller's filter drops every query against
-     * "employees" from two `agency_id` conditions to one, so this fails
-     * exactly when the finding says it should — unlike inspecting
-     * Laravel\Scout\Builder::$wheres directly (the previous version of this
-     * test), which only proves Builder::where() works — an unconditional
-     * array push with no branching (vendor/laravel/scout/src/Builder.php:
-     * 175-184) — and says nothing about whether the controller actually
-     * called it.
-     *
-     * A real search term, deliberately: the count is exactly 2 either way
-     * now, and a term is the shape that used to break it. DatabaseEngine
-     * ilike-matches `%term%` against every key of toSearchableArray(), and
-     * `agency_id` was one of them under this driver, adding a third,
-     * unrelated `agency_id` substring — so this test had to search for
-     * nothing at all to hold. It no longer does (Employee::toSearchableArray
-     * indexes the key only for an engine that filters through its own index),
-     * which makes the term free and makes this test fail if anyone puts an
-     * identifier back into the array under the `database` driver.
-     */
     public function test_search_where_clause_carries_the_current_agency(): void
     {
         $this->useDatabaseSearchDriver();
@@ -214,25 +146,6 @@ class EmployeeControllerTest extends TestCase
         }
     }
 
-    /**
-     * A short term must narrow the list, which is the whole job of the search
-     * box: a timekeeper finds a person by typing, in a list that will hold
-     * thousands.
-     *
-     * The fixture puts the term in every row's `id` and in exactly one row's
-     * name. DatabaseEngine ilike-matches `%term%` against every key of
-     * toSearchableArray(), so while `id` was one of those keys every row
-     * contributed 26 characters of ULID to the match set and a one- or
-     * two-character term matched everyone. MEASURED against the seeded Demo
-     * Agency before the fix: `q` returned 32 of 32 employees, `n2d7` 32 of 32,
-     * `zq` 0 and `Barton` 1 — the terms that failed were the short ones, i.e.
-     * every term on the way to a long one.
-     *
-     * Ids are assigned by hand here because a ULID's own characters are not
-     * knowable in advance; they stay valid Crockford base32 so nothing else
-     * about the row is unusual. Restoring `'id' => $this->id` to the array
-     * makes this return 3.
-     */
     public function test_a_short_search_term_narrows_the_list(): void
     {
         $this->useDatabaseSearchDriver();
@@ -270,15 +183,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('pagination.total', 1));
     }
 
-    /**
-     * P17's workgroup filter. The fixture is the point: three employees, one in a
-     * department, one in a division *under* it, one in an unrelated division.
-     * Filtering by the department must return the first two — 01-organization.md
-     * rule 4 makes "this workgroup and everything under it" what choosing a workgroup
-     * means, and a department whose people all sit in its divisions would
-     * otherwise answer with nothing. A fixture with only a direct member would
-     * pass whether or not the subtree walk existed.
-     */
     public function test_the_workgroup_filter_includes_everything_under_the_chosen_workgroup(): void
     {
         $this->useDatabaseSearchDriver();
@@ -303,7 +207,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('pagination.total', 2));
     }
 
-    /** The subtree is inclusive of the workgroup itself but not of its siblings: filtering by the child returns only the child's own. */
     public function test_the_workgroup_filter_does_not_climb_to_a_parent(): void
     {
         $this->useDatabaseSearchDriver();
@@ -321,7 +224,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('employees.0.id', $inDivision->id));
     }
 
-    /** P17's tag filter: jsonb containment against employees.tags, which is a set and not a string. */
     public function test_the_tag_filter_narrows_to_employees_carrying_it(): void
     {
         $this->useDatabaseSearchDriver();
@@ -340,7 +242,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('pagination.total', 1));
     }
 
-    /** P17's exempt toggle. */
     public function test_the_exempt_filter_narrows_to_employees_with_no_daily_time_record_expected(): void
     {
         $this->useDatabaseSearchDriver();
@@ -360,7 +261,6 @@ class EmployeeControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->has('employees', 2)->where('filters.exempt', false));
     }
 
-    /** All three at once, because the screen offers them at once and each is a separate ->when(). */
     public function test_the_filters_combine(): void
     {
         $this->useDatabaseSearchDriver();
@@ -380,12 +280,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('employees.0.id', $wanted->id));
     }
 
-    /**
-     * A workgroup id or a tag the tenant does not have is dropped, not applied, and
-     * `filters` reports it as unset — otherwise the picker would show an empty
-     * value while the list stayed filtered by something nobody can see. Same
-     * whitelisting AgencyController::index gives `sort`.
-     */
     public function test_an_unknown_workgroup_or_tag_filter_is_dropped(): void
     {
         $this->useDatabaseSearchDriver();
@@ -402,12 +296,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('filters.tag', ''));
     }
 
-    /**
-     * The filter controls' own options. `tags` is this tenant's whole tag
-     * vocabulary, once each and sorted; a soft-deleted employee's tags are not
-     * part of it, which is the half a plain DISTINCT over the raw table would
-     * get wrong.
-     */
     public function test_index_carries_the_workgroups_and_tags_the_filters_need(): void
     {
         $this->useDatabaseSearchDriver();
@@ -427,20 +315,6 @@ class EmployeeControllerTest extends TestCase
                 ->where('tags', ['night', 'ward-3']));
     }
 
-    /**
-     * The partial-reload contract, which had no test at all: the brief
-     * requires a filter change to reload only the props the list owns, and
-     * the whole reason `workgroups` and `tags` are sent as Inertia closures is
-     * that Inertia never invokes a closure for a prop a partial reload
-     * excluded — so the option lists are queried once per full load rather
-     * than once per keystroke.
-     *
-     * `X-Inertia-Partial-Data` is read from the page component's own
-     * `PARTIAL` constant rather than hard-coded, which is what makes this
-     * falsifiable in the direction that matters: adding `workgroups` to `PARTIAL`
-     * puts it in the header, the closure is then invoked, and `missing`
-     * fails. A hard-coded header would have gone on passing.
-     */
     public function test_a_filter_reload_returns_only_the_props_the_list_owns(): void
     {
         $this->useDatabaseSearchDriver();
@@ -467,14 +341,7 @@ class EmployeeControllerTest extends TestCase
             ->assertJsonMissingPath('props.tags');
     }
 
-    /**
-     * `PARTIAL` as employees/index.tsx declares it — the same read-the-source
-     * approach PermissionMatrixContractTest and OrganizationNavContractTest
-     * take, for the same reason: nothing in `tsc` or the bundle would notice
-     * the list growing.
-     *
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     private function partialProps(): array
     {
         $source = file_get_contents(__DIR__.'/../../../../resources/js/pages/employees/index.tsx');
@@ -489,13 +356,6 @@ class EmployeeControllerTest extends TestCase
         return $props[1];
     }
 
-    /**
-     * The profile carries the tree, for the move sheet's picker and for the
-     * ancestry line under the current workgroup. A view-only reader gets it too:
-     * the same tree is on /workgroups for anyone holding organization.view, so
-     * withholding it would only cost them the line that says where the workgroup
-     * sits — and it stays this tenant's own tree either way.
-     */
     public function test_show_carries_the_tree_for_the_path_and_the_move_picker(): void
     {
         $agency = Agency::factory()->create();
@@ -512,7 +372,6 @@ class EmployeeControllerTest extends TestCase
         }
     }
 
-    /** An employee with an open deployment in $workgroup, ordered by $lastName so a filtered list's row order is assertable. */
     private function deployed(Agency $agency, Workgroup $workgroup, string $lastName, array $attributes = []): Employee
     {
         $employee = Employee::factory()->create([...$attributes, 'agency_id' => $agency->id, 'last_name' => $lastName]);
@@ -528,12 +387,6 @@ class EmployeeControllerTest extends TestCase
         return $employee;
     }
 
-    /**
-     * Minor 6: create/edit were only ever exercised for 403 (view-only) and
-     * 404 (cross-tenant), never for a manager actually reaching the form —
-     * so a wrong Inertia::render() component string here would first surface
-     * in the next task's screens, not in this suite.
-     */
     public function test_create_renders_the_employee_create_form(): void
     {
         $agency = Agency::factory()->create();
@@ -636,12 +489,6 @@ class EmployeeControllerTest extends TestCase
         $this->assertSoftDeleted($employee);
     }
 
-    /**
-     * The regression guard for cross-tenant route binding must be a
-     * cross-tenant lookup, not a same-agency happy path (.ai/rules/middleware.md)
-     * — a same-agency lookup resolves identically whether or not
-     * SetTenant/SubstituteBindings ordering is correct.
-     */
     public function test_showing_an_employee_of_another_agency_is_not_found(): void
     {
         $stranger = Employee::factory()->create();
@@ -676,15 +523,6 @@ class EmployeeControllerTest extends TestCase
         $this->delete(route('employees.destroy', $stranger))->assertNotFound();
     }
 
-    /** The headcount queries deployments, so hiding the employee alone cannot fix it. */
-    /**
-     * The profile has to be able to tell a reassignment from a placement, and
-     * `parent_id` is the only thing on the wire that does — there is no type
-     * field (decision 31). The page indents nested rows by it and counts the
-     * two kinds separately, so a resource that stopped sending it would
-     * silently flatten the history into rows that overlap for no visible
-     * reason.
-     */
     public function test_the_profile_carries_the_nesting_the_history_table_renders(): void
     {
         $placement = Deployment::factory()->create(['starts' => '2026-01-01', 'ends' => null]);
@@ -716,11 +554,6 @@ class EmployeeControllerTest extends TestCase
         $this->assertDatabaseHas('deployments', ['id' => $placement->id, 'ends' => '2026-09-10']);
         $this->assertSoftDeleted('employees', ['id' => $placement->employee_id]);
 
-        // Closed on its last day, inclusive — so it still covers today, and
-        // currentDeployment still finds it. That is the point of the
-        // relation's predicate: "the placement covering this date", not "the
-        // row with no end", which a fixed-term placement would fail. It stops
-        // being current tomorrow.
         $trashed = Employee::withTrashed()->findOrFail($placement->employee_id);
         $this->assertSame($placement->id, $trashed->currentDeployment->id);
 
@@ -756,11 +589,6 @@ class EmployeeControllerTest extends TestCase
         $this->assertSoftDeleted('employees', ['id' => $placement->employee_id]);
     }
 
-    /**
-     * Workday rule 3, decision 86. Every placement closes at today, so from
-     * tomorrow this person is employed nowhere and any day already computed
-     * past that is a day nobody was employed on.
-     */
     public function test_removing_an_employee_queues_a_recompute_from_today(): void
     {
         $agency = Agency::factory()->create();

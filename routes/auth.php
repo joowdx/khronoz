@@ -19,9 +19,7 @@ Route::middleware('guest')->group(function () {
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
     Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.store');
 
-    // Invite-only accounts (decision 15): HR creates the user and this signed
-    // link is the only way to set a password, so both verbs must be signed —
-    // see InviteController for why store() also re-checks acceptance.
+    // Password setup is available only through the signed invitation link.
     Route::get('invite/{user}', [InviteController::class, 'create'])->middleware('signed')->name('invite.accept');
     Route::post('invite/{user}', [InviteController::class, 'store'])->middleware('signed')->name('invite.store');
 });

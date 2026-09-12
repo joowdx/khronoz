@@ -16,9 +16,6 @@ use Inertia\Response;
 
 class NewPasswordController extends Controller
 {
-    /**
-     * Display the reset password page.
-     */
     public function create(Request $request, string $token): Response
     {
         return Inertia::render('auth/reset-password', [
@@ -27,9 +24,6 @@ class NewPasswordController extends Controller
         ]);
     }
 
-    /**
-     * Handle an incoming new password request.
-     */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([
@@ -38,8 +32,6 @@ class NewPasswordController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // The closure only runs once the broker has itself confirmed the
-        // token matches this email, so there is no separate check here for
         // whether the token belongs to this user.
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),

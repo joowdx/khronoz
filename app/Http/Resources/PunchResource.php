@@ -9,17 +9,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * Matches the `Punch` interface in resources/js/types/index.d.ts.
  *
- * One transit of a workday. `actual_at` null is a missed (or still-due)
- * punch, never an engine-invented time (decision 64); `expected_at` null is
- * a tap on a day that expected nothing — a rest day, a non-working holiday
- * or a suspension worked through (decision 78) — and `deviation` is null
- * with either. `kind` crosses as `{value, label}` from PunchKind.
- *
  * @mixin Punch
  */
 class PunchResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

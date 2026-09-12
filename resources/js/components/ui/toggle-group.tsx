@@ -2,24 +2,9 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { ToggleGroup as ToggleGroupPrimitive } from 'radix-ui';
 
-/**
- * The segmented control (.seg): a 32px bordered track holding 26px segments,
- * with the selected one on the accent tint at 600. It is the closest thing
- * shadcn generates to the design's control, so it *is* that control here —
- * the generated `variant`/`spacing` machinery is gone, because the design has
- * one segmented control, not a family of them.
- *
- * `full` stretches it to the container and shares the width evenly, which is
- * how the appearance switcher sits inside the user menu.
- */
 function ToggleGroup({
     className,
     full = false,
-    /**
-     * Accepted and ignored. shadcn generates a `variant` here; the design has
-     * one segmented control, so it is recorded as an attribute for styling
-     * hooks rather than branching the geometry.
-     */
     variant,
     children,
     ...props

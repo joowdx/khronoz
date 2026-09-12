@@ -2,8 +2,6 @@ import { Link } from '@inertiajs/react';
 import { login } from '@/routes';
 import { BrandLink } from '@/components/marketing/brand';
 
-// py-0.5 takes the hit area to 24px without moving the text, the remedy
-// docs/design/08-interface.md §5.5 gives a link with no padding of its own.
 const LINK = 'text-muted-foreground hover:text-foreground rounded-lg py-0.5 text-[13px] leading-5 font-medium';
 
 export function SiteFooter({ demo }: { demo: string }) {

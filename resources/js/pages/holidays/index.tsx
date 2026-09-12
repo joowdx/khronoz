@@ -37,19 +37,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Name column needs for a real proclamation title. */
 const FLEX_MIN = 300;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * A year at a time, because that is the unit a proclamation arrives in.
- *
- * **Two holidays may share a date and both are owed** (dole-rules.md I.6), so
- * the list never groups by date or shows one row per day — a second holiday on
- * 30 November is a second row, sitting directly under the first, and the
- * higher rate is a fact about both rather than a merge.
- */
 export default function Index({
     holidays,
     filters,
@@ -71,9 +62,6 @@ export default function Index({
         </Button>
     ) : null;
 
-    // The years the agency actually has rows in, plus the one being viewed —
-    // so the picker can always show its own selection even when a hand-typed
-    // year has nothing in it.
     const options = [...new Set([filters.year, ...years])].sort().reverse();
 
     return (
@@ -141,10 +129,6 @@ export default function Index({
                         </TableHeader>
                         <TableBody>
                             {holidays.map((holiday, position) => {
-                                // A second holiday on the same date is a second
-                                // row, and the date is not repeated — so the
-                                // pair reads as one day carrying two, which is
-                                // exactly what it is.
                                 const sameDay = position > 0 && holidays[position - 1]?.date === holiday.date;
 
                                 return (
@@ -184,13 +168,6 @@ export default function Index({
     );
 }
 
-/**
- * A national holiday has no menu at all.
- *
- * It belongs to the platform agency, and HolidayPolicy refuses an agency user
- * changing it — so offering the item and translating the 403 would be worse
- * than not offering it. The "Declared by" cell beside the gap says why.
- */
 function RowMenu({ holiday, manage }: { holiday: Holiday; manage: boolean }) {
     if (!manage || holiday.national) {
         return null;

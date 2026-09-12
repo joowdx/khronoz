@@ -10,17 +10,6 @@ use App\Support\Intervals;
 use Carbon\CarbonImmutable;
 
 /**
- * The day's figures: status and the seven minute columns a workday
- * stores (06-attendance.md daily rules 1 to 10).
- *
- * Policy, not algebra. Presence and Intervals measure sets of minutes;
- * this class decides what those measures become on a holiday, a
- * suspension, a remote day, a half-filled slot, and an exemption.
- * Pure: Day and Matching in, a Derived out, no database.
- *
- * Assume lives here and never in the matcher (decision 64). A missing
- * side contributes no tardiness and no undertime (decision 71).
- *
  * @phpstan-type Range array{0: CarbonImmutable, 1: CarbonImmutable}
  * @phpstan-type Side array{slot: int, kind: string, at: CarbonImmutable, grace: int, window: array{0: int, 1: int}}
  * @phpstan-type Punch array{slot: int, kind: string, expected_at: ?CarbonImmutable, timelog_id: ?string, actual_at: ?CarbonImmutable, deviation: ?int}
@@ -73,9 +62,7 @@ final class Deriver
                 $start = $inAt;
                 $end = $outAt;
             } elseif ($missingSide === MissingSide::Assume && $in !== null && $out !== null && ($inAt !== null xor $outAt !== null)) {
-                // Null on both sides is decision 78's transit, not a
-                // half-filled slot: there is no expectation to assume
-                // toward, so `assume` has nothing to substitute.
+
                 $start = $inAt ?? $in['expected_at'];
                 $end = $outAt ?? $out['expected_at'];
             } else {
@@ -110,10 +97,6 @@ final class Deriver
         return $expected;
     }
 
-    /**
-     * Rule 5's table. Premium before status because a regular holiday on
-     * a rest day is off and regular, and worked follows the stronger cause.
-     */
     private static function worked(
         Day $day,
         int $worked,

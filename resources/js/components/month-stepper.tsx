@@ -3,21 +3,10 @@ import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatDay } from '@/lib/dates';
 
-/**
- * §5.2's third form: a 32px icon button, the month as the page's `<h1>` at
- * 32/38/700 `tabular-nums`, a 32px icon button. It replaces the title in the
- * heading row of a month-scoped page; the breadcrumb bar still shows the
- * plain page name.
- *
- * Changing month re-renders the list. The new month is announced by moving
- * focus to the `<h1>` — a polite live region would also do, an alert would
- * not.
- */
 export function MonthStepper({
     value,
     onChange,
 }: {
-    /** `YYYY-MM`. */
     value: string;
     onChange: (month: string) => void;
 }) {
@@ -65,7 +54,6 @@ export function MonthStepper({
     );
 }
 
-/** `YYYY-MM` as "September 2026", via `formatDay` so the month names stay in one place. */
 export function formatMonthTitle(value: string): string {
     return formatDay(`${value}-01`).replace(/^\d+\s/, '');
 }

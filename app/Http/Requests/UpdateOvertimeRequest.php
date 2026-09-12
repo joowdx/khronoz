@@ -15,34 +15,7 @@ class UpdateOvertimeRequest extends FormRequest
         return $this->user()->can('update', $this->route('overtime'));
     }
 
-    /**
-     * No rule tries to express "does not overlap another authorisation for
-     * this person" — `overtimes_no_overlap` is a gist exclusion over
-     * `tsrange(starts, ends)` and no validation rule can say that. The
-     * controller translates the 23P01 instead, which is the same division of
-     * labour the enrollment screen makes.
-     *
-     * `date` is never accepted: it is a generated column (`starts::date`) and
-     * Postgres refuses an insert into it outright.
-     *
-     * On update the rule accepts **this row's own current employee**, even
-     * when that employee has since been removed.
-     *
-     * `.ai/rules/requests.md` says an `exists` rule must accept only what the
-     * picker offers, and on a store that is right. On an update it locks the
-     * row: `RemoveEmployee` soft-deletes, the calendar row stays valid (the
-     * paired FK never sees an UPDATE), the index null-guards the missing
-     * person — and then correcting a remarks typo on a 105-day maternity
-     * leave answered `employee_id: Not found`, because the only ids the rule
-     * would take were living ones. Saving meant picking somebody else, which
-     * moves the leave onto them.
-     *
-     * So: a living employee of this agency, **or** the id already on the row.
-     * A new value is still held to the picker; the existing one is not
-     * re-litigated.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [

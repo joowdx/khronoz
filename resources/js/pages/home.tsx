@@ -8,18 +8,6 @@ import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteNav } from '@/components/marketing/site-nav';
 import { cn } from '@/lib/utils';
 
-/**
- * The public home page. Hierarchy comes from type and section rules, never from
- * boxes: one 1200px measure, a 1px rule between sections, and the only bordered
- * panels are the four product fragments, which group data
- * (docs/design/08-interface.md §1 rules 2 and 3).
- *
- * Two designed widths, as the artboards have them: the phone layout up to the
- * breakpoint and the 1440 layout above it. The display sizes wait for `lg`
- * because a 56px headline needs the measure, and the two multi-column grids
- * wait for `xl` because a 560px visual beside a readable column of text needs
- * about 1200px of room.
- */
 
 const WRAP = 'mx-auto max-w-[1200px] px-5 md:px-10';
 const SECTION = cn(WRAP, 'scroll-mt-16 border-t py-13 md:py-22');
@@ -218,8 +206,6 @@ export default function Home({ demo }: { demo: string }) {
                     </h2>
                     <div className="grid grid-cols-1 gap-2.5 pt-6 md:flex md:items-center md:gap-3 md:pt-[30px]">
                         <Button asChild className={CTA_BUTTON}>
-                            {/* The accessible name is a superset of the visible label
-                            (WCAG 2.5.3), so it can say what the click opens. */}
                             <a href={demo} aria-label="Request a demo by email">
                                 Request a demo
                             </a>

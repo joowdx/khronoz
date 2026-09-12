@@ -20,11 +20,6 @@ class HolidayControllerTest extends TestCase
         $this->get(route('holidays.index'))->assertForbidden();
     }
 
-    /**
-     * The one table read under AgencyOrPlatformScope: an agency sees its own
-     * rows and the national ones, because a national holiday applies to
-     * everybody.
-     */
     public function test_the_index_shows_this_agencys_holidays_and_the_national_ones(): void
     {
         $agency = Agency::factory()->create();
@@ -45,10 +40,6 @@ class HolidayControllerTest extends TestCase
         );
     }
 
-    /**
-     * **Coincident holidays must not collapse** (dole-rules.md I.6). Two rows
-     * on one date, both owed, and the list shows both.
-     */
     public function test_two_holidays_on_one_date_are_two_rows(): void
     {
         $agency = Agency::factory()->create();
@@ -67,7 +58,6 @@ class HolidayControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->has('holidays', 2));
     }
 
-    /** The same name twice on one date is the duplicate the key does refuse. */
     public function test_the_same_holiday_cannot_be_entered_twice_on_one_date(): void
     {
         $agency = Agency::factory()->create();
@@ -82,7 +72,6 @@ class HolidayControllerTest extends TestCase
         ])->assertSessionHasErrors('name');
     }
 
-    /** A national holiday on a date must not block an agency declaring its own. */
     public function test_an_agency_may_declare_a_local_holiday_on_a_national_one(): void
     {
         $agency = Agency::factory()->create();
@@ -118,11 +107,6 @@ class HolidayControllerTest extends TestCase
         $this->assertDatabaseMissing('holidays', ['id' => $holiday->id]);
     }
 
-    /**
-     * A national holiday is readable and not editable. The index hides the
-     * menu, but hiding is not authorising — the policy has to refuse it too,
-     * because this route is reachable without the page.
-     */
     public function test_an_agency_cannot_edit_or_remove_a_national_holiday(): void
     {
         $agency = Agency::factory()->create();
@@ -154,7 +138,6 @@ class HolidayControllerTest extends TestCase
         );
     }
 
-    /** A mangled year must fall back rather than filtering by nonsense. */
     public function test_a_mangled_year_falls_back_to_the_current_one(): void
     {
         $agency = Agency::factory()->create();
@@ -165,14 +148,6 @@ class HolidayControllerTest extends TestCase
         );
     }
 
-    /**
-     * The rate arrives labelled, and the form's options come from the enum.
-     *
-     * `holidays/index.tsx` held a `RATES` map and `holiday-fields.tsx` four
-     * hardcoded options — a third copy of the cases, held to neither the
-     * enum nor the CHECK. Adding a statutory rate would have left the column
-     * blank and the picker short of an option.
-     */
     public function test_the_rate_is_labelled_by_the_enum(): void
     {
         $agency = Agency::factory()->create();
@@ -195,13 +170,6 @@ class HolidayControllerTest extends TestCase
         );
     }
 
-    /**
-     * Workday rule 3, decision 86: the whole ISO week, because a compressed
-     * roster redistributes its hours when one of its days is declared and
-     * nothing at the point of declaring knows whose roster is compressed.
-     * 19 August 2026 is a Wednesday, so the week is Monday the 17th to
-     * Sunday the 23rd.
-     */
     public function test_declaring_a_holiday_queues_the_agency_over_its_iso_week(): void
     {
         $agency = Agency::factory()->create();
@@ -225,7 +193,6 @@ class HolidayControllerTest extends TestCase
         );
     }
 
-    /** Both weeks: a proclamation corrected gives back the day it took. */
     public function test_moving_a_holiday_queues_both_weeks(): void
     {
         $agency = Agency::factory()->create();
@@ -251,7 +218,6 @@ class HolidayControllerTest extends TestCase
         Queue::assertPushed(FanOutRecompute::class, fn (FanOutRecompute $job): bool => $job->from === '2026-08-24');
     }
 
-    /** And one week when the correction was to the name, not the date. */
     public function test_renaming_a_holiday_queues_its_week_once(): void
     {
         $agency = Agency::factory()->create();

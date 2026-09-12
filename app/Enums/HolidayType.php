@@ -4,16 +4,6 @@ namespace App\Enums;
 
 use App\Enums\Concerns\HasChoices;
 
-/**
- * Mirrors holidays.type (varchar) and the holidays_type_valid CHECK
- * (type IN ('regular', 'special', 'working', 'local')) — docs/design/07-constraints.md.
- *
- * These are **rate** treatments, not scopes: who a holiday applies to is
- * `holidays.agency_id` (the platform row meaning every agency), and a `local`
- * holiday is one carrying its own agency. `Local` is a case here because an
- * LGU holiday's premium is a fourth treatment in Philippine payroll practice,
- * not because the value says anything about reach.
- */
 enum HolidayType: string
 {
     use HasChoices;
@@ -40,19 +30,6 @@ enum HolidayType: string
         };
     }
 
-    /**
-     * Whether a holiday of this type keeps the shift. **True only for
-     * `Working`** (decision 49, 05-calendar.md rule 1) — Philippine practice
-     * treats a holiday declared by ordinance as a special non-working day
-     * unless the ordinance says otherwise, so `Local` expects no work and
-     * its worked time is premium-rated at the special rate.
-     *
-     * This is the one place that decides, exactly as `ExemptionType::excuses()`
-     * is for exemptions. A `match` in the deriver was rejected for the reason
-     * a map in TypeScript was rejected by the enum-label rule: a second
-     * statement of the truth table drifts from the first, and here the drift
-     * is a silent ordinary day on an LGU holiday.
-     */
     public function expectsWork(): bool
     {
         return $this === self::Working;

@@ -2,10 +2,6 @@ import type { ReactNode } from 'react';
 import { Check, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * The four stages between a device and a signed form, on one connecting rule:
- * across four columns on a wide screen, down one rule on a narrow one.
- */
 
 const META = 'text-muted-foreground text-[11px] leading-[15px] font-medium whitespace-nowrap tabular-nums';
 const STRONG = 'text-foreground font-semibold';
@@ -14,7 +10,6 @@ const WATCH = 'text-attention font-semibold';
 const KEY = 'text-xs leading-4 font-medium';
 const PILL = 'inline-flex h-[22px] flex-none items-center gap-1.5 rounded-full px-2.5 text-xs leading-4 font-medium';
 
-/** A row of the small flat visual under a step. */
 function MiniRow({ children }: { children: ReactNode }) {
     return (
         <div className="border-rule flex min-h-8 items-center gap-2 border-t px-2.5 py-1.5 first:border-t-0">
@@ -23,11 +18,6 @@ function MiniRow({ children }: { children: ReactNode }) {
     );
 }
 
-/**
- * `margin-top: auto` sits every visual on one line however the titles wrap.
- * The cap only bites between the two designed widths, where a stacked step has
- * far more room than either artboard gives it and the panel would stretch.
- */
 function Mini({ children }: { children: ReactNode }) {
     return <div className="mt-auto max-w-[420px] overflow-hidden rounded-lg border">{children}</div>;
 }

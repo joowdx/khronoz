@@ -14,12 +14,9 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 /**
- * Import a device's attlog export from the command line.
- *
- * The entry point that needs no browser, which is deliberate: the predecessor
- * could only ingest from an authenticated web request, because its job read
- * `Auth::user()` in the constructor and reported through Filament. Bulk
- * recovery, a one-off backfill and a cron job all want this.
+ * Import a device's attlog export from the command line: the entry point that needs no browser,
+ * which is deliberate, because ingestion that reads `Auth::user()` can only run inside an
+ * authenticated web request. Bulk recovery, a one-off backfill and a cron job all want this.
  */
 #[Signature('timelogs:import {terminal : The terminal code or id} {path : Path to the attlog export} {--layout=standard : Column layout — standard (uid,time,state,mode) or device (uid,time,device,state,mode)} {--chunk=500 : Rows per insert}')]
 #[Description("Import a device's attlog export into timelogs")]
@@ -35,10 +32,6 @@ class ImportTimelogs extends Command
             return self::FAILURE;
         }
 
-        // Resolved without AgencyScope because a console run has no tenant to
-        // scope by; the tenant is then set *from* the terminal, so everything
-        // downstream — including BelongsToAgency filling agency_id — behaves
-        // exactly as it does in a request.
         $terminal = Terminal::withoutGlobalScope(AgencyScope::class)
             ->where('id', $this->argument('terminal'))
             ->orWhere('code', $this->argument('terminal'))

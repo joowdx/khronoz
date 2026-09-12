@@ -30,7 +30,6 @@ interface Pagination {
     next: string | null;
 }
 
-/** Only the props the list owns; `employees` and `statuses` are closures and stay put. */
 const PARTIAL = ['workdays', 'pagination', 'filters'];
 
 const COLUMNS = {
@@ -45,16 +44,10 @@ const COLUMNS = {
     night: 80,
 } as const;
 
-/** What the flexible Person column needs for a full Filipino name. */
 const FLEX_MIN = 240;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * Every filter lives in the query string, so the list is a link. Defaults are
- * dropped: the current month is the title, not a `?month=` the colleague has
- * to keep.
- */
 function query(filters: Filters): Record<string, string> {
     const params: Record<string, string> = {};
 

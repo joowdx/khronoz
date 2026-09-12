@@ -117,20 +117,6 @@ function DropdownMenuRadioItem({
     );
 }
 
-/**
- * The segmented control (§5.10) as a run of menu choices.
- *
- * The design puts a three-way segmented control inside the user menu — the
- * Light / Dark / System appearance switcher — and `toggle-group.tsx` is that
- * control everywhere else. It cannot be reused here: a Radix menu keeps focus
- * in its own roving group and swallows Tab, so plain buttons inside the
- * surface are unreachable by keyboard (2.1.1). These two wrap Radix's radio
- * group instead, which renders `role="menuitemradio"` and so is driven by the
- * same arrow keys as every other item — exactly what `01-foundations.html`
- * marks up — while carrying the segmented control's own geometry.
- *
- * Pass `aria-labelledby` pointing at the visible label above the track.
- */
 function DropdownMenuSegmented({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
     return (
         <DropdownMenuPrimitive.RadioGroup
@@ -150,8 +136,6 @@ function DropdownMenuSegmentedItem({
     return (
         <DropdownMenuPrimitive.RadioItem
             data-slot="dropdown-menu-segmented-item"
-            // Choosing a segment must not close the menu: the whole point of a
-            // three-way appearance control is trying the other two.
             onSelect={(event) => {
                 event.preventDefault();
                 onSelect?.(event);
@@ -159,9 +143,6 @@ function DropdownMenuSegmentedItem({
             className={cn(
                 'text-muted-foreground inline-flex h-[26px] flex-1 cursor-default items-center justify-center rounded-md bg-transparent text-xs leading-4 font-medium whitespace-nowrap transition-[color,background-color,border-color] select-none',
                 'hover:text-foreground',
-                // The ring sits inside the segment, the way a field's does: the
-                // track leaves only 2px of padding, so the global +2 offset
-                // would straddle the track's own border.
                 'focus-visible:outline-offset-[-1px]',
                 'data-[state=checked]:bg-acc-soft data-[state=checked]:text-acc-text data-[state=checked]:font-semibold',
                 className,

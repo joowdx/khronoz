@@ -32,14 +32,6 @@ class InviteUserTest extends TestCase
         $this->assertTrue($user->allows(Permission::ManageUsers));
     }
 
-    /**
-     * bcrypt salts every hash, so two calls' stored hashes would differ even
-     * for the same fixed plaintext — comparing hashes cannot prove
-     * randomness. What is genuinely checkable, and worth guarding, is that
-     * the invited user does not end up with the same weak default every
-     * other factory-made user gets ("password") — a realistic copy-paste
-     * regression given UserFactory literally hashes that string nearby.
-     */
     public function test_does_not_give_the_invited_user_the_common_factory_default_password(): void
     {
         $this->withTenant(Agency::factory()->create());

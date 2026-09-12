@@ -18,18 +18,13 @@ class WorkgroupFactory extends Factory
             'agency_id' => Agency::factory(),
             'parent_id' => null,
             'kind' => fake()->randomElement(['department', 'division', 'section', 'office']),
-            // unique(), matching AgencyFactory's own `code` generator: the
-            // constraint is only UNIQUE (agency_id, code), but callers
-            // routinely place several factory workgroups under one shared agency
-            // (under() below, or an explicit agency_id override), so the
-            // generator must not collide within one agency either.
+            // Shared-agency factory workgroups require unique codes.
             'code' => strtoupper(fake()->unique()->lexify('????')),
             'name' => fake()->company(),
             'head_id' => null,
         ];
     }
 
-    /** Placed under $parent: same agency (the paired parent_id FK requires it), parent_id set. */
     public function under(Workgroup $parent): static
     {
         return $this->state(fn (array $attributes): array => [

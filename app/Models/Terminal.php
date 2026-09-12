@@ -15,39 +15,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * A biometric device that captures timelogs (docs/design/03-terminals.md).
- *
- * Named `Terminal` rather than `Device` by decision 16 — Passport owns
- * `devices` for OAuth device-authorization.
- *
- * Two properties of this model are load-bearing rather than stylistic.
- *
- * `secret` is **`encrypted`**, and it is cast that way before any writer
- * exists. The predecessor kept the same value in a plain varchar and then
- * leaked it through four more channels — a command-line flag, an event
- * payload, an unverified HTTPS POST, and the activity log. A cast added after
- * the first row is written is a data migration; added now it costs nothing.
- * Nothing in khronoz may put this value into an event, a job payload, a log
- * line, or argv (decision 40).
- *
- * `code` is a **string** and is never numeric-cast (decision 42), for the same
- * reason `Enrollment::uid` is: it is the device number the attlog carries, and
- * an integer cast merges `007` with `7` and raises on `A17`.
- *
- * `stamp` is the read offset for incremental pull and push (rule 5). A file
- * import **must not touch it** — see `Sync`.
- */
 #[Fillable([
     'agency_id', 'workgroup_id', 'code', 'name', 'serial', 'kind', 'protocol',
     'host', 'port', 'secret', 'drift', 'meta', 'seen_at', 'synced_at', 'stamp', 'active',
 ])]
 class Terminal extends Model
 {
-    /** @use HasFactory<TerminalFactory> */
+    /**
+     * @use HasFactory<TerminalFactory>
+     */
     use BelongsToAgency, HasFactory, HasUlids;
 
-    /** @return array<string, string> */
+    /**
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
@@ -63,25 +44,33 @@ class Terminal extends Model
         ];
     }
 
-    /** Where the device sits; null means it serves the agency rather than one office. */
+    /**
+     * Where the device sits; null means it serves the agency rather than one office.
+     */
     public function workgroup(): BelongsTo
     {
         return $this->belongsTo(Workgroup::class);
     }
 
-    /** Who this device can identify, over time. `covering($date)` picks the one that answers for a date. */
+    /**
+     * Who this device can identify, over time. `covering($date)` picks the one that answers for a date.
+     */
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
     }
 
-    /** Every punch it has ever captured. Immutable, and never deleted (decision 41). */
+    /**
+     * Every punch it has ever captured. Immutable, and never deleted (decision 41).
+     */
     public function timelogs(): HasMany
     {
         return $this->hasMany(Timelog::class);
     }
 
-    /** Every ingestion run against this device, successful or not. */
+    /**
+     * Every ingestion run against this device, successful or not.
+     */
     public function syncs(): HasMany
     {
         return $this->hasMany(Sync::class);

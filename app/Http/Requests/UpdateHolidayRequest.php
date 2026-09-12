@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\HolidayType;
-use App\Models\Holiday;
 use App\Tenancy\Tenant;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,23 +14,7 @@ class UpdateHolidayRequest extends FormRequest
         return $this->user()->can('update', $this->route('holiday'));
     }
 
-    /**
-     * The uniqueness rule carries `name`, and that is the whole point rather
-     * than an oversight.
-     *
-     * **Coincident holidays must not collapse** (dole-rules.md I.6): Eid
-     * al-Fitr landing on Bonifacio Day is two holidays on one date and both
-     * are owed, at the higher rate. `holidays_agency_id_date_name_unique`
-     * therefore keys on `(agency_id, date, name)` and not `(agency_id, date)`,
-     * and this rule mirrors it exactly. A rule on date alone would refuse the
-     * second and quietly cost somebody the more expensive premium.
-     *
-     * It is scoped to the tenant, so a national holiday on the same date does
-     * not block an agency declaring a local one — which is the ordinary case
-     * for a city charter day.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         $agency = app(Tenant::class)->id();

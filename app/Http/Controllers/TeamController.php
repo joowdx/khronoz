@@ -16,45 +16,17 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * A named `(schedule, anchor)` cohort (04-scheduling.md).
- *
- * **A team has no membership of its own.** There is no pivot to write and none
- * to read: the rosters carrying a team's `team_id` *are* its members, which is
- * why the headcount here is `withCount('rosters')` and why nothing on these
- * screens adds or removes a person. Rostering is the roster grid's act.
- *
- * And no date range: a team is a standing definition, not an arrangement with
- * a start and an end. What the anchor buys is the whole reason the model
- * exists — three teams on one 21-day rotation, anchored seven days apart, sit
- * seven positions apart on every date, so a hospital covers morning, afternoon
- * and night with one schedule and three rows.
- *
- * Re-anchoring changes the definition only; the rosters already issued keep
- * their own anchor and may diverge from it (07-constraints.md deliberately has
- * no trigger holding them equal), so a past rotation stays answerable.
- */
 class TeamController extends Controller
 {
     use TranslatesUniqueCollisions;
 
-    /**
-     * Every team with its schedule and its headcount.
-     *
-     * `schedule.turns.shift` is eager-loaded because `ScheduleResource`
-     * resolves its turns whenever they are there, and the row shows the cycle
-     * it belongs to. No pagination: an agency has teams in single figures.
-     */
     public function index(): Response
     {
         Gate::authorize('viewAny', Team::class);
 
         $teams = Team::query()
             ->with(['schedule.turns.shift', 'schedule.fallbackShift'])
-            // The membership itself. Every roster ever issued from this team,
-            // closed ones included — it is what stands in the way of removing
-            // it, so the number beside the action has to count the same rows
-            // the RESTRICT does.
+
             ->withCount('rosters')
             ->orderBy('name')
             ->get();
@@ -114,10 +86,6 @@ class TeamController extends Controller
         Gate::authorize('delete', $team);
 
         try {
-            // Its own transaction, so the refusal is recoverable rather than
-            // merely caught: a failed statement leaves the surrounding
-            // transaction aborted and the redirect's own queries answer 25P02
-            // (.ai/rules/controllers.md).
             DB::transaction(fn () => $team->delete());
         } catch (QueryException $e) {
             if ($e->getCode() !== '23001') {

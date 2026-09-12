@@ -43,9 +43,7 @@ return [
             'provider' => 'users',
         ],
 
-        // Two token guards, deliberately. Sanctum issues the first-party
-        // tokens the mobile client will use (auth:sanctum); Passport is the
-        // OAuth2 server for anything third party (auth:api).
+        // Sanctum serves first-party tokens; Passport serves third-party OAuth.
         'api' => [
             'driver' => 'passport',
             'provider' => 'users',

@@ -16,16 +16,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class PunchFactory extends Factory
 {
-    /**
-     * Define the model's default state: slot 1 in, filled by a resolved
-     * timelog of the same employee as the workday.
-     *
-     * The chain is built from one employee. A punch's `employee_id` must
-     * match the workday's (composite FK) and the timelog's (the other
-     * composite FK) — two `fake()` employees would disagree and be refused.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [

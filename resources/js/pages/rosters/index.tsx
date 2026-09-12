@@ -36,7 +36,6 @@ const COLUMNS = { number: 120, workgroup: 220, until: 160, actions: 68 } as cons
 const FLEX_MIN = 240;
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/** Drop the defaults, so a cleared filter leaves the query string rather than sitting in it empty. */
 function query(filters: Filters): Record<string, string> {
     const params: Record<string, string> = { month: filters.month };
 
@@ -51,15 +50,6 @@ function query(filters: Filters): Record<string, string> {
     return params;
 }
 
-/**
- * The roster grid, and the two things that have to sit beside it: who is not on
- * it, and the way onto it.
- *
- * The grid draws the roster **as planned**. A holiday or a suspension washes
- * its column and adds a note, but never rewrites a chip — what a day actually
- * became belongs to Workdays and the printed form, and a grid that answered
- * both questions would answer neither clearly.
- */
 export default function Index({
     days,
     groups,
@@ -93,8 +83,6 @@ export default function Index({
         });
     };
 
-    // The now-line is a whole column, not a time of day: the grid's unit is the
-    // day, so it marks today or nothing.
     const nowIndex = days.findIndex((day) => day.today);
 
     const everyone = groups.flatMap((group) => group.rows.map((row) => row.id));
@@ -169,14 +157,6 @@ export default function Index({
                 </Card>
             ) : (
                 <Card
-                    // `w-full`, never `min-w-min`: the grid's frozen columns are sticky
-                    // inside its own scroller, so that scroller has to be the thing that
-                    // scrolls. Let the panel size to the grid's 1310px instead and
-                    // #main-content scrolls, the sticky cells have no scrollport of their
-                    // own and the Employee and Schedule columns slide away with everything
-                    // else — the one thing the grid exists to prevent. No `overflow-hidden`
-                    // here either: an overflow ancestor becomes the scrollport
-                    // (components.md).
                     className="w-full p-0"
                 >
                     <SelectionBar
@@ -257,12 +237,6 @@ export default function Index({
     );
 }
 
-/**
- * Selection lives above the grid rather than as a column inside it: the
- * artboard draws no checkbox column, and adding one would cost 27px of every
- * row and a fourth frozen cell. Picking people is a mode you enter, not a
- * permanent part of reading the timetable.
- */
 function SelectionBar({
     manage,
     all,

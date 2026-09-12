@@ -15,27 +15,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Day templates the scheduler assigns to roster turns (04-scheduling.md).
- *
- * Three kinds, derived server-side by ShiftResource so every surface reads the
- * same answer:
- *   - **working** — has slots (in/out pairs, possibly past 24:00).
- *   - **off**     — no slots, not remote; expects nothing, credits nothing.
- *   - **remote**  — no slots, `remote` true; credited on attestation (Flexiplace).
- *
- * `shifts` is read under the plain `AgencyScope`, not `AgencyOrPlatformScope`,
- * so a platform-owned default row never reaches an agency query here. Editing
- * the platform defaults happens through a different screen (the defaults list),
- * which is why there is no platform-row guard in ShiftPolicy.
- *
- * The `UNIQUE (agency_id, name)` constraint is the only refusal this
- * controller needs to translate on write — the four CHECK constraints that
- * relate `slots`, `remote`, `required` and `flex` are owned by a later
- * hardening pass and are intentionally left untranslated here. The 23001 on
- * destroy is translated: `turns.shift_id` RESTRICT-references this table, so
- * removing a shift a turn uses is refused by the database rather than cascaded.
- */
 class ShiftController extends Controller
 {
     use TranslatesUniqueCollisions;
@@ -50,9 +29,7 @@ class ShiftController extends Controller
 
         return Inertia::render('shifts/index', [
             'shifts' => ShiftResource::collection($shifts)->resolve(),
-            // The ramp indices the agency already uses, so the colour picker on
-            // the create/edit form can mark them as taken. Sent as an array of
-            // integers 1–8 rather than a Set so it is plain JSON.
+
             'usedColors' => $shifts->pluck('color')->unique()->sort()->values()->all(),
         ]);
     }
@@ -96,15 +73,6 @@ class ShiftController extends Controller
         return to_route('shifts.index')->with('success', 'Shift updated.');
     }
 
-    /**
-     * Remove the shift, translating the RESTRICT refusal into a message.
-     *
-     * `turns.shift_id` RESTRICT-references `shifts.id`, so removing a shift
-     * that any schedule turn still references is refused with SQLSTATE 23001.
-     * Without a nested transaction the caught exception leaves the surrounding
-     * Postgres transaction aborted (25P02), poisoning the redirect's own
-     * queries — controllers.md's standing rule.
-     */
     public function destroy(Shift $shift): RedirectResponse
     {
         Gate::authorize('delete', $shift);
@@ -118,13 +86,6 @@ class ShiftController extends Controller
         return to_route('shifts.index')->with('success', 'Shift removed.');
     }
 
-    /**
-     * The refusal as a redirect message, or null when it is not one of ours.
-     *
-     * SQLSTATE 23001 (`ON DELETE RESTRICT`) fires when a schedule turn still
-     * references this shift. The message names what still uses the shift so
-     * the user knows what to change first.
-     */
     private function refused(QueryException $e): ?RedirectResponse
     {
         return match ($e->getCode()) {
@@ -134,13 +95,6 @@ class ShiftController extends Controller
     }
 
     /**
-     * The ramp indices (1–8) this agency's shifts already occupy, sorted.
-     *
-     * Used by the colour picker so it can mark taken slots without a second
-     * query on the create/edit forms. Sent as a lazy closure so Inertia only
-     * resolves it on full page loads, not on partial reloads that do not ask
-     * for it.
-     *
      * @return array<int, int>
      */
     private function usedColors(): array

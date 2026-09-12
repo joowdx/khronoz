@@ -17,20 +17,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * What the devices recorded.
- *
- * Read-only apart from voiding, and that is the schema's doing rather than a
- * choice made here: the app role has no DELETE on this table and its UPDATE is
- * revoked down to `(voided_at, reason)` (decision 41). There is no edit page
- * because there is no edit.
- *
- * The filter that matters is **unresolved**. A punch whose uid matched no
- * enrollment on its date arrives attached to nobody and stays visible — it is
- * not an error and is never hidden — so the one question this screen has to
- * answer quickly is "what came in that we cannot attribute", because that is
- * a month of somebody's pay waiting to be noticed.
- */
 class TimelogController extends Controller
 {
     private const PER_PAGE = 50;
@@ -39,8 +25,6 @@ class TimelogController extends Controller
     {
         Gate::authorize('viewAny', Terminal::class);
 
-        // Whitelisted against what the tenant actually has, the way
-        // AgencyController::index whitelists `sort`: a mangled query string
         // must not leave the list filtered by a value the picker cannot show.
         $terminal = ($id = $request->string('terminal')->trim()->toString()) === ''
             ? null
@@ -128,7 +112,9 @@ class TimelogController extends Controller
         return back()->with('success', 'Timelog voided.');
     }
 
-    /** A `YYYY-MM-DD` bound, or '' for anything that is not one. */
+    /**
+     * A `YYYY-MM-DD` bound, or '' for anything that is not one.
+     */
     private function day(string $value): string
     {
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';

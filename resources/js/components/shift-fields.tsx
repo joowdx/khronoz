@@ -10,36 +10,12 @@ import { cn } from '@/lib/utils';
 import type { Shift, ShiftSlot } from '@/types';
 import type { Slot } from '@/components/shift-chip';
 
-/**
- * Three kinds of shift (04-scheduling.md):
- *   - `working` — has in/out slot pairs; earns credit from punches.
- *   - `off`     — no slots, no credit; a rest day.
- *   - `remote`  — no slots; credited on attestation (Flexiplace, MC 114).
- *
- * `kind` is a derived label the editor uses for its conditional sections. On
- * submit, the actual database columns (`slots`, `remote`) carry the intent:
- * a working shift sends its slots array; off and remote both send `slots: []`,
- * with `remote` false or true respectively.
- *
- * The colour picker is hidden when kind is `off` or `remote` — neither takes
- * a ramp index (shift-chip.tsx). `slots`, `required` and `flex` are hidden
- * when kind is not `working`.
- *
- * **Naming trap** (shift-chip.tsx): `Slot` exported from `shift-chip.tsx` is
- * the colour ramp index 1–8. The domain's in/out pair is `ShiftSlot` from
- * `resources/js/types/index.d.ts`. They are two different things.
- */
 export function ShiftFields({
     shift,
     usedColors,
     errors,
 }: {
-    /** Absent on create. Present on edit. */
     shift?: Shift;
-    /**
-     * Ramp indices (1–8) the agency already uses, so the picker can mark
-     * them as taken. Comes from the controller as a prop.
-     */
     usedColors: number[];
     errors: Partial<Record<string, string>>;
 }) {
@@ -94,7 +70,6 @@ export function ShiftFields({
         );
     }
 
-    // When kind changes, reset slots and remote to sensible defaults.
     function handleKindChange(next: 'working' | 'off' | 'remote') {
         setKind(next);
         if (next !== 'working') {
@@ -348,7 +323,6 @@ export function ShiftFields({
                 </>
             )}
 
-            {/* required and flex for off/remote — hidden but still submitted so validation passes */}
             {!isWorking && (
                 <>
                     <input type="hidden" name="required" value={shift?.required ?? 0} />
@@ -380,7 +354,6 @@ export function ShiftFields({
                 )}
             </Field>
 
-            {/* Colour picker — hidden when kind is off or remote (neither takes a ramp index). */}
             {isWorking && (
                 <div className="mt-6">
                     <input type="hidden" name="color" value={color} />
@@ -425,7 +398,6 @@ export function ShiftFields({
                 </div>
             )}
 
-            {/* color: off and remote shifts still need a value to pass validation */}
             {!isWorking && <input type="hidden" name="color" value={shift?.color ?? 1} />}
         </>
     );

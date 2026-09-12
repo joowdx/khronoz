@@ -18,7 +18,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class TurnResource extends JsonResource
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

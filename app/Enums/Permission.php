@@ -4,16 +4,6 @@ namespace App\Enums;
 
 use App\Enums\Concerns\HasChoices;
 
-/**
- * A permission a user can hold. Access is a set of these on the user, not a
- * role (docs/design/02-access.md rule 4) — the platform flag makes a
- * superuser, not a permission in this set.
- *
- * The string on each case crosses the wire as an Inertia prop and is compared
- * in the browser by useCan(), and is also what permissions_valid() guards in
- * the users.permissions column: it is a contract with
- * resources/js/types/index.d.ts and must match that TypeScript union exactly.
- */
 enum Permission: string
 {
     use HasChoices;
@@ -32,13 +22,7 @@ enum Permission: string
     case ManageLedgers = 'ledgers.manage';
     case AttestLedgers = 'ledgers.attest';
 
-    /**
-     * @return array<int, self> permissions this one carries with it
-     *
-     * Mirrored by the `implied` map in resources/js/hooks/use-can.ts, which
-     * cannot import this enum and so restates every edge by hand — add a case
-     * here and add its match there, or useCan() will disagree with this gate.
-     */
+    /** @return array<int, self> permissions this one carries with it */
     public function implies(): array
     {
         return match ($this) {

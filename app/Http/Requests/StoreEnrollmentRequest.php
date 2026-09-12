@@ -15,20 +15,7 @@ class StoreEnrollmentRequest extends FormRequest
         return $this->user()->can('update', $this->route('terminal'));
     }
 
-    /**
-     * `uid` is validated for shape and nothing else. Whether it collides is
-     * the database's word — `enrollments_uid_one_person` and
-     * `enrollments_one_uid_per_person` are exclusion constraints over a date
-     * range, and a `Rule::unique` cannot express "not overlapping this range",
-     * so a rule here would be a worse restatement that drifts. The controller
-     * translates the 23P01 instead.
-     *
-     * What it *does* enforce is that the uid is not empty and not padded:
-     * decision 42 makes it an opaque string, and `'  '` or `'7 '` would be
-     * stored verbatim and then never match what the device reports.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         $agency = app(Tenant::class)->id();

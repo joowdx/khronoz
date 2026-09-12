@@ -11,26 +11,6 @@ use App\Models\Turn;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * The tier-2 set: shifts and schedules the platform agency owns and every
- * agency copies at onboarding (04-scheduling.md rule 7).
- *
- * These are **product data**, not a fixture. `CopyDefaults` deep-copies them
- * into each new agency with `origin_id` pointing back here, which is what lets
- * the defaults screen show a copy has diverged and offer to refresh it. An
- * agency edits its own copies; nothing here is edited through a request, and
- * `origin_is_platform` refuses an `origin_id` naming anything but a row of this
- * agency.
- *
- * Idempotent on name, so a re-seed after adding one default writes only the new
- * row — the same property `CopyDefaults` has, and for the same reason: this
- * runs on every deployment, not once.
- *
- * Colours are assigned deliberately rather than by the lowest-free rule, so the
- * families read as families in the roster grid: the ordinary day and its
- * flexitime variants share slot 6, the compressed week takes 3, Ramadan 4.
- * A copy carries the origin's index (rule 8), so every agency's grid agrees.
- */
 class DefaultsSeeder extends Seeder
 {
     /** The arrival band MC 06 s. 2022 grants, as seven published options. */
@@ -46,7 +26,9 @@ class DefaultsSeeder extends Seeder
         });
     }
 
-    /** @return array<string, Shift> */
+    /**
+     * @return array<string, Shift>
+     */
     private function shifts(Agency $platform): array
     {
         $standard = [
@@ -129,9 +111,6 @@ class DefaultsSeeder extends Seeder
     }
 
     /**
-     * The same day, later by `$minutes`. Windows travel with their slot: a
-     * window is relative to the time it guards, not to the clock.
-     *
      * @param  array<int, array<string, mixed>>  $slots
      * @return array<int, array<string, mixed>>
      */
@@ -153,7 +132,9 @@ class DefaultsSeeder extends Seeder
         return sprintf('%02d:%02d', intdiv($total, 60), $total % 60);
     }
 
-    /** @param  array<string, Shift>  $shifts */
+    /**
+     * @param  array<string, Shift>  $shifts
+     */
     private function schedules(Agency $platform, array $shifts): void
     {
         $standard = $shifts['Standard'];
@@ -170,10 +151,7 @@ class DefaultsSeeder extends Seeder
         $this->cycle($platform, 'Standard week', $week($standard));
         $this->cycle($platform, 'Flexitime week', $week($flexi));
 
-        // A compressed week's rest days are what makes the fallback necessary:
-        // a holiday landing on one reverts the rest of that ISO week to eight
-        // hour days (rule 5), so every CWW schedule names Standard as its
-        // fallback and none of the uncompressed ones do.
+        // Compressed schedules use Standard after rest-day holidays.
         $this->cycle($platform, 'Compressed week, Monday to Thursday', [
             $long, $long, $long, $long, $off, $off, $off,
         ], $standard);
@@ -193,12 +171,6 @@ class DefaultsSeeder extends Seeder
     }
 
     /**
-     * One schedule and its complete run of turns.
-     *
-     * `turns_complete` is DEFERRABLE INITIALLY DEFERRED, so the schedule and
-     * every one of its turns must land before the transaction commits — which
-     * `run()`'s single transaction already guarantees for the whole set.
-     *
      * @param  array<int, Shift>  $turns
      */
     private function cycle(Agency $platform, string $name, array $turns, ?Shift $fallback = null): void

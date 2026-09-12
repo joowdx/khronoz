@@ -22,80 +22,19 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Manage the current tenant's employees. Every action here is reached only
- * by an authenticated, verified user; EmployeePolicy (via Gate) is the actual
- * authority on whether they may see or change anything below.
- */
 class EmployeeController extends Controller
 {
     use TranslatesUniqueCollisions;
 
-    /** A large agency (a hospital, task-6-brief.md's Shape C) can hold far more employees than it has system users, so unlike workgroups this list is genuinely paged. */
     private const PER_PAGE = 25;
 
-    /** @var array<int, string>|null Memoized: the tag vocabulary is asked for twice on a filtered request. */
+    /**
+     * @var array<int, string>|null Memoized: the tag vocabulary is asked for twice on a filtered request.
+     */
     private ?array $tags = null;
 
     public function __construct(private Tenant $tenant) {}
 
-    /**
-     * List the current tenant's employees.
-     *
-     * Four filters, all in the query string so the list is a link:
-     *
-     * | Key      | Means                                                     |
-     * | -------- | --------------------------------------------------------- |
-     * | `search` | Scout, across every column toSearchableArray() indexes    |
-     * | `workgroup`   | currently deployed in this workgroup **or any workgroup under it**  |
-     * | `tag`    | carries this tag                                          |
-     * | `exempt` | no daily time record expected                             |
-     *
-     * `workgroup` includes the subtree because that is what choosing a workgroup means
-     * in this product (01-organization.md rule 4, and Workgroup::descendants() is
-     * the documented way to answer it): a department whose people all sit in
-     * its divisions would otherwise return nothing at all. `workgroup` and `tag`
-     * are both whitelisted against what the tenant actually has, the same way
-     * AgencyController::index whitelists `sort` — a mangled query string
-     * drops the filter and reports it as unset, rather than showing a list
-     * filtered by a value the picker cannot display.
-     *
-     * The three new filters live inside ->query(), not as Scout ->where()
-     * clauses, because none of them is a scalar column match: the workgroup filter
-     * is an EXISTS against the open deployment and the tag filter is a jsonb
-     * containment test. Under the shipped `database` engine that closure is
-     * applied to the very query ->paginate() counts and pages
-     * (DatabaseEngine::buildSearchQuery -> addAdditionalConstraints, which
-     * calls $builder->queryCallback), so the totals and the page agree. An
-     * external engine (Meilisearch, Algolia, Typesense) would match against
-     * its own index and apply this closure only when rehydrating, so the
-     * hydrated rows would be right but the total and the page boundaries
-     * would count unfiltered matches. That is the same class of gap R10
-     * records for agency_id and it is why the tenant filter below is a Scout
-     * ->where() rather than part of this closure: correctness across
-     * tenants cannot depend on the engine, correctness of a page count can.
-     *
-     * Search runs through Scout (Employee uses Searchable) rather than a
-     * plain whereLike, because a name is split across the first/middle/last/
-     * suffix columns toSearchableArray() already indexes together.
-     * ->where('agency_id', ...) is explicit and load-bearing (R10,
-     * .ai/rules/models.md): SCOUT_DRIVER=database happens to also carry
-     * AgencyScope, because DatabaseEngine::newSearchQuery() falls back to
-     * Model::newQuery() — but an external engine (Meilisearch, Algolia,
-     * Typesense) matches against its own index and only scopes the
-     * rehydration, so an unfiltered search would leak another agency's row
-     * counts, ordering and pagination even though the hydrated rows
-     * themselves would still come back correct. See EmployeeControllerTest
-     * for the cross-tenant proof.
-     *
-     * currentDeployment.workgroup is eager-loaded through ->query() — for the
-     * database engine (the only one configured today) its closure applies
-     * directly to the underlying Eloquent query, including for eager
-     * loading. This is deliberate, not decorative: Model::shouldBeStrict()
-     * arms the lazy-loading guard on a hydrated collection only when it
-     * holds more than one model (Builder::hydrate()), so this trap cannot
-     * be caught by a single-employee test — only a page of two or more.
-     */
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', Employee::class);
@@ -138,33 +77,13 @@ class EmployeeController extends Controller
                 'tag' => $tag,
                 'exempt' => $exempt,
             ],
-            // Closures, so the filter controls' own options are not re-queried
-            // on every keystroke: the front end reloads only `employees`,
-            // `pagination` and `filters`, and Inertia never invokes a closure
-            // for a prop a partial reload excluded.
+
             'workgroups' => fn () => WorkgroupResource::collection($this->workgroups())->resolve(),
             'tags' => fn () => $this->tags(),
         ]);
     }
 
     /**
-     * Every tag any of this tenant's employees carries, once each, sorted.
-     *
-     * One query rather than pulling every employee's `tags` into PHP and
-     * flattening: a hospital (task-6-brief.md's Shape C) has thousands of
-     * rows and a handful of distinct tags. jsonb_array_elements_text unnests
-     * the array server-side, and going through Employee::query() rather than
-     * DB::table keeps AgencyScope and the soft-delete scope on it — a removed
-     * employee's tags are not the agency's vocabulary any more.
-     *
-     * ->where('agency_id', ...) is explicit on top of AgencyScope for the
-     * same reason it is explicit on the search above: this query replaces
-     * Eloquent's select list with a raw expression and never hydrates a
-     * model, so it is exactly the shape where a scope going missing would
-     * not be noticed. It also keeps one invariant true of this controller —
-     * every query it sends against `employees` names the agency twice —
-     * which is what EmployeeControllerTest asserts on the SQL itself.
-     *
      * @return array<int, string>
      */
     private function tags(): array
@@ -178,10 +97,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * The tenant's whole workgroup tree, flat. The front end composes the nesting
-     * from `parent_id` (resources/js/lib/workgroups.ts), which is why this is one
-     * ordered list and not a recursive query — see WorkgroupResource's docblock.
-     *
      * @return Collection<int, Workgroup>
      */
     private function workgroups(): Collection
@@ -205,7 +120,9 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', "{$employee->name} added.");
     }
 
-    /** Deployment history as a table, not a decorative timeline (task-6-brief.md). */
+    /**
+     * Deployment history as a table, not a decorative timeline.
+     */
     public function show(Employee $employee): Response
     {
         Gate::authorize('view', $employee);
@@ -217,14 +134,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('employees/show', [
             'employee' => EmployeeResource::make($employee)->resolve(),
-            // The tree, for two things the screen does with it: the move
-            // sheet's picker, and the ancestry line under the current workgroup
-            // ("Office of the Executive Director / Administrative Division /
-            // Records Section"). It is deliberately NOT gated on `update`
-            // even though only a manager sees the sheet: the same tree is
-            // already on /workgroups for anyone holding organization.view, so
-            // withholding it here would protect nothing and would cost a
-            // view-only reader the one line that says where the workgroup sits.
+
             'workgroups' => WorkgroupResource::collection($this->workgroups())->resolve(),
         ]);
     }
@@ -246,18 +156,15 @@ class EmployeeController extends Controller
         return redirect()->route('employees.index')->with('success', "{$employee->name} updated.");
     }
 
-    /** $employee->delete() is a soft delete (SoftDeletes): an UPDATE, not a DELETE, so it never trips workgroups.head_id / deployments.employee_id's ON DELETE RESTRICT. */
+    /**
+     * $employee->delete() is a soft delete (SoftDeletes): an UPDATE, not a DELETE, so it never trips workgroups.head_id / deployments.employee_id's ON DELETE RESTRICT.
+     */
     public function destroy(Employee $employee, RemoveEmployee $remove): RedirectResponse
     {
         Gate::authorize('delete', $employee);
 
         $remove->handle($employee);
 
-        // Every placement is closed at today, so from tomorrow this person is
-        // employed nowhere and the days they were given are days nobody was
-        // employed on (Workday rule 3, decision 86). The recompute is what
-        // clears them; the ledger for the month they left stays, which is the
-        // whole point of `LedgerController` loading employees `withTrashed()`.
         FanOutRecompute::forEmployees([$employee->id], today()->toDateString());
 
         return redirect()->route('employees.index')->with('success', "{$employee->name} removed.");

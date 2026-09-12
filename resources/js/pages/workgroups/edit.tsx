@@ -6,12 +6,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/workgroups';
 import type { Employee, Workgroup } from '@/types';
 
-/**
- * The add form again, against a workgroup that already exists — so the title is its
- * name and the primary action is Save changes. The parent picker drops this
- * workgroup and everything under it (see `WorkgroupFields`), which is what keeps the
- * `workgroups_acyclic` trigger from ever having to speak.
- */
 export default function Edit({
     workgroup,
     workgroups,

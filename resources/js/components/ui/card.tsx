@@ -1,15 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-/**
- * The design's panel: a 12px-radius border on the sheet surface, and no
- * shadow — hierarchy comes from type and rules, not from lift. A panel groups
- * things that belong together; it is not the default wrapper for a page's
- * content, and a page of them reads as a form kit rather than a product.
- *
- * Padding belongs to the parts (header, content, footer), not to the frame,
- * so a panel can hold a table that runs edge to edge.
- */
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
     return (
         <div

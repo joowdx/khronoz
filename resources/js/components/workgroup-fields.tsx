@@ -5,32 +5,14 @@ import { Input } from '@/components/ui/input';
 import { flattenWorkgroups, subtreeIds } from '@/lib/workgroups';
 import type { Employee, Workgroup } from '@/types';
 
-/**
- * The five columns of `workgroups`, in one 560px column — shared by the add and the
- * edit screens for the same reason the employee fields are.
- *
- * Two of the five are pickers rather than text boxes, and both are searchable
- * (§5.14's popover with cmdk) because both lists are as long as the agency is
- * big. Each writes a hidden input, so the page's Inertia `<Form>` submits it
- * without knowing they hold state.
- *
- * The parent picker refuses the workgroup itself and everything under it. A cycle
- * is refused by `workgroups_parent_not_self` and the `workgroups_acyclic` trigger, and
- * StoreWorkgroupRequest deliberately leaves it to them — which is exactly why the
- * picker has to make it unreachable: the database's refusal arrives as an
- * unhandled SQLSTATE, not as a message on a label row.
- */
 export function WorkgroupFields({
     workgroup,
     workgroups,
     employees,
     errors,
 }: {
-    /** The workgroup being edited, or nothing when one is being added. */
     workgroup?: Workgroup;
-    /** Every workgroup of the agency, flat — the parent picker's options. */
     workgroups: Workgroup[];
-    /** Who may head a workgroup: employees still employed (WorkgroupController::heads). */
     employees: Employee[];
     errors: Partial<Record<string, string>>;
 }) {

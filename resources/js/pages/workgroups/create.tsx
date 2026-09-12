@@ -7,13 +7,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/workgroups';
 import type { Employee, Workgroup } from '@/types';
 
-/**
- * One 560px column, five fields, the submit row (§6.1). Not in the brief's
- * table of screens, but `WorkgroupController::create` renders it and the workgroups tree
- * links to it — a primary action that lands on a missing page is the exact
- * failure §10 and components.md both forbid, and the milestone's own exit
- * criterion is to build an agency's tree by hand in this UI.
- */
 export default function Create({ workgroups, employees }: { workgroups: Workgroup[]; employees: Employee[] }) {
     return (
         <AppLayout>

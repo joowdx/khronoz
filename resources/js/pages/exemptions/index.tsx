@@ -55,7 +55,6 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Person column needs for a full Filipino name. */
 const FLEX_MIN = 260;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
@@ -72,16 +71,6 @@ function query(filters: Filters): Record<string, string> {
     return params;
 }
 
-/**
- * A list rather than a section on each profile, because the work is done in
- * batches: a timekeeper closing a payroll period asks who was away this
- * fortnight, not to see one person. The employee filter answers the other
- * question without a second screen.
- *
- * The date filters **overlap** rather than contain, which is the whole reason
- * a 105-day leave is one row: a maternity leave that merely crosses the
- * fortnight being closed is exactly the row that must not be missed.
- */
 export default function Index({
     exemptions,
     pagination,
@@ -219,13 +208,6 @@ export default function Index({
                         <TableBody>
                             {exemptions.map((exemption) => (
                                 <TableRow key={exemption.id}>
-                                    {/*
-                                      One row covers the whole run, so the cell
-                                      shows the run — and says how long it is,
-                                      because "105 days" is the fact a reader
-                                      needs and counting two dates in your head
-                                      is not.
-                                    */}
                                     <TableCell className="tabular-nums">
                                         {exemption.spans_days ? (
                                             <span className="flex flex-col">
@@ -294,14 +276,6 @@ export default function Index({
     );
 }
 
-/**
- * How many days the run covers, both ends included — `until` is the last day,
- * not the day after, so a one-day exemption is 1 and not 0.
- *
- * Plain string arithmetic on `YYYY-MM-DD` through `Date.UTC`, which normalises
- * month lengths and leap years without ever touching a timezone
- * (`lib/dates.ts` takes the same approach for `addDay`).
- */
 function days(exemption: Exemption): number {
     const [fy, fm, fd] = exemption.date.split('-').map(Number);
     const [ty, tm, td] = exemption.until.split('-').map(Number);

@@ -12,7 +12,9 @@ use Tests\TestCase;
 
 class TeamTest extends TestCase
 {
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     private function teamRow(string $agency, string $schedule, array $overrides = []): array
     {
         return [
@@ -36,12 +38,6 @@ class TeamTest extends TestCase
         ));
     }
 
-    /**
-     * anchor is NOT NULL, and it is load-bearing rather than merely required:
-     * resolution is `position = (D - anchor) mod length`, so a null anchor
-     * would make every date resolve to nothing while the team looked
-     * perfectly well-formed.
-     */
     public function test_anchor_is_required(): void
     {
         $schedule = Schedule::factory()->create();
@@ -71,13 +67,11 @@ class TeamTest extends TestCase
         $this->assertDatabaseHas('teams', ['id' => $elsewhere->id, 'name' => $team->name]);
     }
 
-    /** Ruling P4: the primary key masks the pair, so assert the catalog — rosters.team_id pairs against it. */
     public function test_id_and_agency_id_pair_is_declared_unique(): void
     {
         $this->assertNotNull(DB::selectOne("select 1 from pg_constraint where conname = 'teams_id_agency_id_unique'"));
     }
 
-    /** teams_schedule_id_agency_id_foreign, insert side: a schedule of another agency. */
     public function test_schedule_must_share_the_teams_agency(): void
     {
         $foreign = Schedule::factory()->create();
@@ -85,7 +79,6 @@ class TeamTest extends TestCase
         $this->assertDatabaseRefuses('23503', fn () => Team::factory()->create(['schedule_id' => $foreign->id]));
     }
 
-    /** Same FK, delete side. */
     public function test_schedule_used_by_a_team_cannot_be_deleted(): void
     {
         $team = Team::factory()->create();
@@ -93,12 +86,6 @@ class TeamTest extends TestCase
         $this->assertDatabaseRefuses('23001', fn () => DB::table('schedules')->where('id', $team->schedule_id)->delete());
     }
 
-    /**
-     * agency_not_platform (P0001). This is where a team differs from a shift
-     * or a schedule: the platform agency owns the *defaults*, which are
-     * templates, but a team is a cohort of real people and nothing
-     * operational hangs under the platform row (07-constraints.md).
-     */
     public function test_the_platform_agency_has_no_teams(): void
     {
         $platform = $this->platform();
@@ -109,14 +96,6 @@ class TeamTest extends TestCase
         ));
     }
 
-    /**
-     * A team's membership is the rosters carrying its id, and there is no
-     * pivot table to add. Two properties follow for free and are worth
-     * pinning, because a membership table would have needed extra
-     * constraints for both: "who was on it in March" is answerable from the
-     * rosters' own ranges, and one employee cannot be on two teams at once,
-     * since rosters_no_overlap already gives each employee one roster per date.
-     */
     public function test_membership_is_the_rosters_carrying_the_team_id(): void
     {
         $team = Team::factory()->create();
@@ -147,13 +126,6 @@ class TeamTest extends TestCase
         $this->assertDatabaseHas('rosters', ['id' => $one->id, 'team_id' => $team->id]);
     }
 
-    /**
-     * A team is a standing definition and has no starts/ends. Asserted
-     * against the catalog rather than by writing a row, because the absence
-     * of a column is not something an INSERT can demonstrate — and this is a
-     * shape decision worth guarding: date-ranging a team would duplicate what
-     * the rosters already answer and make "who was on it in March" ambiguous.
-     */
     public function test_a_team_carries_no_date_range(): void
     {
         $columns = DB::table('information_schema.columns')

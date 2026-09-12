@@ -4,39 +4,18 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
-/* Dark mode is an attribute on <html>, not shadcn's `.dark` class:
-   use-appearance.ts stamps `data-mode`, and app.blade.php stamps it again
-   synchronously before first paint so there is no flash. The `*` half of the
-   selector lets a subtree be forced to one mode if that is ever needed. */
 @custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
-/* ============================================================================
-   Theme: what Tailwind turns into utilities.
-   `inline` means each utility emits `var(--token)` rather than a copy of the
-   value, so a utility follows whichever [data-accent] x [data-mode] block is
-   active. Nothing that varies by mode or accent may live in here — the matrix
-   is in plain CSS below.
-   ========================================================================= */
 @theme inline {
     --font-sans: 'Plus Jakarta Sans', 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
 
-    /* Radius. --radius is 8px, so shadcn's four steps land exactly on the
-       design's four shapes:
-         rounded-sm  = 8 - 4 =  4px  (unused; no control is this tight)
-         rounded-md  = 8 - 2 =  6px  chips, badges, menu items
-         rounded-lg  = 8      =  8px  every control: button, input, select
-         rounded-xl  = 8 + 4 = 12px  panels, cards, sheets, dialogs
-         rounded-full         = 999   pills */
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
 
-    /* The one shadow in the product, and only the four layers that float:
-       popover, menu, dialog, sheet. */
     --shadow-lift: var(--lift);
 
-    /* ---- shadcn's surface and text roles, mapped to khronoz tokens ---- */
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -59,7 +38,6 @@
     --color-input: var(--input);
     --color-ring: var(--ring);
 
-    /* ---- khronoz's own roles, which shadcn has no name for ---- */
     --color-scrim: var(--scrim);
     --color-rule: var(--rule);
     --color-edge-soft: var(--edge-soft);
@@ -78,7 +56,6 @@
     --color-positive: var(--positive);
     --color-positive-soft: var(--positive-soft);
 
-    /* ---- the eight-slot chip ramp: shift letters, avatars, lane bars ---- */
     --color-c1-fill: var(--c1-fill);
     --color-c1-edge: var(--c1-edge);
     --color-c1-text: var(--c1-text);
@@ -104,7 +81,6 @@
     --color-c8-edge: var(--c8-edge);
     --color-c8-text: var(--c8-text);
 
-    /* ---- sidebar (shadcn's own family, consumed by components/ui/sidebar) --- */
     --color-sidebar: var(--sidebar);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar-primary: var(--sidebar-primary);
@@ -114,7 +90,6 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
-    /* ---- charts read the chip ramp, so a lane and its legend agree ---- */
     --color-chart-1: var(--c2-edge);
     --color-chart-2: var(--c5-edge);
     --color-chart-3: var(--c8-edge);
@@ -122,23 +97,10 @@
     --color-chart-5: var(--c6-edge);
 }
 
-/* ============================================================================
-   Tokens: four sets, [data-accent="violet"|"blue"] x [data-mode="light"|"dark"].
-   Ported from docs/design/mockups/tokens.css, which is the design of record —
-   these hex values are final and are not re-derived here. Two renames from
-   that file, both forced by shadcn's fixed variable names:
-     tokens.css --muted (muted *text*)  ->  --muted-foreground
-                --side  (sidebar grey)  ->  --muted / --sidebar
-     tokens.css --fault/--attn/--pos    ->  --destructive/--attention/--positive
-   Default (no attributes on <html>) is violet + light, so the page is correct
-   before any JS runs.
-   ========================================================================= */
 
 :root {
-    /* shape — controls 8, panels 12, chips 6, pills 999 (see @theme above) */
     --radius: 0.5rem;
 
-    /* space scale: 4 8 12 16 24 32 48 */
     --s1: 4px;
     --s2: 8px;
     --s3: 12px;
@@ -147,7 +109,6 @@
     --s6: 32px;
     --s7: 48px;
 
-    /* structural measures the shell is built from */
     --side-w: 248px;
     --rail-w: 64px;
     --bar-h: 56px;
@@ -157,7 +118,6 @@
     --lift: 0 8px 24px rgb(0 0 0 / 0.1);
 }
 
-/* ================= NEUTRALS (pure achromatic: R = G = B) ================= */
 :root,
 :root[data-mode='light'] {
     --background: #ffffff; /* canvas                                        */
@@ -230,9 +190,6 @@
     color-scheme: dark;
 }
 
-/* ================= ACCENT: violet (shipped default) =================
-   The accent tokens are the only tinted surfaces left. The sidebar carries no
-   accent tint; the active nav item still does. */
 :root,
 :root[data-accent='violet'],
 :root[data-accent='violet'][data-mode='light'] {
@@ -254,11 +211,6 @@
     --ring: #7c3aed;
 }
 
-/* ================= ACCENT: blue =================
-   Kept, unused, and switchable: stamp data-accent="blue" on <html> and every
-   accent surface follows. Nothing selects it today — violet is the shipped
-   accent — and the only reason it lives here is so a second brand can be
-   turned on without re-deriving a palette. */
 :root[data-accent='blue'],
 :root[data-accent='blue'][data-mode='light'] {
     --primary: #2563eb; /* white on it            5.17:1 */
@@ -279,12 +231,6 @@
     --ring: #3b6fe0;
 }
 
-/* ================= CHIP RAMP =================
-   Eight flat oklch hues. The violet accent sits at oklch h293, so hues keep
-   >= 35 deg clear of it; every text-bearing chip keeps >= 20 deg clear of the
-   destructive red (h27.5).
-   light: fill L.94 C.064 | edge L.80 C.125 | text L.425 C.14
-   dark:  fill L.28 C.09  | edge L.44 C.12  | text L.80 C.12                */
 :root,
 :root[data-accent='violet'][data-mode='light'],
 :root[data-accent='blue'][data-mode='light'] {
@@ -341,8 +287,6 @@
     --c8-text: #8cc2ff; /* 7.87 / 10.07 */
 }
 
-/* The blue accent sits at oklch h263, which the violet ramp's slot 8 (h252)
-   collides with. Only slot 8 rotates, to h320; slots 1-7 are unchanged. */
 :root[data-accent='blue'][data-mode='light'] {
     --c8-fill: #fae2ff;
     --c8-edge: #e1a3f0;
@@ -354,9 +298,6 @@
     --c8-text: #e0a4ee; /* 7.74 / 9.57 */
 }
 
-/* ================= SIDEBAR =================
-   Derived, not new colour. Hover is the neutral --side-hover, because the
-   accent tint is reserved for the *active* item, which sets it explicitly. */
 :root {
     --sidebar: var(--muted);
     --sidebar-foreground: var(--foreground);
@@ -380,20 +321,10 @@
         color: var(--foreground);
         font-size: 14px;
         line-height: 20px;
-        /* Every time, date, count and minute figure in this product is read
-           in a column, so figures must not change width. MEASURED in the
-           running app at 400/14px, Plus Jakarta Sans as served by Bunny:
-           by default the digits are proportional and ragged — "1" is
-           5.19px against "0" at 10.25px — and under tabular-nums all ten
-           render at exactly 8.4px ("111111" 31.16 -> 50.41, "000000"
-           61.49 -> 50.41). The face does ship tnum; declaring it here is
-           what turns it on, and it also corrects the fallbacks. */
         font-variant-numeric: tabular-nums;
         -webkit-font-smoothing: antialiased;
     }
 
-    /* Nothing in this product is italic: i and em appear as neutral inline
-       boxes in the roster and the lane chart, never as emphasis. */
     i,
     em,
     address,
@@ -403,66 +334,26 @@
         font-style: normal;
     }
 
-    /* Every time, date, count and minute figure. */
     time,
     .tnum {
         font-variant-numeric: tabular-nums;
     }
 
-    /* One focus ring for the whole product: 2px of accent, 2px clear of the
-       control. Declared here rather than per component so elements this task
-       does not own get it too. Utilities still win — a component that must
-       recolour its ring (an invalid input) does it with a `focus-visible:`
-       class, which Tailwind emits in a later layer.
-       Controls spell their transition out as
-       `transition-[color,background-color,border-color]` rather than using
-       `transition-colors`, because Tailwind's list includes `outline-color`:
-       with it, the ring fades in from `currentColor` over 150ms, which on the
-       primary button is a white ring flashing on violet. MEASURED.
-
-       `[data-slot="command-input"]` (ui/command.tsx's `CommandInput`, the
-       command palette's search field) is the one exception, on its own
-       terms rather than by copying `tag-input.tsx`'s row-ring pattern: cmdk
-       autofocuses it on open and it is the only focusable element in the
-       popover, so a ring on it never changes state and distinguishes
-       nothing — arrow keys walk the list through `aria-activedescendant`,
-       they never move DOM focus off the input. The caret is the focus
-       indicator here, the same call VS Code, Linear, GitHub's Cmd-K,
-       Raycast and Spotlight all make on their own palette fields. Excluded
-       from this rule, which is what actually paints the outline, and
-       carried onto the inset rule below too, since that one would otherwise
-       still touch this input's `outline-offset` for no visible reason. */
     :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex='-1'])):focus-visible:not([data-slot='command-input']) {
         outline: 2px solid var(--ring);
         outline-offset: 2px;
     }
 
-    /* A text box is bordered, so its ring sits just inside the border instead
-       of floating outside it, and the border itself turns accent. */
     :where(input:not([type='checkbox'], [type='radio']), textarea):focus-visible:not([data-slot='command-input']) {
         border-color: var(--ring);
         outline-offset: -1px;
     }
 
-    /* Excluding command-input from the two rules above only stops *this*
-       product's ring — MEASURED: with nothing else set, the browser's own
-       UA default (`outline: auto`, Chrome's pale blue) filled the gap on
-       focus, which is still a ring and still wrong. This is the actual
-       suppression, kept beside the rule it exempts rather than as a class on
-       the component. Higher specificity than both rules above (an attribute
-       selector plus `:focus-visible`, vs. `:focus-visible` alone inside
-       their zero-specificity `:where()`), so it wins regardless of source
-       order. */
     [data-slot='command-input']:focus-visible {
         outline: none;
     }
 }
 
-/* The product's motion is confined to the four layers that float — the
-   popover, menu, dialog and sheet open with the shadcn enter animation. When
-   the reader has asked the OS for less motion, they open plainly instead. The
-   design forbids animation on anything else (§1 rule 7), so this is a floor,
-   not a switch: nothing on screen depends on a transition to be legible. */
 @media (prefers-reduced-motion: reduce) {
     *,
     ::before,

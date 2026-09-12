@@ -4,16 +4,6 @@ namespace App\Attendance;
 
 use Carbon\CarbonImmutable;
 
-/**
- * The sides after any flexitime slide, and one punch row per side
- * (04-scheduling.md Matching, 06-attendance.md Punch).
- *
- * No logic: Matcher produces this and the deriver reads it. A missed
- * side keeps timelog_id, actual_at and deviation all null — never a
- * synthesised time (decision 64). A day with no expectation has no
- * sides and punches whose expected_at and deviation are null instead,
- * which is the same refusal pointing the other way (decision 78).
- */
 final readonly class Matching
 {
     /**

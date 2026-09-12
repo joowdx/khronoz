@@ -33,15 +33,6 @@ class SetTenantTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('agency.id', $agency->id));
     }
 
-    /**
-     * The other half of the Organization nav gate (OrganizationNavContractTest
-     * holds the component's side of it). `app-sidebar.tsx` decides whether to
-     * render Workgroups and Employees from the shared `agency` prop, so what this
-     * has to prove is that the prop tells the truth in both cases: a superuser
-     * who has entered nothing is on the platform tenant, where a workgroup or an
-     * employee cannot exist at all (agency_not_platform, P0001), and one who
-     * has entered an agency is not.
-     */
     public function test_the_shared_agency_prop_distinguishes_the_platform_tenant_from_an_entered_one(): void
     {
         $agency = Agency::factory()->create();
@@ -57,7 +48,6 @@ class SetTenantTest extends TestCase
                 ->where('auth.user.platform', true));
     }
 
-    /** A staff user is never on the platform tenant, so the group is theirs whenever the permission is. */
     public function test_a_staff_user_is_always_inside_a_real_agency(): void
     {
         $this->actingAs(User::factory()->create())->get(route('dashboard'))

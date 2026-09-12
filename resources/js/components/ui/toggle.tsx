@@ -3,10 +3,6 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { Toggle as TogglePrimitive } from 'radix-ui';
 
-/**
- * A standalone two-state control. The segmented control is a different thing
- * with its own geometry — see components/ui/toggle-group.
- */
 const toggleVariants = cva(
     "inline-flex items-center justify-center gap-[7px] rounded-lg text-[13px] leading-[18px] font-medium whitespace-nowrap transition-[color,background-color,border-color] disabled:pointer-events-none disabled:opacity-45 data-[state=on]:bg-acc-soft data-[state=on]:text-acc-text data-[state=on]:font-semibold [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     {

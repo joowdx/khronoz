@@ -16,20 +16,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * The dates on which no work is expected, or on which work is paid at a
- * premium (05-calendar.md rule 1).
- *
- * This is the one table read under AgencyOrPlatformScope, so every list here
- * mixes the tenant's own holidays with the national ones the platform agency
- * declares. The mix is the feature — an agency should see what it is working
- * against — and the rows it cannot change are refused by HolidayPolicy rather
- * than merely dimmed.
- *
- * **Every read is plural.** A date may carry more than one holiday and both
- * are owed, so nothing here reaches for `->first()` on a date; the year filter
- * and the ordering are by date, and two rows sharing one are two rows.
- */
 class HolidayController extends Controller
 {
     use TranslatesUniqueCollisions;
@@ -49,9 +35,7 @@ class HolidayController extends Controller
         return Inertia::render('holidays/index', [
             'holidays' => HolidayResource::collection($holidays)->resolve(),
             'filters' => ['year' => (string) $year],
-            // The years this agency actually has holidays in, so the picker
-            // offers nothing empty. A closure: it is the filter control's own
-            // options and must not be re-queried on every change.
+
             'years' => fn () => $this->years(),
         ]);
     }
@@ -100,12 +84,6 @@ class HolidayController extends Controller
             ->with('success', 'Holiday updated.');
     }
 
-    /**
-     * Nothing references a holiday, so this is a plain delete — no RESTRICT to
-     * translate. The deriver reads the table by date at compute time rather
-     * than holding a foreign key to it (decision 30's shape), which is what
-     * makes removing a wrongly entered proclamation safe.
-     */
     public function destroy(Holiday $holiday): RedirectResponse
     {
         Gate::authorize('delete', $holiday);
@@ -120,25 +98,6 @@ class HolidayController extends Controller
     }
 
     /**
-     * Who a proclamation reaches, and over which days (Workday rule 3,
-     * decision 86).
-     *
-     * **The whole ISO week, not the date.** Rule 3 asks for the week only
-     * for a compressed roster whose Off turn the holiday lands on — a CWW
-     * week redistributes its hours, so the four days that are worked change
-     * when the fifth is declared — and nothing at the point of declaring it
-     * knows whose roster is compressed. The week is seven recomputes of a
-     * clamped span instead of one, and it is the difference between the rule
-     * holding and a controller guessing at rosters it has not loaded.
-     *
-     * A national holiday belongs to the platform agency and reaches every
-     * tenant, which is `AgencyOrPlatformScope`'s rule read from the writing
-     * side. Its id list is the one this job will not carry, so it travels as
-     * no scope at all. **No screen declares one yet** — these routes are in
-     * the agency group and a platform user who has entered no agency gets a
-     * 404 — so that limb is written for the platform calendar screen rather
-     * than reached today; `Holiday::national()` is where it is tested.
-     *
      * @return array{platform: bool, agency: string, from: string, to: string}
      */
     private function reach(Holiday $holiday): array
@@ -168,7 +127,9 @@ class HolidayController extends Controller
             : FanOutRecompute::forAgency($reach['agency'], $reach['from'], $reach['to']);
     }
 
-    /** A four-digit year, defaulting to the current one. */
+    /**
+     * A four-digit year, defaulting to the current one.
+     */
     private function year(string $value): int
     {
         return preg_match('/^\d{4}$/', $value) === 1 ? (int) $value : (int) today()->year;

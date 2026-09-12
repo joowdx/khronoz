@@ -7,17 +7,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
-/**
- * The store rules with the row's own name ignored.
- *
- * `.ai/rules/requests.md` asks an update's `exists` rule to accept the value
- * the row already holds as well as what the picker offers. Here the two are
- * the same set and nothing extra is needed: `shifts` does not soft-delete, and
- * a shift named by a schedule or a turn cannot be removed while it is
- * (`ON DELETE RESTRICT`), so `where('agency_id', …)` already answers for every
- * value this row can be carrying. Adding an `orWhere('id', …)` would mean
- * accepting a shift the picker cannot show.
- */
 class UpdateScheduleRequest extends FormRequest
 {
     public function authorize(): bool
@@ -49,14 +38,7 @@ class UpdateScheduleRequest extends FormRequest
         ];
     }
 
-    /**
-     * One shift per day of the cycle, no more and no fewer — and on an update
-     * that is the half `turns_complete` would otherwise catch at COMMIT, since
-     * shortening a cycle without dropping its tail leaves a complete set that
-     * is complete for the wrong length.
-     *
-     * @return array<int, callable>
-     */
+    /** @return array<int, callable> */
     public function after(): array
     {
         return [function (Validator $validator): void {
@@ -79,11 +61,7 @@ class UpdateScheduleRequest extends FormRequest
         ];
     }
 
-    /**
-     * The cycle's shifts in position order, reindexed from zero.
-     *
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     public function turns(): array
     {
         $turns = $this->validated()['turns'];

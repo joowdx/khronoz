@@ -55,7 +55,6 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Person/purpose column needs for a real authorisation line. */
 const FLEX_MIN = 300;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
@@ -72,15 +71,6 @@ function query(filters: Filters): Record<string, string> {
     return params;
 }
 
-/**
- * Authorised overtime, most recent first.
- *
- * The Hours column is the one that needed thought. An authorisation routinely
- * crosses midnight, and `22:00–02:00` rendered plainly reads as running
- * backwards — so an overnight stretch is marked, and says which day it ends
- * on. The Date column is `starts::date`, generated, so a stretch belongs to
- * the day it began on. That is how a DTR reads it.
- */
 export default function Index({
     overtimes,
     pagination,
@@ -238,28 +228,6 @@ export default function Index({
                                             </span>
                                         </span>
                                     </TableCell>
-                                    {/*
-                                      An overnight stretch is marked, because
-                                      "22:00–02:00" on its own reads as running
-                                      backwards.
-
-                                      The **date is drawn**, not only spoken.
-                                      It used to be an `aria-label` on a 14px
-                                      moon, so a screen reader was told which
-                                      day the stretch ended on and a sighted
-                                      operator was not — they saw two times
-                                      that disagreed and no way to resolve
-                                      them.
-
-                                      And the label said "the next day", which
-                                      `overtimes_dates_ordered` does not
-                                      guarantee: it requires only `ends >
-                                      starts`, so a 30-hour authorisation is
-                                      storable and ends two days later. The
-                                      date says what is true for any span; the
-                                      moon is now decoration beside it and is
-                                      hidden from the reading.
-                                    */}
                                     <TableCell className="tabular-nums">
                                         <span className="flex items-center gap-1.5">
                                             {clock(overtime.starts)}–{clock(overtime.ends)}
@@ -307,7 +275,6 @@ export default function Index({
     );
 }
 
-/** `HH:MM` out of a `Y-m-d H:i:s` timestamp, without parsing it into a Date. */
 function clock(timestamp: string): string {
     return timestamp.slice(11, 16);
 }

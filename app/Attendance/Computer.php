@@ -16,17 +16,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-/**
- * For one employee over a range of dates, run the pipeline and persist
- * each workday with its punches and the ledger it belongs to
- * (06-attendance.md Workday rules 1–3, across midnight, Ledger 1 and 3).
- *
- * Widen what is loaded, not what is written. Walk dates ascending so
- * the earlier workday claims a timelog first. A locked ledger is a
- * courteous skip (decision 70); the trigger is the real lock.
- *
- * Does not set the tenant — decision 61 puts that in the queued job.
- */
 final class Computer
 {
     public function __construct(
@@ -70,28 +59,6 @@ final class Computer
     }
 
     /**
-     * Delete workdays in the range for dates nobody was employed on
-     * (decision 86, the other half of decision 82).
-     *
-     * The gate in `over()` stops a date outside employment from being
-     * *written*; it says nothing about a row already there. Narrowing a
-     * deployment — a transfer back-dated, a removal corrected, an `ends`
-     * moved in — is precisely the change that turns yesterday's honest
-     * workday into an absence recorded against somebody who did not work
-     * here, and the gate then skips the date and leaves the row standing.
-     * A recompute that cannot remove what it would no longer write is not
-     * idempotent, so this runs on every pass and not only after a
-     * deployment change: any path that reaches a date is the path that owns
-     * what is on it.
-     *
-     * Restricted to open months. `deployments_frozen_month` already refuses
-     * a deployment change that touches a locked month, so an orphan inside
-     * one cannot be newly created; the filter is what keeps
-     * `workdays_ledger_open` from aborting the transaction over a row this
-     * pass has no business deleting anyway. Punches go with the workday —
-     * `punches.workday_id` cascades, and decision 80's trigger lets a
-     * cascade from an open month through.
-     *
      * @param  array<string, true>  $employed
      */
     private function discardOrphans(CarbonImmutable $start, CarbonImmutable $end, array $employed): void
@@ -111,24 +78,6 @@ final class Computer
     }
 
     /**
-     * The dates of the range the employee was employed on, as a set keyed
-     * `'Y-m-d'` (Workday rule 1, decision 82).
-     *
-     * "Employed" is *any deployment covering the date*, which
-     * `05-calendar.md` rule 3 already establishes is the same set as
-     * "deployed on the date" — a movement always nests inside its
-     * placement, so overlapping rows never widen it. `Resolver`'s docblock
-     * assigns this question here in as many words and the orchestrator was
-     * not asking it: a recompute for a date before hiring, after removal,
-     * or in a gap between placements wrote a workday, and every one of them
-     * came out `absent`, because the calendar has no roster to read and
-     * decision 63 makes an unrostered day `off`... which is then not the
-     * point. The point is that the row should not exist at all — an
-     * absence recorded against somebody who did not work here is a figure
-     * on a DTR with no employment behind it.
-     *
-     * One query for the range, then a set: a month costs the same as a day.
-     *
      * @return array<string, true>
      */
     private function employedDates(CarbonImmutable $from, CarbonImmutable $to): array
@@ -236,10 +185,6 @@ final class Computer
     }
 
     /**
-     * Standing, resolved taps from the day before `$from` through four
-     * days after `$to` — a slot may run to `"72:00"` and a window may
-     * reach 240 minutes back.
-     *
      * @return Collection<int, Timelog>
      */
     private function candidateTimelogs(CarbonImmutable $from, CarbonImmutable $to): Collection
@@ -255,10 +200,6 @@ final class Computer
     }
 
     /**
-     * Unvoided taps that no *other* workday already holds, including
-     * punches written earlier in this run. This date's own punches are
-     * released so a recompute can claim the same taps again.
-     *
      * @param  Collection<int, Timelog>  $timelogs
      * @return list<array{id: string, time: CarbonImmutable, state: int}>
      */
@@ -288,26 +229,6 @@ final class Computer
     }
 
     /**
-     * The immediately preceding **work** day was an unexcused absence
-     * (decisions 66, 68 and 77).
-     *
-     * "Work day" is the whole of the first half. A rest day, a holiday and
-     * a suspension are all days on which nothing was required, so none of
-     * them can be the absence the rule asks about and none of them ends the
-     * search — the walk continues while `WorkdayStatus::expectsWork()` is
-     * false, until it reaches a day work was expected on. Stopping
-     * at the first non-`Off` status paid Christmas Day to an employee
-     * absent without leave on the 23rd, because Christmas Eve is a special
-     * non-working holiday and sat in between.
-     *
-     * "Unexcused" is `Absent` and nothing further (decision 77). The status
-     * precedence already answers it: `Calendar::status()` returns `Exempt`
-     * for any day carrying a **whole-day** excusing exemption, so a day
-     * that reaches `Absent` has no whole-day excuse by construction, and
-     * every excusing exemption still attached to it is partial. Asking the
-     * exemption again read a one-hour excused pass on a day of no
-     * attendance as a fully excused absence.
-     *
      * @param  array<string, array{status: WorkdayStatus}>  $computed
      */
     private function precedingUnexcusedAbsence(CarbonImmutable $date, array $computed): bool

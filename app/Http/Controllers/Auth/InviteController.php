@@ -13,10 +13,6 @@ use Inertia\Response;
 
 class InviteController extends Controller
 {
-    /**
-     * Display the accept-invite page, or send an already-accepted invite to
-     * login instead — see store() for why that same check is repeated there.
-     */
     public function create(Request $request, User $user): RedirectResponse|Response
     {
         return $this->alreadyAccepted($user) ?? Inertia::render('auth/accept-invite', [
@@ -25,16 +21,6 @@ class InviteController extends Controller
         ]);
     }
 
-    /**
-     * Set the invited user's password and sign them in.
-     *
-     * The GET route above refuses an already-accepted invite, but its signed
-     * URL stays cryptographically valid for the rest of its 7-day lifetime —
-     * a browser never re-checks create() before submitting a form, and a POST
-     * straight to this same URL is just as reachable. Repeating the check
-     * here is what stops that still-valid link from being replayed to
-     * overwrite a password the user already changed.
-     */
     public function store(AcceptInviteRequest $request, User $user): RedirectResponse
     {
         if ($redirect = $this->alreadyAccepted($user)) {
@@ -48,14 +34,14 @@ class InviteController extends Controller
 
         Auth::login($user);
 
-        // Prevent session fixation here too: this and login are the only two
-        // places an anonymous session becomes an authenticated one.
         $request->session()->regenerate();
 
         return redirect()->route('dashboard')->with('success', 'Welcome, '.$user->name.'.');
     }
 
-    /** Shared by create() and store(): an accepted invite's signed URL stays valid for the rest of its lifetime, so both verbs must refuse it, not just the one the browser visits first. */
+    /**
+     * Shared by create() and store(): an accepted invite's signed URL stays valid for the rest of its lifetime, so both verbs must refuse it, not just the one the browser visits first.
+     */
     private function alreadyAccepted(User $user): ?RedirectResponse
     {
         return $user->email_verified_at !== null

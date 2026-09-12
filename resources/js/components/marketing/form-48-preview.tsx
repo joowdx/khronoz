@@ -2,16 +2,6 @@ import type { ReactNode } from 'react';
 import { Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * A fragment of Civil Service Form No. 48, the printed monthly daily time
- * record. Static markup until Milestone 6 lands Workday, Punch and Ledger.
- *
- * The sample days are the same rotation the hero draws, continued past its
- * window: two afternoon turns, two rest days, then two night turns whose out
- * punch lands the next morning and is marked with a day marker.
- */
-
-/** The day marker: a punch that belongs to a later date than its workday. */
 const NEXT_DAY = <span className="text-acc-text text-[11px] leading-[15px] font-semibold">&#8314;&#185;</span>;
 
 type Row = {
@@ -75,8 +65,6 @@ export function Form48Preview() {
                 <table className="w-full min-w-[508px] border-separate border-spacing-0">
                     <thead>
                         <tr>
-                            {/* This one keeps its rule: `.f48 th.g` drops the border, and the
-                                cell above Day is not a group head. */}
                             <th className={cn(HEAD, 'pl-4')} />
                             <th className={cn(HEAD, GROUP)} colSpan={2} scope="colgroup">
                                 AM

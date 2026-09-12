@@ -11,15 +11,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-/**
- * The tenant. Exactly one row has `platform` true; it owns the shared rows
- * and the superusers, and every list hides it (NotPlatformScope).
- */
 #[Fillable(['code', 'name', 'settings'])]
 #[ScopedBy(NotPlatformScope::class)]
 class Agency extends Model
 {
-    /** @use HasFactory<AgencyFactory> */
+    /**
+     * @use HasFactory<AgencyFactory>
+     */
     use HasFactory, HasUlids;
 
     protected function casts(): array
@@ -27,7 +25,6 @@ class Agency extends Model
         return ['platform' => 'boolean', 'settings' => 'array'];
     }
 
-    /** The platform row, hidden from every other query. */
     public static function platform(): self
     {
         return static::withoutGlobalScope(NotPlatformScope::class)->where('platform', true)->firstOrFail();

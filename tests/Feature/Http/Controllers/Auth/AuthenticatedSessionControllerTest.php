@@ -32,13 +32,6 @@ class AuthenticatedSessionControllerTest extends TestCase
         $this->assertGuest();
     }
 
-    /**
-     * Pins the generic-failure invariant: LoginRequest::authenticate() has a
-     * single unbranched failure path today, so an unregistered email and a
-     * wrong password already produce the same message. Nothing stops a
-     * future refactor from splitting them into two branches that leak which
-     * case happened — this test fails the moment that split appears.
-     */
     public function test_unregistered_email_returns_the_same_generic_error_as_a_wrong_password(): void
     {
         $this->from(route('login'))->post(route('login'), ['email' => 'nobody@agency.gov.ph', 'password' => 'nope'])

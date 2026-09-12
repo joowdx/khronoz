@@ -7,11 +7,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, store } from '@/routes/schedules';
 import type { Shift } from '@/types';
 
-/**
- * Wider than the 560px form column the rest of the product uses, because the
- * cycle is a strip and a strip wants the room — at 760 a fortnight lays out
- * five across, so a seven-day week reads as one block rather than a list.
- */
 export default function Create({ shifts }: { shifts: Shift[] }) {
     return (
         <AppLayout>

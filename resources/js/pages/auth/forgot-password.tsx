@@ -14,8 +14,6 @@ export default function ForgotPassword({ status }: { status?: string }) {
             title="Reset your password"
             description="Enter the email address your administrator invited. We'll send a link to set a new one."
         >
-            {/* The same neutral confirmation whether or not the address is
-                registered — see PasswordResetLinkController::store(). */}
             {status && (
                 <Alert variant="positive" className="mb-5">
                     <CircleCheckIcon />

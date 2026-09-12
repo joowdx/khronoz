@@ -19,18 +19,6 @@ use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
-/**
- * Why somebody was not at their desk and it is excused (05-calendar.md).
- *
- * A top-level list rather than a section on each employee's profile, because
- * the work is done in batches: a timekeeper closing a payroll period asks "who
- * was on leave this fortnight", not "show me Amihan". The employee filter
- * serves the other question without a second screen.
- *
- * `date .. until` is **inclusive on both sides** and `until` is NOT NULL
- * (decision 38) — a one-day exemption is `until = date`, and RA 11210's 105
- * continuous days is one row, not 105.
- */
 class ExemptionController extends Controller
 {
     private const PER_PAGE = 50;
@@ -53,9 +41,7 @@ class ExemptionController extends Controller
             ->with('employee')
             ->when($employee !== null, fn (Builder $query) => $query->where('employee_id', $employee->id))
             ->when($type !== '', fn (Builder $query) => $query->where('type', $type))
-            // Overlap, not containment: a 105-day leave that merely *crosses*
-            // the fortnight being closed is the row a timekeeper most needs to
-            // see, and a `whereBetween('date', …)` would miss it entirely.
+
             ->when($from !== '', fn (Builder $query) => $query->where('until', '>=', $from))
             ->when($to !== '', fn (Builder $query) => $query->where('date', '<=', $to))
             ->orderByDesc('date')
@@ -97,8 +83,7 @@ class ExemptionController extends Controller
         try {
             $exemption = DB::transaction(fn () => Exemption::create([
                 ...$request->validated(),
-                // Who entered it. Never sent by the client — decision 39's
-                // actor_of_agency trigger refuses a user of a third agency.
+
                 'user_id' => $request->user()->id,
             ]));
         } catch (QueryException $e) {
@@ -153,20 +138,6 @@ class ExemptionController extends Controller
         return to_route('exemptions.index')->with('success', 'Exemption removed.');
     }
 
-    /**
-     * The refusal as a message, or null when it is not one of ours.
-     *
-     * P0001 is `exemptions_frozen_month` (decision 81): an excuse may not
-     * change which locked months it covers. It arrived with the freeze and
-     * nothing here translated it, so correcting a September leave slip in
-     * October answered a 500 — the trigger holding the line and the screen
-     * reporting it as a fault of the application.
-     *
-     * Each write is wrapped in its own transaction for the reason
-     * `TerminalEnrollmentController::store` is: a refusal aborts the
-     * transaction it runs in, and without a savepoint of its own the caught
-     * exception leaves the redirect's queries answering 25P02.
-     */
     private function refused(QueryException $e): ?RedirectResponse
     {
         return match ($e->getCode()) {
@@ -176,12 +147,6 @@ class ExemptionController extends Controller
     }
 
     /**
-     * Workday rule 3, decision 86: an exemption touching a date recomputes
-     * it. One employee and a known span, so the fan-out job resolves
-     * nothing — it is here rather than in the model so the dispatch stays
-     * at the caller, which is `ImportTimelogs`' rule and the reason a
-     * recompute failure cannot retry the write that succeeded.
-     *
      * @param  list<string>  $also  A span the row also used to occupy.
      */
     private function recompute(Exemption $exemption, array $also = []): void
@@ -197,13 +162,6 @@ class ExemptionController extends Controller
     }
 
     /**
-     * The kinds an exemption may be, in the order the enum declares them.
-     *
-     * Shipped rather than restated in TypeScript, matching
-     * `UserController::accesses()`: `EnumCheckContractTest` holds these cases
-     * to the database's CHECK, and a second list in the front end is a copy
-     * nothing holds to either.
-     *
      * @return array<int, array{value: string, label: string}>
      */
     private function types(): array

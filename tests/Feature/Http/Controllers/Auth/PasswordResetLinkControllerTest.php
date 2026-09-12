@@ -27,15 +27,6 @@ class PasswordResetLinkControllerTest extends TestCase
         Notification::assertSentTo($user, ResetPassword::class);
     }
 
-    /**
-     * This response must be indistinguishable from the known-email case
-     * above: same redirect target, same flash key, same literal text. That
-     * is the whole point — the HTTP response can no longer be used to test
-     * whether an address is registered. Notification::assertNothingSent()
-     * is what proves the real behaviour still differs server-side; do not
-     * "simplify" these two tests back into asserting different responses,
-     * or the endpoint becomes enumerable again.
-     */
     public function test_unregistered_email_gets_the_same_response_as_a_registered_one(): void
     {
         Notification::fake([ResetPassword::class]);

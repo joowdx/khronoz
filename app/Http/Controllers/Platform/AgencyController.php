@@ -16,24 +16,10 @@ use Inertia\Response;
 
 class AgencyController extends Controller
 {
-    /** Rows per page. 20 fits the panel without the page needing its own scroller. */
     private const PER_PAGE = 20;
 
-    /**
-     * The columns a reader may sort by, mapped to what the database orders on.
-     * A whitelist, not a passthrough: the value arrives in the query string.
-     */
     private const SORTABLE = ['code' => 'code', 'name' => 'name', 'users' => 'users_count'];
 
-    /**
-     * List every agency; NotPlatformScope already hides the platform row.
-     *
-     * Search, sort and page all live in the query string so the list a
-     * superuser is looking at is a link they can send to a colleague. The
-     * front end re-requests only `agencies`, `filters` and `pagination`
-     * (an Inertia partial reload), which is why those three are the whole
-     * contract of this page.
-     */
     public function index(Request $request): Response
     {
         $search = $request->string('search')->trim()->toString();
@@ -42,7 +28,7 @@ class AgencyController extends Controller
         $direction = $request->string('direction')->toString() === 'desc' ? 'desc' : 'asc';
 
         $agencies = Agency::query()
-            // The Users column is one aggregate on this same query. Counting
+
             // per row would be one SELECT per agency (N+1).
             ->withCount('users')
             ->when($search !== '', fn (Builder $query) => $query->where(

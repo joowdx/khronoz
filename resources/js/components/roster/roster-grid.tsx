@@ -2,44 +2,6 @@ import { OFF_HATCH, RAMP, type Slot } from '@/components/shift-chip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 
-/**
- * The roster grid — employees down, days across, one month at a time.
- *
- * Geometry is docs/design/mockups/ui.css's `.rg-*` family and §4.3/§5.23 of
- * 08-interface.md, translated to utilities: day column 27, data row 34, group
- * row 28, head 38, frozen columns 200 + 120, chip 21 x 22, band 22 high opening
- * 12px into its own column and closing 15px into the next.
- *
- * The z-ladder is §4.4's and is page-wide, so these numbers are not local
- * choices: wash 0, row 1, group row 2, band 5, now-line 6, head 20, frozen head
- * cell 22.
- *
- * **One deliberate deviation: the frozen row cells sit at 7, not §4.4's 4.**
- * The artboard is 1440 wide with the sidebar collapsed to a 64px rail, which
- * makes the grid exactly as wide as its column, so it never scrolls sideways
- * and a band never travels far enough left to reach the frozen columns. Here it
- * does, and at 4 the band and the now-line painted straight over the employee
- * names — MEASURED, scrolled 400px in an 800px viewport. The ladder above the
- * frozen cell is what it orders *within the days container*; the frozen columns
- * are not in that contest, they are the thing the contest scrolls underneath.
- * If the rail lands and the grid stops scrolling, this can go back to 4 and
- * nothing will look different.
- *
- * Four traps from §9.4 are load-bearing here and each is dodged deliberately:
- *
- * 1. **Frozen columns need an opaque ground at rest *and* under row hover.**
- *    The default is transparent, so the body scrolls under them; and a frozen
- *    cell that only sets a rest background lets the row's hover tint slide
- *    underneath it. Hence `bg-background` plus `group-hover:bg-row-hover`,
- *    with `group` on the row itself.
- * 2. **A sticky head needs its background on the cell, not the container** —
- *    a background on the strip does not paint under a sticky child, and rows
- *    show through.
- * 3. **Row dividers are `--rule`, the head rule is `--line`.** Two different
- *    greys; Tailwind's `border-*` default is neither.
- * 4. The scroller must not be wrapped in an `overflow: hidden` panel, or it
- *    becomes the sticky scrollport and the head silently stops sticking.
- */
 const DAY = 27;
 const FROZEN = 320;
 const TOTAL = 60;
@@ -65,7 +27,6 @@ export interface RosterBand {
     days: number;
     letter: string;
     hours: string;
-    /** The run reaches back past the first column; it opens off the left edge. */
     clipped: boolean;
 }
 
@@ -85,7 +46,6 @@ export interface RosterGroup {
     rows: RosterRow[];
 }
 
-/** A cell's accessible name — the grid is read one day at a time. */
 function describe(day: RosterDay, cell: RosterCell): string {
     const when = `${day.day} ${day.date}`;
 
@@ -115,7 +75,6 @@ export function RosterGrid({
     nowIndex: number | null;
     legend: { name: string; slot: Slot; letter: string; hours: string; kind: string; night: boolean }[];
     note: string | null;
-    /** Absent when the viewer cannot assign — then no checkbox is drawn at all. */
     selected?: string[];
     onToggle?: (id: string) => void;
 }) {
@@ -182,11 +141,6 @@ export function RosterGrid({
                     </div>
 
                     <div className="border-border relative border-t">
-                        {/*
-                          One wash layer rather than a tint per cell, so the row's
-                          own hover paints above it. Pointer-events off, or it
-                          would eat the hover it sits under.
-                        */}
                         <div aria-hidden className="pointer-events-none absolute inset-0 z-0">
                             {days.map((day, index) =>
                                 day.weekend || day.suspension ? (
@@ -240,12 +194,6 @@ export function RosterGrid({
     );
 }
 
-/**
- * Selection sits inside the frozen employee cell rather than in a column of its
- * own. The artboard draws no checkbox column, and adding one would cost 27px of
- * every row and a fourth sticky cell — but a click target with no control is
- * not operable by keyboard, so it is a real checkbox in the space already there.
- */
 function Row({
     row,
     days,
@@ -322,15 +270,6 @@ function Row({
                     </div>
                 ))}
 
-                {/*
-                  One band per run, never one per day: a night shift is a single
-                  stretch of work that happens to be listed under the day it
-                  began, and drawing it per column would say it stopped and
-                  started again at midnight. It opens 12px into its own column
-                  and closes 15px into the next, which is what makes 22:00–06:00
-                  legible as spilling forward. A run already under way when the
-                  month opened is clipped to the left edge instead.
-                */}
                 {row.bands.map((band) => (
                     <span
                         key={band.start}

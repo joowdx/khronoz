@@ -10,50 +10,17 @@ use Illuminate\Validation\Rule;
 
 class StoreWorkgroupRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return $this->user()->can('create', Workgroup::class);
     }
 
-    /**
-     * Upper-case the code before it is validated, so the uniqueness rule
-     * below compares like with like — mirrors StoreAgencyRequest, otherwise
-     * 'HR' and 'hr' would validate as two distinct, non-colliding codes even
-     * though the workgroups_agency_id_code_unique index is case-sensitive too.
-     */
     protected function prepareForValidation(): void
     {
         $this->merge(['code' => Str::upper((string) $this->input('code'))]);
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * parent_id and head_id are both paired FKs in the schema (parent_id,
-     * agency_id) and (head_id, agency_id) — a plain Rule::exists only proves
-     * the row exists somewhere, not that it belongs to this tenant, since it
-     * queries the raw table rather than going through Workgroup::query() and
-     * AgencyScope. The explicit ->where('agency_id', ...) is what actually
-     * scopes it; without it a workgroup or employee id from another agency would
-     * pass validation here and only be caught by the database's own paired
-     * FK as an unhandled 23503.
-     *
-     * The head must also be visible and have an open deployment. Rule::exists
-     * reads the raw employees table, so both deleted_at and the correlated
-     * deployment EXISTS are explicit. Pair employee and agency in that EXISTS
-     * to mirror WorkgroupController::heads without relying on Eloquent scopes.
-     *
-     * Cycles and self-parenting are left to the database (workgroups_parent_not_self,
-     * workgroups_acyclic): both are pure structural checks with no concurrency
-     * angle, and a real workgroup picker excludes the workgroup itself from its own
-     * options anyway, so duplicating them here would be a second source of
-     * truth for a case the UI will not normally reach.
-     *
-     * @return array<string, array<int, mixed>>
-     */
+    /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
         $agencyId = app(Tenant::class)->id();

@@ -10,23 +10,6 @@ use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
-/**
- * For one employee over a range of dates, which holidays, work
- * suspensions and exemptions reach them on each date
- * (05-calendar.md).
- *
- * A loader and nothing else: it answers *what applies*, never *what that
- * does to the day*. Status, premium, truncation, excused-minute
- * arithmetic and `declared_at` prospectivity all belong to the next
- * chunk, which reads these rows whole.
- *
- * Three queries for the range — holidays, suspensions, exemptions — plus
- * one `appliesTo()->exists()` per suspension found. The readers filter
- * that already-loaded set in PHP, so asking many dates costs the same as
- * asking one. Holidays carry no extra agency filter: they are the one
- * table that reads two agencies, and a national row is owned by the
- * platform.
- */
 final class Almanac
 {
     /**
@@ -51,11 +34,6 @@ final class Almanac
 
         $holidays = Holiday::between($start, $end)->get();
 
-        // appliesTo() reaches $this->workgroup->descendants() when a
-        // workgroup is named, so the workgroup must be eager-loaded or
-        // Model::shouldBeStrict() throws. Applicability is resolved here,
-        // once per suspension found, rather than reimplemented or deferred
-        // to the reader — the negative clause of rule 3 is too easy to drop.
         $suspensions = Suspension::between($start, $end)
             ->with('workgroup')
             ->get()
@@ -64,12 +42,6 @@ final class Almanac
                 ->exists())
             ->values();
 
-        // `overlapping`, not `between`, and the difference is real rather
-        // than a naming accident: a holiday and a suspension each carry a
-        // single `date` and are tested against a range, while an exemption
-        // carries `[date, until]` and is a range tested against a range. A
-        // 105-day maternity leave is one row whose `date` may sit months
-        // before this window, so a `whereBetween('date', …)` loses it whole.
         $exemptions = Exemption::overlapping($start, $end)
             ->whereBelongsTo($employee)
             ->get();
@@ -78,9 +50,6 @@ final class Almanac
     }
 
     /**
-     * Holidays on $date. Plural on purpose: a local holiday and a national
-     * one can share a date, and both are owed.
-     *
      * @return Collection<int, Holiday>
      */
     public function holidays(CarbonInterface $date): Collection
@@ -93,10 +62,6 @@ final class Almanac
     }
 
     /**
-     * Suspensions on $date that already reach this employee. Empty when
-     * nothing applies — including a mother-office closure the person was
-     * detailed out of.
-     *
      * @return Collection<int, Suspension>
      */
     public function suspensions(CarbonInterface $date): Collection
@@ -109,10 +74,6 @@ final class Almanac
     }
 
     /**
-     * Exemptions whose closed [date, until] covers $date. A 105-day leave
-     * is one row appearing under every day of it; `personal` is included,
-     * because whether it excuses anything is Exemption::excused()'s job.
-     *
      * @return Collection<int, Exemption>
      */
     public function exemptions(CarbonInterface $date): Collection

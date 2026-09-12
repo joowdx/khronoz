@@ -6,15 +6,6 @@ import AppLayout from '@/layouts/app-layout';
 import { index, update } from '@/routes/schedules';
 import type { Schedule, Shift } from '@/types';
 
-/**
- * Editing a schedule changes future computation only — a workday keeps a
- * snapshot of the shift it was computed against (04-scheduling.md rule 2), so
- * rewriting a cycle never moves a figure somebody has already signed.
- *
- * The length and the days submit together, because `turns_complete` counts
- * them together at COMMIT: shortening the cycle drops its tail and widening it
- * repeats what is there, both in the one transaction the controller opens.
- */
 export default function Edit({ schedule, shifts }: { schedule: Schedule; shifts: Shift[] }) {
     return (
         <AppLayout>

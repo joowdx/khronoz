@@ -88,17 +88,6 @@ class LedgerViewTest extends TestCase
         ]);
     }
 
-    /**
-     * Slot 1's two punches, so the day's excess is a set of minutes on the
-     * clock and not only a count. Daily rule 6 intersects the authority
-     * with those minutes (decision 79) and a bare `excess` column cannot
-     * answer where they were.
-     *
-     * The `excess` figure stays the caller's: these tests ask which part of
-     * a day's excess an authority reaches, and recomputing it here would be
-     * testing the deriver a second time in the wrong place. A null
-     * expectation is decision 78's transit — a premium day's tap.
-     */
     private function punched(Workday $workday, ?string $expectedIn, ?string $expectedOut, string $in, string $out): void
     {
         foreach ([[PunchKind::In, $expectedIn, $in], [PunchKind::Out, $expectedOut, $out]] as [$kind, $expected, $actual]) {
@@ -117,7 +106,9 @@ class LedgerViewTest extends TestCase
         }
     }
 
-    /** @return list<string> */
+    /**
+     * @return list<string>
+     */
     private function dates(LedgerView $view): array
     {
         return $view->workdays
@@ -162,11 +153,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(['2026-09-01', '2026-09-16', '2026-09-30'], $this->dates($view));
     }
 
-    /**
-     * Across midnight rule 2: the ledger month is the workday's date, never
-     * a punch's actual_at. A night shift of 30 September belongs to second
-     * even though its out is in October.
-     */
     public function test_a_period_slice_follows_the_workday_date(): void
     {
         $ledger = $this->ledger();
@@ -233,10 +219,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(120, $other->view(Period::Full)->worked);
     }
 
-    /**
-     * A day with 40 tardy minutes is one occurrence, not forty. MC 04 s. 1991
-     * and MC 16 s. 2010 count days, not minutes.
-     */
     public function test_a_tardy_day_is_one_occurrence_regardless_of_minutes(): void
     {
         $ledger = $this->ledger();
@@ -270,12 +252,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(1, $ledger->view(Period::Full)->absences);
     }
 
-    /**
-     * Decision 77: a whole-day excusing exemption never reaches the count,
-     * because it never reaches `absent` — `Calendar::status()` makes that
-     * day `exempt`. This is the fixture the occurrence rule actually has
-     * to exclude, and the status excludes it on its own.
-     */
     public function test_an_exempt_day_is_not_an_occurrence(): void
     {
         $ledger = $this->ledger();
@@ -292,12 +268,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full)->absences);
     }
 
-    /**
-     * Decision 77: the stamp on an `absent` day is a **partial** excuse by
-     * construction, and two excused hours do not excuse six unexcused ones.
-     * Reading the stamp's `excused()` here dropped a day of no attendance
-     * out of the habitual-absenteeism count entirely.
-     */
     public function test_an_absent_day_with_a_partial_excusing_exemption_is_an_occurrence(): void
     {
         $ledger = $this->ledger();
@@ -315,13 +285,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(1, $ledger->view(Period::Full)->absences);
     }
 
-    /**
-     * Decision 73: a personal locator slip is stamped and excuses nothing.
-     * Daily rule 7 says the day's absence stands as the punches make it, so
-     * the stamp must not suppress a count that feeds habitual absenteeism
-     * under MC 04 s. 1991. Decision 77 keeps the outcome and drops the
-     * mechanism: the status is the whole test now.
-     */
     public function test_an_absent_day_with_a_personal_exemption_is_an_occurrence(): void
     {
         $ledger = $this->ledger();
@@ -338,11 +301,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(1, $ledger->view(Period::Full)->absences);
     }
 
-    /**
-     * Labor Code: no statutory occurrence counting exists, and a
-     * habitual-tardiness count on a private employer's DTR is a number with
-     * no rule behind it.
-     */
     public function test_occurrence_counts_are_zero_when_settings_occurrences_is_false(): void
     {
         $ledger = $this->ledger(['occurrences' => false]);
@@ -395,7 +353,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(180, $ledger->view(Period::Full, Work::Overtime)->overtime);
     }
 
-    /** 17:00 to 20:00 of excess, all of it inside a 17:00 to 21:00 authority. */
     public function test_excess_inside_the_authority_is_compensable(): void
     {
         $ledger = $this->ledger();
@@ -406,13 +363,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(180, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * Decision 79, the defect this rewrite exists for. Daily rule 6 is
-     * `excess ∩ authority` and the intersection is of minutes, not of
-     * dates: a slip good for two hours authorises two, not the four the
-     * employee happened to stay. Asking only whether some authority
-     * overlapped the calendar day credited the whole evening.
-     */
     public function test_an_authority_covering_part_of_the_excess_compensates_only_that_part(): void
     {
         $ledger = $this->ledger();
@@ -423,12 +373,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(120, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * An authority filed over the working day itself authorises nothing:
-     * `excess` is presence *outside* the expectation, and the hours inside
-     * it were never overtime to begin with. Dropping that subtraction and
-     * intersecting the whole presence pays two hours of the morning.
-     */
     public function test_an_authority_inside_the_expected_hours_compensates_nothing(): void
     {
         $ledger = $this->ledger();
@@ -439,13 +383,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * The `missing_side` policy is read from the day's own frozen snapshot
-     * (decision 69), not from today's settings. Under `assume` the deriver
-     * credits a half-recorded slot to its expected span, so the presence
-     * this reconstruction measures has to be substituted the same way or an
-     * `assume` agency would authorise nothing on a slot with one tap.
-     */
     public function test_the_assume_policy_is_read_from_the_frozen_snapshot(): void
     {
         $ledger = $this->ledger();
@@ -478,15 +415,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(180, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * Decision 83. JC 2 s. 2015 §10's four conditions — a pre-filed
-     * authority, arrival on time, two hours rendered, twelve hours paid at
-     * most — were applied to every agency. The Labor Code has none of them:
-     * Art. 87 makes work beyond the prescribed hours overtime by operation
-     * of law and Art. 88 forbids offsetting it against undertime. With the
-     * gates off, an employer who files nothing and an employee who arrived
-     * late still report the day's whole excess.
-     */
     public function test_ungated_overtime_is_the_whole_excess_with_no_authority(): void
     {
         $ledger = $this->ledger(['overtime_gates' => false]);
@@ -499,7 +427,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(30, $view->tardy);
     }
 
-    /** And no twelve-hour cap: §10.5 has no Labor Code counterpart either. */
     public function test_ungated_overtime_is_not_capped_on_a_premium_day(): void
     {
         $ledger = $this->ledger(['overtime_gates' => false]);
@@ -513,11 +440,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(800, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * A `travel` day still contributes nothing with the gates off, and it
-     * needs no guard of its own to do so: daily rule 7 has already zeroed
-     * the column this sums.
-     */
     public function test_ungated_overtime_still_excludes_a_zeroed_day(): void
     {
         $ledger = $this->ledger(['overtime_gates' => false]);
@@ -527,7 +449,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full)->overtime);
     }
 
-    /** Work::Regular still reports zero: the switch is the gates, not the view. */
     public function test_ungated_overtime_is_still_suppressed_by_regular_work(): void
     {
         $ledger = $this->ledger(['overtime_gates' => false]);
@@ -537,12 +458,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full, Work::Regular)->overtime);
     }
 
-    /**
-     * Daily rule 7: a `travel` exemption zeroes the day's excess and leaves
-     * the punches alone, so the reconstruction still finds minutes on it.
-     * §10's two-hour floor is what keeps them unpaid — a regime without the
-     * floor needs its own guard (see Ledger::compensableDaily).
-     */
     public function test_a_day_whose_excess_was_zeroed_compensates_nothing(): void
     {
         $ledger = $this->ledger();
@@ -553,7 +468,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full)->overtime);
     }
 
-    /** And an authority that shares the date but none of the minutes reaches nothing. */
     public function test_an_authority_that_misses_the_excess_compensates_nothing(): void
     {
         $ledger = $this->ledger();
@@ -573,11 +487,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(180, $ledger->view(Period::Full)->excess);
     }
 
-    /**
-     * JC 2 s. 2015 §10.1 is "arrive on or before the start of the workday".
-     * The gate is tardy === 0, which with a non-zero grace is not quite that
-     * text — and that is deliberate (see Ledger::view()).
-     */
     public function test_excess_is_not_compensable_when_the_employee_was_tardy(): void
     {
         $ledger = $this->ledger();
@@ -607,10 +516,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(120, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * §10.5: at most 720 minutes of paid overtime on a rest day or holiday,
-     * the remainder going to CTO rather than pay.
-     */
     public function test_premium_day_overtime_is_capped_at_twelve_hours(): void
     {
         $ledger = $this->ledger();
@@ -628,12 +533,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(800, $ledger->view(Period::Full)->excess);
     }
 
-    /**
-     * Decision 51's first 480 minutes are regular hours at a premium, not
-     * excess, so an authority cannot reach them. The offset is placed on
-     * the clock and not merely subtracted: an 09:00 authority against an
-     * 08:00 arrival intersects nothing at all.
-     */
     public function test_the_credited_minutes_of_a_premium_day_are_not_authorisable(): void
     {
         $ledger = $this->ledger(['premium_hours' => true]);
@@ -659,11 +558,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(800, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * Overtime never offsets undertime (§10.4, Rule XVII §9). Excess on the
-     * workday does not reduce the undertime total, and compensable overtime
-     * is a separate figure.
-     */
     public function test_overtime_does_not_offset_undertime(): void
     {
         $ledger = $this->ledger();
@@ -677,12 +571,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(180, $view->overtime);
     }
 
-    /**
-     * An overnight authority filed on the 1st is what authorises minutes
-     * whose clock time sits on the 2nd. overlapping(), not startingOn() —
-     * and the minutes it reaches are those inside 22:00 to 02:00, wherever
-     * the workday holding them is dated (decisions 54 and 79).
-     */
     public function test_an_overnight_authority_reaches_minutes_on_both_calendar_dates(): void
     {
         $ledger = $this->ledger();
@@ -700,15 +588,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(360, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * Decision 72 and 75: the weekly component is never authority-gated, and
-     * it belongs to the month containing the week's Sunday. 4×12 + 8 over
-     * the ISO week of 31 August 2026 is 56 hours against a 48-hour ceiling,
-     * so weekly-only is 8 hours. Monday sits on the August ledger; Sunday
-     * is 6 September, so September reports those minutes and August does
-     * not — even though the week begins in August (decision 52: the ceiling
-     * is a property of the week).
-     */
     public function test_weekly_overtime_includes_workdays_from_a_neighbouring_ledger(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
@@ -728,14 +607,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full, Work::Regular)->overtime);
     }
 
-    /**
-     * Decision 75: a week that straddles a month end is reported once, by
-     * the month containing its Sunday. The week of 28 September 2026 ends
-     * on 4 October, so October reports the 8 hours of weekly-only and
-     * September reports none of it — otherwise the same figure is printed
-     * on two DTRs and paid twice. September's last partial week is the
-     * next month's to report.
-     */
     public function test_a_straddling_week_is_reported_only_by_the_month_containing_its_sunday(): void
     {
         $september = $this->ledger(['overtime_after_weekly' => 48]);
@@ -754,13 +625,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $september->view(Period::Full)->overtime);
     }
 
-    /**
-     * Decision 76: the same last-day rule at the period's resolution. The
-     * week of 14–20 September 2026 ends on the 20th, inside the month, so a
-     * month filter lets both halves walk it. First-half payroll runs on the
-     * 15th, when days 16–20 have not happened — reporting that week there
-     * is a figure derived from the future.
-     */
     public function test_a_week_ending_on_the_20th_is_reported_only_by_the_second_half(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
@@ -774,12 +638,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::First)->overtime);
     }
 
-    /**
-     * Decision 76: filtering on the period's bounds partitions the year
-     * at every resolution, so the three views stay consistent with each
-     * other. The week ending 13 September belongs to First; the week
-     * ending 20 September belongs to Second; Full is their sum.
-     */
     public function test_full_weekly_overtime_equals_first_plus_second(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
@@ -803,15 +661,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame($first + $second, $full);
     }
 
-    /**
-     * Daily excess is gated; weekly-only is not. Friday has 180 unauthorised
-     * extra minutes, so they are not daily overtime, but the week is still
-     * 56 hours of (worked + credited) plus those 180 of excess sitting
-     * outside the total: weekly-only is max(0, 3360 − 2880 − 180) = 300.
-     *
-     * Adding Week::overtime() instead of weeklyOnly() would report 480 and
-     * smuggle the unauthorised daily minutes in through the weekly door.
-     */
     public function test_unauthorised_daily_excess_is_not_added_through_the_weekly_component(): void
     {
         $ledger = $this->ledger(['overtime_after_weekly' => 48]);
@@ -860,11 +709,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $ledger->view(Period::Full)->overtime);
     }
 
-    /**
-     * Decision 52: a stored total is the Timetable mistake. view() is a
-     * read. Inserts from factories above the listen are arrange, not the
-     * call under test.
-     */
     public function test_view_issues_no_writes(): void
     {
         $ledger = $this->ledger();
@@ -884,11 +728,6 @@ class LedgerViewTest extends TestCase
         $this->assertSame(0, $writes);
     }
 
-    /**
-     * The workdays load once with what they need; no query inside a per-day
-     * loop. Fifteen days in the first half touch three ISO weeks, one day
-     * touches one — the query count must not follow either number.
-     */
     public function test_loading_many_days_issues_the_same_queries_as_one(): void
     {
         $this->agency->update(['settings' => ['overtime_after_weekly' => 48]]);

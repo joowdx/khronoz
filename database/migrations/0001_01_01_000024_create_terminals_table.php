@@ -8,29 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * A biometric device that captures timelogs (docs/design/03-terminals.md).
-     *
-     * Named `Terminal` and not `Device` by decision 16: Passport already owns
-     * `devices` for OAuth device-authorization, which is a different thing
-     * entirely.
-     *
-     * `agency_not_platform`, like `employees`, `workgroups` and `teams`
-     * (decision 26): nothing operational hangs under the platform agency, and
-     * a terminal is as operational as it gets — it belongs to one agency's
-     * office and captures one agency's punches.
-     *
-     * `workgroup_id` is nullable and paired: a terminal may sit at a division
-     * door or serve the whole agency from the lobby. MATCH SIMPLE skips the
-     * paired check entirely once `workgroup_id` is null, so the agency-level
-     * case needs no sentinel row.
-     *
-     * `host`, `port` and `secret` land unused. M5 ships file import only
-     * (decision 40); the schema is complete or it is not, and a column added
-     * later to a table people have already deployed is a migration nobody
-     * wants. `secret` carries the `encrypted` cast on the model **from day
-     * one** — the predecessor stored the same value in plaintext and leaked it
-     * through four further channels, and a cast added after the first row is
-     * written is a data migration, not a one-line change.
+     * `workgroup_id` is optional under MATCH SIMPLE; terminal secrets require encryption from the first row.
      */
     public function up(): void
     {
@@ -42,10 +20,8 @@ return new class extends Migration
             // no composite foreignUlid.
             $table->ulid('workgroup_id')->nullable();
             // The device number **as it appears in the attlog**, and a string
-            // rather than an integer (decision 42). The predecessor made this
-            // a smallint and then let a cascade rewrite every historical
-            // timelog with it; a string cannot be arithmetic by accident and
-            // cannot silently lose a leading zero.
+            // rather than an integer (decision 42): a string cannot be
+            // arithmetic by accident and cannot silently lose a leading zero.
             $table->string('code');
             $table->string('name');
             // Nullable because a device's serial is often not to hand when it
@@ -67,10 +43,7 @@ return new class extends Migration
             $table->json('meta')->nullable();
             $table->timestamp('seen_at')->nullable();
             $table->timestamp('synced_at')->nullable();
-            // The read offset for incremental pull and push (rule 5); null
-            // means read everything. A **file import never advances it**
-            // (decision 40) — a file is not an incremental device read, and
-            // advancing it would make the first real pull skip records.
+            // File imports never advance this incremental-device offset.
             $table->string('stamp')->nullable();
             $table->boolean('active')->default(true);
             $table->timestamps();
@@ -90,13 +63,7 @@ return new class extends Migration
                 ->restrictOnUpdate();
         });
 
-        // **Partial**, and that is the point: a serial is globally unique when
-        // it is known, and a UNIQUE index would be enough on its own only if
-        // every serial were known. It is not — so the index excludes nulls
-        // explicitly rather than relying on NULLS DISTINCT, which says the
-        // same thing but says it by accident. Global rather than per-agency:
-        // a manufacturer's serial does not repeat across tenants, and two
-        // agencies claiming one serial is a data-entry error worth refusing.
+        // A known manufacturer serial is globally unique; unknown serials remain allowed.
         DB::statement('CREATE UNIQUE INDEX terminals_serial ON terminals (serial) WHERE serial IS NOT NULL');
 
         DB::statement("ALTER TABLE terminals ADD CONSTRAINT terminals_kind_valid CHECK (kind IN ('terminal', 'usb'))");

@@ -44,12 +44,6 @@ class TerminalControllerTest extends TestCase
         ];
     }
 
-    /**
-     * `terminals.view` is not enough to change a terminal, and the split is not
-     * bureaucratic: registering a device decides which files the importer will
-     * accept and which device number they must carry (decision 44), so this is
-     * the right to admit evidence rather than the right to edit a row.
-     */
     #[DataProvider('managementRoutes')]
     public function test_view_permission_alone_cannot_reach_a_management_route(string $verb, string $route, bool $bound): void
     {
@@ -77,14 +71,6 @@ class TerminalControllerTest extends TestCase
         );
     }
 
-    /**
-     * The two aggregates the list is built around.
-     *
-     * `enrolled_count` counts enrollments covering **today** — a closed one
-     * does not mean the device can identify that person now — and
-     * `timelogs_count` is every punch ever, because that is what decides
-     * whether Remove can be offered at all.
-     */
     public function test_the_index_counts_who_the_device_can_identify_today(): void
     {
         $agency = Agency::factory()->create();
@@ -107,11 +93,6 @@ class TerminalControllerTest extends TestCase
         );
     }
 
-    /**
-     * **The comm key never leaves the database** (decision 40). The
-     * predecessor leaked the same value through five channels, one of which
-     * was simply handing it to the client.
-     */
     public function test_the_index_never_sends_the_comm_key(): void
     {
         $agency = Agency::factory()->create();
@@ -141,12 +122,6 @@ class TerminalControllerTest extends TestCase
         $this->assertDatabaseHas('terminals', ['agency_id' => $agency->id, 'code' => '7', 'name' => 'Lobby entrance']);
     }
 
-    /**
-     * The device number is **not** normalised on the way in, unlike a
-     * workgroup code. It is compared byte-for-byte against the `device` column
-     * of every attlog line (decision 44), so `007` must survive as `007` — the
-     * value typed here has to be the value the device emits.
-     */
     public function test_a_device_number_is_stored_exactly_as_typed(): void
     {
         $agency = Agency::factory()->create();
@@ -163,7 +138,6 @@ class TerminalControllerTest extends TestCase
         $this->assertDatabaseMissing('terminals', ['code' => '7']);
     }
 
-    /** Mirrors `UNIQUE (agency_id, code)`, so the refusal is a field error rather than a 500. */
     public function test_two_terminals_of_one_agency_cannot_share_a_device_number(): void
     {
         $agency = Agency::factory()->create();
@@ -178,7 +152,6 @@ class TerminalControllerTest extends TestCase
         ])->assertSessionHasErrors('code');
     }
 
-    /** A workgroup of another agency is refused by the picker's own rule, not by the paired FK. */
     public function test_a_terminal_cannot_be_stationed_in_another_agencys_workgroup(): void
     {
         $agency = Agency::factory()->create();
@@ -227,11 +200,6 @@ class TerminalControllerTest extends TestCase
         $this->assertDatabaseMissing('terminals', ['id' => $terminal->id]);
     }
 
-    /**
-     * The index hides Remove once a device has punches, but hiding an action
-     * is not translating a refusal: this page can be stale while an import is
-     * running, and the alternative to translating is a 500.
-     */
     public function test_removing_a_terminal_with_punches_is_refused_with_a_message(): void
     {
         $agency = Agency::factory()->create();
@@ -244,7 +212,6 @@ class TerminalControllerTest extends TestCase
         $this->assertDatabaseHas('terminals', ['id' => $terminal->id]);
     }
 
-    /** Another agency's terminal is a 404, not a 403: the scope hides it entirely. */
     public function test_another_agencys_terminal_is_not_reachable(): void
     {
         $agency = Agency::factory()->create();
@@ -254,18 +221,6 @@ class TerminalControllerTest extends TestCase
         $this->get(route('terminals.edit', $theirs))->assertNotFound();
     }
 
-    /**
-     * The collision a `Rule::unique` cannot catch: two administrators
-     * submitting the same device number at the same moment both pass
-     * validation, and the loser reached the unique index.
-     *
-     * 23505 was the one SQLSTATE this application did not translate, while it
-     * translates 23514, 23P01, 23001, 428C9 and P0001 everywhere — so that
-     * loser got a 500 rather than `Already taken`. Driven by binding a request
-     * whose rules drop the mirror, standing in for a write that lands between
-     * the check and the insert, because a genuine interleaving cannot be
-     * produced from one test process.
-     */
     public function test_a_duplicate_code_landing_after_validation_is_still_a_field_error(): void
     {
         $agency = Agency::factory()->create();
@@ -291,15 +246,6 @@ class TerminalControllerTest extends TestCase
         $this->assertSame(1, Terminal::where('agency_id', $agency->id)->count());
     }
 
-    /**
-     * The refusal names the constraint that actually fired.
-     *
-     * Every 23001 was answered with "has captured timelogs", and `enrollments`
-     * and `syncs` RESTRICT too — so removing a device that had people enrolled
-     * and had never imported anything was refused with a sentence about
-     * punches that did not exist. Reproduced: 302, `timelogs = 0`, that
-     * message, the row still there.
-     */
     public function test_removing_a_terminal_with_enrollments_says_so(): void
     {
         $agency = Agency::factory()->create();
@@ -315,13 +261,6 @@ class TerminalControllerTest extends TestCase
         $this->assertTrue(Terminal::whereKey($terminal->id)->exists());
     }
 
-    /**
-     * And Remove is not offered for it in the first place.
-     *
-     * The index gated on `timelogs_count === 0` alone. `enrolled_count` cannot
-     * serve either — it is scoped to today, so a device whose enrollments have
-     * all ended counts zero and is still undeletable.
-     */
     public function test_the_index_offers_removal_only_when_nothing_points_at_the_terminal(): void
     {
         $agency = Agency::factory()->create();

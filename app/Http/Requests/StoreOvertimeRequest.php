@@ -15,18 +15,7 @@ class StoreOvertimeRequest extends FormRequest
         return $this->user()->can('create', Overtime::class);
     }
 
-    /**
-     * No rule tries to express "does not overlap another authorisation for
-     * this person" — `overtimes_no_overlap` is a gist exclusion over
-     * `tsrange(starts, ends)` and no validation rule can say that. The
-     * controller translates the 23P01 instead, which is the same division of
-     * labour the enrollment screen makes.
-     *
-     * `date` is never accepted: it is a generated column (`starts::date`) and
-     * Postgres refuses an insert into it outright.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [

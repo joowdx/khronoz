@@ -7,9 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -33,12 +30,7 @@ return new class extends Migration
         // those as the same address, so the index is keyed on lower(email).
         DB::statement('CREATE UNIQUE INDEX users_email ON users (lower(email))');
 
-        // OR REPLACE, not a bare CREATE: migrate:fresh drops users (and with it,
-        // this constraint) via db:wipe, but db:wipe only drops tables, views and
-        // (on Postgres, opt-in) types — never functions — so a plain CREATE
-        // FUNCTION would collide with itself on the second migrate:fresh against
-        // the same database, which is exactly what every test run after the
-        // first does.
+        // OR REPLACE is required because db:wipe retains functions.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION permissions_valid(permissions jsonb) RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
                 SELECT jsonb_typeof(permissions) = 'array'
@@ -64,9 +56,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');

@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-/** The Input geometry, grown to a block: same border, radius, ring and states. */
 function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
     return (
         <textarea

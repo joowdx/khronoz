@@ -17,15 +17,11 @@ class AgencyFactory extends Factory
             'code' => strtoupper(fake()->unique()->lexify('????')),
             'name' => fake()->company(),
             'platform' => false,
-            // (object) [], not []: the `array` cast round-trips either PHP value
-            // to the same empty PHP array, but json_encode([]) produces the JSON
-            // array literal `[]`, which fails agencies_settings_object. Casting
-            // to stdClass is the one PHP value that always encodes to `{}`.
+            // An object encodes as the required JSON object rather than an array.
             'settings' => (object) [],
         ];
     }
 
-    /** The hidden row that owns the shared data; see Agency::platform(). */
     public function platform(): static
     {
         return $this->state(fn (array $attributes): array => [

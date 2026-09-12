@@ -1,14 +1,8 @@
 import { cn } from '@/lib/utils';
 
-/**
- * A month of the agency calendar: national and local holidays, a work
- * suspension, and rest days. Static markup until Milestone 5 lands Holiday
- * and Suspension.
- */
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-/** November 2026 opens on a Sunday, so the day number is its own column index. */
 const EVENTS: Record<number, { kind: 'holiday' | 'suspension'; note: string }> = {
     1: { kind: 'holiday', note: 'All Saints’ Day' },
     2: { kind: 'holiday', note: 'Special non-working' },
@@ -52,8 +46,6 @@ export function HolidayCalendar() {
                             key={date}
                             className={cn(
                                 'border-rule min-h-12 px-1 pt-1 pb-[5px] md:min-h-14 md:px-1.5 md:pt-[5px] md:pb-1.5',
-                                // The Saturday column ends the row, and the last
-                                // row of a month needs no rule under it.
                                 date % 7 === 0 ? 'border-r-0' : 'border-r',
                                 date <= 28 && 'border-b',
                                 event ? KIND[event.kind] : restDay && 'bg-weekend [&_span]:text-muted-foreground',

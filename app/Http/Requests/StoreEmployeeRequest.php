@@ -10,15 +10,11 @@ use Illuminate\Validation\Rule;
 
 class StoreEmployeeRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return $this->user()->can('create', Employee::class);
     }
 
-    /** Default a wholly-unchecked tag list to [], the same way StoreUserRequest defaults permissions. */
     protected function prepareForValidation(): void
     {
         $this->merge([
@@ -27,17 +23,7 @@ class StoreEmployeeRequest extends FormRequest
         ]);
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * number is unique per agency (employees_agency_id_number_unique), not
-     * globally — an agency's own numbering scheme may collide with another
-     * agency's. That index is not partial, so a soft-deleted employee's
-     * number stays taken; this rule matches that exactly by checking the raw
-     * table rather than a Searchable-aware or trashed-excluding query.
-     *
-     * @return array<string, array<int, mixed>>
-     */
+    /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
         return [

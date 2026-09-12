@@ -1,10 +1,5 @@
 import { cn } from '@/lib/utils';
 
-/**
- * The mark: three squares rising off a rule, in the accent; the wordmark
- * beside it stays ink (docs/design/08-interface.md §1 rule 15). Drawn on the
- * same 34x24 viewBox the sign-in screen uses, so the two never drift.
- */
 export function Mark({ className }: { className?: string }) {
     return (
         <svg
@@ -24,7 +19,6 @@ export function Mark({ className }: { className?: string }) {
     );
 }
 
-/** The mark and the wordmark as one link back to the top of the page. */
 export function BrandLink({ className }: { className?: string }) {
     return (
         <a href="#top" className={cn('text-acc-text inline-flex items-center gap-[9px] rounded-lg py-px', className)}>

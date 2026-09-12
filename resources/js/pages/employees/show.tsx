@@ -21,7 +21,6 @@ import { edit, index } from '@/routes/employees';
 import { store, update } from '@/routes/employees/deployments';
 import type { Deployment, Employee, Workgroup } from '@/types';
 
-/** Sections divided by a rule with 32 either side, never by a box (§1 rule 3) — the same rhythm the dashboard reads in. */
 function Stack({ children }: { children: ReactNode }) {
     return (
         <div className="[&>section+section]:border-border [&>section+section]:mt-8 [&>section+section]:border-t [&>section+section]:pt-8">
@@ -39,16 +38,6 @@ function SectionHead({ title, action }: { title: string; action?: ReactNode }) {
     );
 }
 
-/**
- * §6.3's leader-dot row: a label, a run of dots across the gap, and the value
- * at the right in 600. It is the design's one label-and-value shape, and for a
- * personnel record it is the right one — this is how the paper 201 file it
- * replaces is laid out.
- *
- * `.kv + .kv` carries the rule, not `.kv`, so a list closes without a trailing
- * hairline. Marked up as a `<dl>` group: a `<div>` between `<dl>` and its
- * `<dt>`/`<dd>` is valid and is what lets the dots sit between them.
- */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
     return (
         <div className="[&+&]:border-rule flex min-h-[38px] items-baseline gap-2 pt-[9px] [&+&]:border-t">
@@ -62,7 +51,6 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
-/** A value the record does not hold. Muted and unemphasised, so an empty field never reads as a filled one. */
 function Blank({ children = 'Not recorded' }: { children?: string }) {
     return <span className="text-muted-foreground font-normal">{children}</span>;
 }
@@ -80,12 +68,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
     const reassignmentCount = history.length - placementCount;
     const deployed = current !== null;
 
-    // Always the outline variant, deployed or not. §5.2 gives a page one
-    // primary action and puts it in the heading row, which here is Edit
-    // record; a second filled button in the section below would read as its
-    // equal. MEASURED the other way first — two outline buttons 46px apart
-    // read as a pair of equals and neither led, so the heading row's took the
-    // fill and this one kept the border.
     const move = manage ? (
         <Button variant="outline" onClick={() => setMoving(true)}>
             <ArrowRightLeftIcon aria-hidden strokeWidth={1.5} />
@@ -123,12 +105,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
             />
 
             <Stack>
-                {/*
-                  Where they work comes first, above every other fact on the
-                  page: it is the one thing about an employee that changes, the
-                  one thing every schedule and daily time record hangs off, and
-                  the only thing on this screen with an action attached.
-                */}
                 <section>
                     <SectionHead
                         title="Where they work"
@@ -154,9 +130,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                                         <Badge variant="outline">{current.workgroup.kind}</Badge>
                                     )}
                                 </p>
-                                {/* Where the workgroup sits, not just what it is
-                                    called: two divisions can share a name and
-                                    the ancestry is what tells them apart. */}
                                 <p className="text-muted-foreground pt-1 text-[13px] leading-[18px]">
                                     {workgroupPath(current.workgroup, workgroups)}
                                 </p>
@@ -179,7 +152,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                     )}
                 </section>
 
-                {/* §6.3's split: two subjects side by side, a 48 gutter, and the rule on the right column. */}
                 <section className="grid gap-12 lg:grid-cols-2">
                     <div>
                         <SectionHead title="Personal" />
@@ -216,23 +188,11 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                     </div>
                 </section>
 
-                {/*
-                  A table, not a decorative timeline (task-6-brief.md): these
-                  rows are the evidence behind a DTR, they get compared against
-                  paper, and a reader needs the dates in a column they can run
-                  a finger down.
-                */}
                 <section>
                     <Card className="overflow-visible">
                         <CardHeader>
                             <CardTitle>Deployment history</CardTitle>
                             <CardDescription className="ml-auto tabular-nums">
-                                {/*
-                                  Counted separately because they are not the
-                                  same thing: `history.length` would call a
-                                  reassignment a placement, and this card's
-                                  own rows now distinguish them.
-                                */}
                                 {placementCount} {placementCount === 1 ? 'placement' : 'placements'}
                                 {reassignmentCount > 0 &&
                                     ` · ${reassignmentCount} ${reassignmentCount === 1 ? 'reassignment' : 'reassignments'}`}
@@ -264,10 +224,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                                     nestDeployments(history).map(({ deployment, nested }) => (
                                         <TableRow
                                             key={deployment.id}
-                                            // The open placement takes the
-                                            // selected tint (§5.13), and its
-                                            // Until cell says so in a word —
-                                            // colour is never the only cue.
                                             data-state={deployment.ends === null ? 'selected' : undefined}
                                         >
                                             <TableCell className="max-w-0 truncate">
@@ -279,17 +235,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
                                                         <span className="truncate font-medium">
                                                             {deployment.workgroup.name}
                                                         </span>
-                                                        {/*
-                                                          The indent alone would
-                                                          be colour-of-position:
-                                                          a word carries the
-                                                          meaning, since a
-                                                          reassignment overlapping
-                                                          its placement is
-                                                          otherwise two rows
-                                                          covering one date for no
-                                                          visible reason.
-                                                        */}
                                                         {nested && (
                                                             <span className="text-muted-foreground shrink-0 text-xs">
                                                                 reassigned
@@ -333,20 +278,6 @@ export default function Show({ employee, workgroups }: { employee: Employee; wor
     );
 }
 
-/**
- * Order the history so a reassignment sits directly under the placement it
- * departs from, rather than floating by date among rows it overlaps.
- *
- * The controller already sorts by `starts` descending. A reassignment always
- * begins on or after its parent's start, so sorting alone puts it *above* the
- * row it belongs to — which reads as an unexplained second placement on the
- * same dates. This regroups without re-sorting: each placement keeps its
- * position and its own reassignments follow it, newest first.
- *
- * A reassignment whose parent is not in the list is emitted at its own
- * position rather than dropped, so a filtered or paginated history can never
- * silently lose a row.
- */
 function nestDeployments(history: Deployment[]): { deployment: Deployment; nested: boolean }[] {
     const placements = history.filter((deployment) => deployment.parent_id === null);
     const shown = new Set<string>();
@@ -370,19 +301,6 @@ function nestDeployments(history: Deployment[]): { deployment: Deployment; neste
     return [...rows, ...orphans];
 }
 
-/**
- * §5.15's sheet: a focused task against context that must stay visible. The
- * history behind it is exactly what someone checks before choosing a date, so
- * this is a sheet rather than a dialog — §5.16 reserves the centred box for
- * confirming something destructive.
- *
- * Two fields and no overlap pre-check of its own. `deployments_no_overlap` (an
- * EXCLUDE USING gist constraint) and `deployments_dates_ordered` (a CHECK) are
- * the last word on whether a date collides, and EmployeeDeploymentController
- * turns both refusals into an error on `starts` — so a collision arrives on
- * the label row like any other validation failure and the sheet stays open on
- * the values that caused it.
- */
 function MoveSheet({
     employee,
     workgroups,
@@ -399,15 +317,8 @@ function MoveSheet({
     const current = employee.current_deployment ?? null;
     const tree = flattenWorkgroups(workgroups);
 
-    // A transfer ends the current placement the day before the new one starts,
-    // so it cannot begin on or before the day that placement began. A
-    // reassignment closes nothing and nests inside it, so it may begin on that
-    // first day — the bound is the placement's own start, not the day after.
     const earliest = current === null ? undefined : reassigning ? current.starts : addDay(current.starts);
 
-    // There is nothing to nest a reassignment inside without an open
-    // placement, and the request refuses it. The box is disabled rather than
-    // hidden so the option is discoverable, and the hint says why.
     const canReassign = current !== null;
 
     return (
@@ -431,15 +342,6 @@ function MoveSheet({
                             </SheetHeader>
 
                             <div className="min-h-0 flex-1 overflow-auto p-5">
-                                {/*
-                                  The description states the consequence for
-                                  the verb currently selected, because the two
-                                  differ in exactly the thing a clerk cannot
-                                  see: whether the current placement closes.
-                                  A reassignment leaving it open is the whole
-                                  point of the arrangement — the plantilla item
-                                  never moved.
-                                */}
                                 <SheetDescription id="move-what-happens" className="text-[13px] leading-[18px]">
                                     {reassigning
                                         ? `${employee.name} works in the new workgroup for this period. Their placement in ${current?.workgroup?.name ?? 'their current workgroup'} stays open, because the plantilla item does not move.`
@@ -487,14 +389,6 @@ function MoveSheet({
                                     )}
                                 </Field>
 
-                                {/*
-                                  A checkbox and not a segmented control:
-                                  §5.10 caps that pattern at two uses, and
-                                  §5.9 sends anything a form submits here. The
-                                  hidden `0` companion is what makes the
-                                  unchecked state reach the server as false
-                                  rather than as an absent key.
-                                */}
                                 <div className="mt-4">
                                     <input type="hidden" name="reassignment" value="0" />
                                     <label className="flex items-start gap-2.5 text-sm">
@@ -554,13 +448,6 @@ function MoveSheet({
                                     )}
                                 </Field>
 
-                                {/*
-                                  Optional on both verbs and for different
-                                  reasons: a reassignment normally runs for a
-                                  stated period, while a placement carries one
-                                  only when the appointment is fixed-term —
-                                  contractual, casual or co-terminous.
-                                */}
                                 <Field
                                     className="mt-4"
                                     label="Until"
@@ -586,15 +473,6 @@ function MoveSheet({
                             </div>
 
                             <SheetFooter>
-                                {/*
-                                  Not disabled until a workgroup is picked. §6.1
-                                  makes the label row the validation
-                                  mechanism, and a disabled submit leaves the
-                                  tab order while explaining nothing —
-                                  submitting empty puts `Required` on the Workgroup
-                                  label row, which is both reachable and
-                                  specific.
-                                */}
                                 <Button type="submit" disabled={processing}>
                                     {reassigning ? 'Reassign employee' : current ? 'Move employee' : 'Deploy employee'}
                                 </Button>
@@ -610,17 +488,6 @@ function MoveSheet({
     );
 }
 
-/**
- * Ending keeps the selected day in the placement and opens no replacement.
- *
- * `deployment` and `expects` are hidden fields, and they are the reason this
- * takes the whole placement rather than just its start date. The endpoint
- * closes `WHERE id = :deployment AND ends IS NOT DISTINCT FROM :expects`, so
- * a form rendered before someone else transferred or corrected this person
- * affects nothing instead of closing whichever row happens to be open when it
- * lands. `expects` is the row's `ends` as this page saw it — empty for an
- * open placement.
- */
 function EndSheet({
     employee,
     placement,

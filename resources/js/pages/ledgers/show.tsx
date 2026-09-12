@@ -26,7 +26,6 @@ const COLUMNS = {
     night: 80,
 } as const;
 
-/** Date carries the weekday; it is the one flexible column on this page. */
 const FLEX_MIN = 200;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
@@ -37,14 +36,6 @@ function paramsFromUrl(url: string): URLSearchParams {
     return new URLSearchParams(query);
 }
 
-/**
- * Dates in the selected period, inclusive, as `YYYY-MM-DD`.
- *
- * `first` is days 1–15, `second` is 16 through the last day, anything else
- * (including the default whole month) is the full run. Built from the
- * ledger's own month string so a missing workday still occupies its row —
- * a gap in the middle of a month is information.
- */
 function datesInPeriod(monthStart: string, period: string): string[] {
     const last = lastDayOfMonth(monthStart);
     let cursor = period === 'second' ? `${monthStart.slice(0, 8)}16` : monthStart;

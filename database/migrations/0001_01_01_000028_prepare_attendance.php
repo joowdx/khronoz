@@ -6,58 +6,17 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * The attendance tables' shared functions, the same arrangement
-     * 0001_01_01_000008_prepare_organization,
-     * 0001_01_01_000012_prepare_scheduling,
-     * 0001_01_01_000018_prepare_calendar and
-     * 0001_01_01_000023_prepare_terminals all make: they live here rather
-     * than in a table migration because they span more than one table, and
-     * one `down()` means no table migration has to know whether it may drop
-     * a function.
-     *
-     * OR REPLACE, for the reason every migration function is: `db:wipe` (what
-     * `migrate:fresh` runs, i.e. every test run) drops tables, views and types
-     * but never functions (.ai/rules/migrations.md).
-     *
-     * All five name tables that do not exist when this migration runs. That
-     * is legal: plpgsql resolves table names at **first execution**, not when
-     * the function is compiled. The trap is a rowtype — `DECLARE x ledgers`
-     * *is* resolved at compile time and would fail here. None of these uses
-     * one, and none may gain one.
-     *
-     * Three of the five are attached later (`punches_timelog_live` on
-     * punches, `attestations_locked` on attestations). They still live here
-     * so those table migrations never decide whether they may drop a function.
+     * Shared functions live here so table rollbacks never drop another table's function.
+     * Use no future-table rowtypes: PL/pgSQL resolves them before those tables exist.
      */
     public function up(): void
     {
-        // A month cannot lock while an out is still due: any punch of any
-        // workday of this ledger with expected_at after the lock time.
-        // 06-attendance.md rule 3 / 07-constraints.md ledgers.
-        //
-        // INSERT as well as UPDATE OF locked_at: the app role holds INSERT
-        // here, so a row written already locked never fires an UPDATE and
-        // would never be checked — and a month locked at creation then
-        // accumulates workdays whose outs are still pending is exactly the
-        // state this exists to forbid. On a genuine firstOrCreate the extra
-        // check is free: the ledger has no workdays yet, so the EXISTS is
-        // empty.
-        //
-        // `to_regclass`: workdays and punches arrive in later migrations.
-        // A bare FROM against a missing table raises 42P01 when this fires,
-        // which would refuse the permitting path (lock with no workdays)
-        // that this chunk's tests must see succeed. Once those tables exist
-        // the lookups return their oids and the EXISTS runs for real.
+        // INSERT is included so an initially locked ledger cannot bypass this guard.
+        // `to_regclass` avoids 42P01 until workdays and punches exist.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION ledgers_lock_complete() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
-                -- Decision 84: a lock is a state, not an event, so locking a
-                -- locked month is not a second lock — it is a re-dating of
-                -- the first, and an attestation seals the ledger as it was
-                -- at a moment. Moving locked_at past that moment leaves a
-                -- signature certifying a lock that had not yet happened.
-                -- Unlock first; ledgers_unlock_clean is what makes that a
-                -- decision somebody has to take.
+                -- Re-dating a lock requires an explicit unlock to preserve attestations' snapshot meaning.
                 IF TG_OP = 'UPDATE' AND OLD.locked_at IS NOT NULL AND OLD.locked_at IS DISTINCT FROM NEW.locked_at THEN
                     RAISE EXCEPTION 'a locked ledger must be unlocked before it can be locked again';
                 END IF;
@@ -80,11 +39,7 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Unlocking requires the attestations gone first, on purpose: you
-        // certify frozen numbers, never moving ones (06-attendance.md
-        // Attestation rule 5). No INSERT limb — a ledger cannot be created
-        // with an attestation, since attestations references it and
-        // attestations_locked refuses an unlocked parent.
+        // Attestations certify frozen figures, so they must be removed before unlocking.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION ledgers_unlock_clean() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -104,56 +59,9 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Decision 55, as rewritten by decision 58. Visibility (decision 30)
-        // reads deployment ranges by overlap with a month, so a write that
-        // changes which locked months a range covers retroactively changes
-        // who could see, attest or correct a month that may already be signed.
-        //
-        // Coverage, not overlap. An open placement has an unbounded upper
-        // bound and therefore overlaps every future month; a rule phrased on
-        // overlap would refuse TransferEmployee and RemoveEmployee — both of
-        // which merely set `ends` — from the first lock, permanently. Closing
-        // today does not change which past months the range covers:
-        // [2020-01-01, ∞) and [2020-01-01, 2026-10-15] both cover September
-        // 2026. The predicate is the symmetric difference over this
-        // employee's locked months: refuse when some locked month is covered
-        // by OLD and not NEW, or by NEW and not OLD. INSERT reads OLD
-        // coverage as false; DELETE reads NEW coverage as false.
-        //
-        // `&&` against the calendar month, not `ledgers.month <@ range`.
-        // A mid-month placement (15–20 September) covers September without
-        // containing the 1st; containment of the first-of-month date would
-        // let it through.
-        //
-        // locked_at IS NOT NULL alone covers "locked or attested":
-        // attestations_locked refuses an attestation on an unlocked ledger
-        // and ledgers_unlock_clean refuses unlocking an attested one, so
-        // attested is a strict subset of locked and a second clause would
-        // have no reachable violation.
-        //
-        // IF / ELSIF on TG_OP, never CASE: plpgsql resolves field references
-        // in every CASE arm, and NEW is unassigned in a DELETE trigger —
-        // touching it raises rather than yielding null. Return OLD from the
-        // DELETE branch and NEW otherwise.
-        //
-        // Silent on an inverted range (ends < starts): daterange() raises
-        // 22000 before deployments_dates_ordered can raise 23514, and a
-        // BEFORE ROW trigger always runs ahead of CHECKs. The same shape as
-        // agency_not_platform() on a missing agency — another constraint
-        // owes the refusal, and raising first would leave it untested.
-        //
-        // The UPDATE limb compares the range's **intersection with the
-        // month** and not whether it overlaps (decision 85). Decision 58
-        // says coverage, and a boolean overlap is a coarser question: an
-        // open placement re-dated from 1 January to 15 September still
-        // overlaps a locked September, so the XOR of two trues permitted a
-        // write that erased the first fortnight of a signed month. Two
-        // ranges covering the same days of a month canonicalise to the same
-        // daterange and two disjoint ones both to `empty`, so decision 58's
-        // load-bearing permit — closing an open placement that still covers
-        // the month — still passes. `CASE` is safe here and only here: both
-        // records are assigned inside an UPDATE, which is the whole reason
-        // the TG_OP branching above is IF/ELSIF.
+        // Refuse changes to a locked month's covered days, not mere range overlap.
+        // TG_OP uses IF/ELSIF because DELETE has no NEW record; inverted ranges remain silent for their CHECK.
+        // Compare month intersections so a re-date cannot erase part of a signed month.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION deployments_frozen_month() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -223,11 +131,7 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // A punch cannot be created against a struck-out timelog
-        // (07-constraints.md punches). Silent when the timelog does not
-        // exist — the FK owes 23503 — and when timelog_id is null, which is
-        // a missed punch. The same IF (SELECT …) shape agency_not_platform()
-        // uses so a missing parent is not shadowed with P0001.
+        // A missing timelog remains silent so its foreign key owns SQLSTATE 23503.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION punches_timelog_live() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -239,10 +143,7 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Attestations are only possible on a locked ledger. Silent when the
-        // ledger does not exist: the FK owes 23503. `locked_at IS NULL` is
-        // the refusal; a missing row yields NULL, NULL is not true, and the
-        // FK then raises.
+        // A missing ledger remains silent so its foreign key owns SQLSTATE 23503.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION attestations_locked() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -254,22 +155,8 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Decision 70. A locked month refuses workday writes in the database,
-        // not in the job: INSERT, UPDATE and DELETE of a workday whose ledger
-        // has locked_at set.
-        //
-        // IF / ELSIF on TG_OP, never CASE: plpgsql resolves field references
-        // in every CASE arm, and NEW is unassigned in a DELETE trigger.
-        // Return OLD from the DELETE branch and NEW otherwise — returning
-        // NULL would silently cancel the statement.
-        //
-        // An UPDATE has two ledgers: moving a row out of a locked month is
-        // as much a rewrite of signed history as moving one in. Skip the
-        // second lookup when the ids are equal (IS DISTINCT FROM).
-        //
-        // Silent when the ledger does not exist: the FK owes 23503. A scalar
-        // subquery, not a rowtype — this migration runs before `ledgers`
-        // exists, and a rowtype is resolved at compile time.
+        // Check both old and new ledgers: moving a workday also rewrites signed history.
+        // TG_OP uses IF/ELSIF because DELETE has no NEW record; scalar lookups avoid future-table rowtypes.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION workdays_ledger_open() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -295,17 +182,8 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Decision 80. Punches need the same guard, and decision 70 said they
-        // did not. Its argument — punches.workday_id cascades from a workday
-        // that can no longer be deleted — answers deleting the *parent* and
-        // says nothing about writing the *child*: the app role holds INSERT,
-        // UPDATE and DELETE on punches, so a signed month's chain could be
-        // rewritten one row at a time with every guard around it intact.
-        //
-        // Two hops, workday then ledger, because punches carry no ledger_id.
-        // A cascading delete from workdays reaches here too and is correct:
-        // the parent's own trigger has already refused it if the month is
-        // locked, so the only cascades that arrive are from open ones.
+        // Punches need the same lock guard because their own writes bypass a workday-only guard.
+        // Cascades can reach this trigger only after the workday guard permits an open ledger.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION punches_ledger_open() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -331,19 +209,8 @@ return new class extends Migration
             END $$;
         SQL);
 
-        // Decision 81. The two other tables a locked month's figures are read
-        // from. `deployments_frozen_month` (decision 55) freezes the
-        // placement; these freeze the authority and the excuse, on the same
-        // argument and against the same locked months, because a DTR that
-        // was signed for 180 minutes of overtime must not print 240 the next
-        // time it is opened.
-        //
-        // The same shape as deployments_frozen_month throughout: symmetric
-        // difference on an UPDATE so a row cannot be moved *out* of a locked
-        // month either, `locked_at IS NOT NULL` alone for "locked or
-        // attested", IF/ELSIF on TG_OP, and silence on an inverted range so
-        // exemptions_span_ordered and overtimes_dates_ordered keep their own
-        // refusals — daterange() would raise 22000 first.
+        // Freeze exemptions and overtime too: their values contribute to signed month figures.
+        // Inverted ranges remain silent so their CHECK constraints own the refusal.
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION exemptions_frozen_month() RETURNS trigger LANGUAGE plpgsql AS $$
             BEGIN
@@ -451,7 +318,9 @@ return new class extends Migration
         SQL);
     }
 
-    /** The one place these are dropped; the argument lists are required. */
+    /**
+     * This is the sole owner of the functions; their argument lists disambiguate the drops.
+     */
     public function down(): void
     {
         DB::statement('DROP FUNCTION IF EXISTS workdays_ledger_open()');

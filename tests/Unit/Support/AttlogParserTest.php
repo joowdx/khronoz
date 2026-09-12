@@ -57,10 +57,6 @@ class AttlogParserTest extends TestCase
         $this->assertSame($this->punch('007', '2024-01-15 08:01:23', 1, 0), $yields[0][0]);
     }
 
-    /**
-     * Extra trailing fields are ignored, so 5-, 6- and 7-column dialects of
-     * the same punch all parse as the same four values.
-     */
     public function test_five_six_and_seven_column_files_all_parse(): void
     {
         $base = "007\t2024-01-15 08:01:23\t1\t0";
@@ -96,10 +92,6 @@ class AttlogParserTest extends TestCase
         $this->assertCount(1, $rejected);
     }
 
-    /**
-     * Files routinely contain a blank line and end with a trailing newline.
-     * Neither is a punch and neither may appear in the yield stream.
-     */
     public function test_blank_lines_and_a_trailing_newline_are_skipped(): void
     {
         $contents = "007\t2024-01-15 08:01:23\t1\t0\n"
@@ -122,10 +114,6 @@ class AttlogParserTest extends TestCase
         $this->assertSame("\t2024-01-15 08:01:23\t1\t0", $yields[0][1]);
     }
 
-    /**
-     * Device user ids are not integers. `007`, `7` and `A17` are three
-     * different people; assertSame (not assertEquals) so an int 7 fails.
-     */
     public function test_uid_is_kept_as_a_string_including_leading_zeros(): void
     {
         $contents = "007\t2024-01-15 08:01:23\t1\t0\n"
@@ -148,10 +136,6 @@ class AttlogParserTest extends TestCase
         $this->assertSame($this->punch('007', '2024-01-15 08:01:23', 255, 0), $yields[1][0]);
     }
 
-    /**
-     * `is_numeric` would accept all three, and the database would then refuse
-     * them after earlier punches had already committed.
-     */
     public function test_mode_rejects_decimal_scientific_and_negative_values(): void
     {
         $contents = "007\t2024-01-15 08:01:23\t1\t1.5\n"
@@ -182,10 +166,6 @@ class AttlogParserTest extends TestCase
         $this->assertSame("007\t2024-13-45 99:99:99\t1\t0", $yields[0][1]);
     }
 
-    /**
-     * `createFromFormat('Y-m-d H:i', ...)` without `!` fills seconds from the
-     * current time. The `!` prefix is what makes the missing seconds 00.
-     */
     public function test_a_datetime_without_seconds_defaults_them_to_zero(): void
     {
         $yields = $this->yields("007\t2024-01-15 08:01\t1\t0\n");
@@ -236,15 +216,6 @@ class AttlogParserTest extends TestCase
 
     /**
      * @return array{uid: string, time: string, state: int, mode: int}
-     */
-    /**
-     * `device` defaults to null — the standard layout carries no device column
-     * — and the device-layout tests pass the value the file itself states.
-     *
-     * It is returned rather than discarded because an attlog contains no ULID:
-     * that column is the file's only statement of which scanner produced these
-     * punches, so throwing it away leaves the importer trusting whichever
-     * terminal a human picked.
      */
     private function punch(string $uid, string $time, int $state, int $mode, ?string $device = null): array
     {

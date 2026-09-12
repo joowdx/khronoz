@@ -8,10 +8,9 @@ use App\Support\Settings;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Decision 56: one typed reader for the six keys Milestone 6 reads, so a
- * default lives in one place rather than at every `$agency->settings['…'] ??`
- * call site. The deriver will run from a queued job with no session, which is
- * why this takes an Agency and never `auth()`.
+ * Decision 56: one typed reader for the six keys the deriver reads, so a default lives in one place
+ * rather than at every `$agency->settings['…'] ??` call site. The deriver runs from a queued job
+ * with no session, which is why this takes an Agency and never `auth()`.
  */
 class SettingsTest extends TestCase
 {
@@ -77,7 +76,9 @@ class SettingsTest extends TestCase
         $this->assertSame(0, $settings->overtimeAfterWeekly());
     }
 
-    /** @param  array<string, mixed>  $stored */
+    /**
+     * @param  array<string, mixed>  $stored
+     */
     private function settings(array $stored): Settings
     {
         $agency = new Agency;

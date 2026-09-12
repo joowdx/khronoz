@@ -17,10 +17,7 @@ class EmployeeFactory extends Factory
     {
         return [
             'agency_id' => Agency::factory(),
-            // unique(), not just numerify(): UNIQUE (agency_id, number) is not
-            // partial (R7), so a soft-deleted employee keeps their number
-            // reserved forever and re-inserting it is 23505. The number must
-            // be unique across the whole test run, not merely among live rows.
+            // The number remains unique across soft-deleted factory records.
             'number' => fake()->unique()->numerify('EMP#####'),
             'first_name' => fake()->firstName(),
             'middle_name' => fake()->lastName(),
@@ -31,11 +28,7 @@ class EmployeeFactory extends Factory
             'email' => fake()->safeEmail(),
             'mobile' => fake()->numerify('09#########'),
             'position' => fake()->jobTitle(),
-            // Plain [], not (object) []: the `array` cast round-trips either
-            // PHP value to the same empty PHP array, but json_encode((object) [])
-            // produces `{}`, which employees_tags_valid rejects — it requires
-            // a jsonb array, not an object. Mirror image of AgencyFactory's
-            // `settings` default, which needs `{}` and so uses (object) [].
+            // An array encodes as the JSON array required for tags.
             'tags' => [],
             'exempt' => false,
         ];

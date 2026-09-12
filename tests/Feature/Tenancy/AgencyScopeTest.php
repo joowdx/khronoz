@@ -30,10 +30,6 @@ class AgencyScopeTest extends TestCase
     {
         parent::setUp();
 
-        // Touch the app connection first so LazilyRefreshDatabase has migrated,
-        // then create the table as the owner, outside the test transaction: the
-        // app role inherits CRUD through the default privileges and the next
-        // migrate:fresh drops it again. No FK, so no lock on agencies.
         $this->platform();
         DB::connection('owner')->statement('create table if not exists probes (id char(26) primary key, agency_id char(26) not null, name text not null)');
     }
@@ -60,12 +56,6 @@ class AgencyScopeTest extends TestCase
         $this->assertSame($agency->id, Probe::create(['name' => 'x'])->agency_id);
     }
 
-    /**
-     * I-6, case 1 of 3: no tenant is set, so an explicit agency_id is trusted
-     * as-is — seeders and maintenance commands that iterate agencies rely on
-     * exactly this, setting agency_id themselves without ever calling
-     * Tenant::set().
-     */
     public function test_creating_with_an_explicit_agency_id_and_no_tenant_is_allowed(): void
     {
         $agency = Agency::factory()->create();
@@ -75,12 +65,6 @@ class AgencyScopeTest extends TestCase
         $this->assertSame($agency->id, $probe->agency_id);
     }
 
-    /**
-     * I-6, case 3 of 3: under tenant A, Model::create(['agency_id' => $b->id])
-     * must not silently write a row belonging to B. Case 2 (tenant set, no
-     * agency_id given, filled from the tenant) is test_creating_fills_
-     * agency_id_from_the_tenant above.
-     */
     public function test_creating_with_an_agency_id_that_contradicts_the_tenant_throws(): void
     {
         [$mine, $theirs] = Agency::factory()->count(2)->create();

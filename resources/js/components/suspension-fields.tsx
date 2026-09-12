@@ -7,22 +7,6 @@ import { flattenWorkgroups } from '@/lib/workgroups';
 import { manilaToday } from '@/lib/dates';
 import type { Suspension, Workgroup } from '@/types';
 
-/**
- * Declaring a suspension.
- *
- * Two fields carry the weight and both are easy to get wrong silently.
- *
- * **Who it covers.** Leaving the workgroup empty suspends the whole agency,
- * which is the commonest case; naming one covers that workgroup *and
- * everything under it* (01-organization.md rule 4). The picker cannot show a
- * subtree, so the hint says it.
- *
- * **How much of the day.** Whole-day is the default and the switch reveals the
- * window rather than the other way round, because `suspensions_hours_paired`
- * refuses a half-set pair and a form that starts with two empty time boxes
- * invites exactly that. "Suspended from noon until nothing" is not a
- * declaration anyone can act on.
- */
 export function SuspensionFields({
     suspension,
     workgroups,
@@ -34,8 +18,6 @@ export function SuspensionFields({
 }) {
     const [workgroup, setWorkgroup] = useState<string | null>(suspension?.workgroup_id ?? null);
     const [partial, setPartial] = useState(Boolean(suspension?.starts));
-    // Lifted out of the inputs: they unmount with the switch, and an
-    // uncontrolled input remounts at its default rather than at what was typed.
     const [starts, setStarts] = useState(suspension?.starts?.slice(0, 5) ?? '12:00');
     const [ends, setEnds] = useState(suspension?.ends?.slice(0, 5) ?? '17:00');
 
@@ -123,13 +105,6 @@ export function SuspensionFields({
                 </Field>
             </div>
 
-            {/*
-              `partial` is **submitted**, not merely drawn. An unmounted input
-              sends nothing, and an absent key is not a null: `validated()`
-              omits it, `update()` never names the column, and the hours
-              already in the row survive a save the screen called successful.
-              Turning the switch off did nothing at all.
-            */}
             <input type="hidden" name="partial" value={partial ? '1' : '0'} />
 
             <Field

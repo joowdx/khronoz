@@ -29,15 +29,6 @@ import { create, destroy, edit, index } from '@/routes/shifts';
 import type { Shift } from '@/types';
 import type { Slot } from '@/components/shift-chip';
 
-/**
- * Fixed column widths, one entry per column. The flexible Name column is not
- * listed here — it is the one the browser may stretch. `TABLE_MIN_WIDTH` is
- * computed from these, never hand-typed, so the floor cannot drift from the
- * actual column set (pages.md sticky-table rule).
- *
- * `actions` is 68px: table-layout:auto gives it that minimum regardless of
- * the declared width, and sizing it short wastes a `COLUMNS` entry.
- */
 const COLUMNS = {
     chip: 64,
     kind: 130,
@@ -46,23 +37,10 @@ const COLUMNS = {
     actions: 68,
 } as const;
 
-/** What the flexible Name column needs for a real shift name. */
 const FLEX_MIN = 200;
 
 const TABLE_MIN_WIDTH = Object.values(COLUMNS).reduce((sum, width) => sum + width, 0) + FLEX_MIN;
 
-/**
- * All shifts for this agency, in name order.
- *
- * Three kinds are drawn differently: working shifts take a coloured ramp chip,
- * off days get the hatched OffBox, and remote days get the dashed RemoteBox.
- * `kind` is derived server-side by ShiftResource so every surface reads the
- * same answer and the frontend never re-derives it.
- *
- * `usedColors` is the set of ramp indices (1–8) the agency already occupies,
- * sent so the create form's colour picker can mark them as taken without an
- * extra round-trip.
- */
 export default function Index({ shifts, usedColors }: { shifts: Shift[]; usedColors: number[] }) {
     const can = useCan();
     const manage = can('scheduling.manage');
@@ -163,7 +141,6 @@ export default function Index({ shifts, usedColors }: { shifts: Shift[]; usedCol
     );
 }
 
-/** Format a minute count as `H:MM`, or `—` for zero. */
 function formatMinutes(minutes: number): string {
     if (minutes === 0) {
         return '—';

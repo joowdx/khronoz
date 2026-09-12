@@ -1,13 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-/**
- * A 36px text box on the canvas, bordered with --input (deliberately darker
- * than --border: a control's edge has to clear WCAG 1.4.11's 3:1, a panel's
- * hairline does not). The focus ring and its -1px offset come from app.css's
- * base layer; only the invalid recolouring is per component, and it has to be
- * a utility so it outranks that base rule.
- */
 function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
     return (
         <input

@@ -4,7 +4,6 @@ import { Field } from '@/components/field';
 import { Input } from '@/components/ui/input';
 import AuthLayout from '@/layouts/auth-layout';
 
-/** "Corazon Dimaano" -> "Corazon". A greeting uses the name someone is called. */
 function firstName(name: string): string {
     return name.trim().split(/\s+/)[0] || name;
 }
@@ -15,8 +14,6 @@ export default function AcceptInvite({ user, action }: { user: { name: string; e
             title={`Welcome, ${firstName(user.name)}`}
             description="Set a password to accept your invitation. Your email address is already set."
         >
-            {/* The URL carries the invite's signature, so the form must post
-                back to this exact address rather than a Wayfinder-built one. */}
             <Form action={action} method="post">
                 {({ errors, processing }) => (
                     <>

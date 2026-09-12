@@ -25,11 +25,6 @@ class DefaultControllerTest extends TestCase
         $this->get(route('defaults.index'))->assertForbidden();
     }
 
-    /**
-     * One render covering all three states a row can reach on its own: a
-     * default nobody has copied, a copy that matches, and a copy that has
-     * drifted from it.
-     */
     public function test_the_index_shows_each_default_and_what_this_agency_has_of_it(): void
     {
         $platform = $this->platform();
@@ -90,13 +85,6 @@ class DefaultControllerTest extends TestCase
         );
     }
 
-    /**
-     * Beyond the brief's two smoke tests on purpose: refreshing a *schedule*
-     * is the one path where forgetting the remap is not caught by a paired FK
-     * until production, and where `$copy->origin` answers null under
-     * `AgencyScope` unless the action drops it. One end-to-end pass over it
-     * is worth more than the rest of the matrix put together.
-     */
     public function test_refreshing_a_schedule_rewrites_its_turns_to_this_agencys_own_shifts(): void
     {
         $platform = $this->platform();
@@ -154,3 +142,4 @@ class DefaultControllerTest extends TestCase
         }
     }
 }
+/** @return void */
