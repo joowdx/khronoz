@@ -10,6 +10,7 @@ import { LedgerStatus } from '@/components/rendition-status';
 import { Who2 } from '@/components/workday-cells';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -56,6 +57,7 @@ export default function Index({
     employees,
     cadences,
     works,
+    reportDays,
 }: {
     ledgers: LedgerRow[];
     pagination: Pagination;
@@ -63,6 +65,7 @@ export default function Index({
     employees: Employee[];
     cadences: Cadence[];
     works: Choice[];
+    reportDays: Choice[];
 }) {
     const can = useCan();
     const { auth } = usePage<SharedProps>().props;
@@ -208,6 +211,7 @@ export default function Index({
                             employees={mode === 'lock' ? lockEmployees : employees}
                             cadences={cadences}
                             works={works}
+                            reportDays={reportDays}
                         />
                     )}
                 </SheetContent>
@@ -220,15 +224,18 @@ function RangeForm({
     employees,
     cadences,
     works,
+    reportDays,
 }: {
     mode: 'lock' | 'download';
     employees: Employee[];
     cadences: Cadence[];
     works: Choice[];
+    reportDays: Choice[];
 }) {
     const [employee, setEmployee] = useState<string | null>(employees.length === 1 ? employees[0]!.id : null);
     const [cadence, setCadence] = useState('');
     const [work, setWork] = useState('all');
+    const [days, setDays] = useState<string[]>([]);
     const range = previousMonth();
     function fields(errors: Record<string, string>) {
         return (
@@ -311,6 +318,37 @@ function RangeForm({
                     choices={works}
                     error={errors.scope ?? errors.work}
                 />
+                {mode === 'download' && (
+                    <fieldset className="grid gap-3">
+                        <legend className="text-sm font-medium">Optional day filters</legend>
+                        <p className="text-muted-foreground text-sm">
+                            Leave all clear to include every day. Selected filters limit detail rows; totals still cover
+                            the complete range.
+                        </p>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            {reportDays.map((choice) => {
+                                const checked = days.includes(choice.value);
+
+                                return (
+                                    <label key={choice.value} className="flex items-center gap-2 text-sm">
+                                        {checked && <input type="hidden" name="days[]" value={choice.value} />}
+                                        <Checkbox
+                                            checked={checked}
+                                            onCheckedChange={(value) =>
+                                                setDays((current) =>
+                                                    value === true
+                                                        ? [...current, choice.value]
+                                                        : current.filter((item) => item !== choice.value),
+                                                )
+                                            }
+                                        />
+                                        {choice.label}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </fieldset>
+                )}
             </>
         );
     }

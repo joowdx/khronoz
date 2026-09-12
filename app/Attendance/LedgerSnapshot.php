@@ -2,6 +2,7 @@
 
 namespace App\Attendance;
 
+use App\Enums\ReportDay;
 use App\Http\Resources\WorkdayResource;
 use App\Models\Attestation;
 use App\Models\Ledger;
@@ -47,5 +48,43 @@ final class LedgerSnapshot
             'attestations' => $ledger->attestations()->whereNull('withdrawn_at')->orderBy('sequence')->get()
                 ->map(fn (Attestation $attestation): array => ['id' => $attestation->id, 'role' => $attestation->role, 'user_id' => $attestation->user_id, 'name' => $attestation->name, 'sequence' => $attestation->sequence, 'at' => $attestation->at->toIso8601String()])->all(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $calculation
+     * @param  list<ReportDay>  $filters
+     * @return array<string, mixed>
+     */
+    public function filter(array $calculation, array $filters): array
+    {
+        if ($filters === []) {
+            return $calculation;
+        }
+
+        $calculation['workdays'] = array_values(array_filter(
+            $calculation['workdays'] ?? [],
+            fn (array $workday): bool => collect($filters)->contains(
+                fn (ReportDay $filter): bool => $this->matches($workday, $filter),
+            ),
+        ));
+        $calculation['filters'] = array_map(
+            fn (ReportDay $filter): array => ['value' => $filter->value, 'label' => $filter->label()],
+            $filters,
+        );
+
+        return $calculation;
+    }
+
+    /** @param array<string, mixed> $workday */
+    private function matches(array $workday, ReportDay $filter): bool
+    {
+        $premium = $workday['premium']['value'] ?? null;
+
+        return match ($filter) {
+            ReportDay::Night => ($workday['night'] ?? 0) > 0 || ($workday['night_excess'] ?? 0) > 0,
+            ReportDay::RestDay => $premium === 'rest',
+            ReportDay::Holiday => in_array($premium, ['special', 'regular'], true)
+                || ($workday['status']['value'] ?? null) === 'holiday',
+        };
     }
 }

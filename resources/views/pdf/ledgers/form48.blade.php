@@ -35,6 +35,9 @@
             Employee no.: {{ $snapshot['employee']['number'] ?? '' }} · {{ $snapshot['employee']['position'] ?? '' }}<br>
             {{ $snapshot['workgroup']['name'] ?? '' }}<br>
             Ledger period: {{ $starts->format('M j, Y') }} - {{ $ends->format('M j, Y') }}. Times use 24-hour notation; (+1d) means the next day.
+            @if (! empty($snapshot['filters']))
+                <br>Detail filter: {{ collect($snapshot['filters'])->pluck('label')->join(', ') }}. Totals remain for the complete selected range.
+            @endif
         </div>
         <table class="attendance">
             <thead>

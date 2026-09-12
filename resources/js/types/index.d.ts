@@ -328,6 +328,7 @@ export interface LedgerSnapshot extends LedgerIdentity {
     policy: LedgerPolicy;
     signers: LedgerSigner[];
     attestations: Attestation[];
+    filters?: Choice[];
     rendition?: { id: string; revision: number; token: string; completed_at: string; archiving: boolean };
 }
 

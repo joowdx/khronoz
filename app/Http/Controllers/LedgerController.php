@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Period;
+use App\Enums\ReportDay;
 use App\Enums\Work;
 use App\Http\Resources\CadenceResource;
 use App\Http\Resources\EmployeeResource;
@@ -53,6 +54,7 @@ class LedgerController extends Controller
             'employees' => EmployeeResource::collection(Employee::withTrashed()->orderBy('last_name')->orderBy('first_name')->get())->resolve(),
             'cadences' => CadenceResource::collection(Cadence::orderBy('retired_at')->orderBy('name')->get())->resolve(),
             'works' => Work::choices(),
+            'reportDays' => ReportDay::choices(),
         ]);
     }
 

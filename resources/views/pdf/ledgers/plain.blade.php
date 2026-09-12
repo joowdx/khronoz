@@ -30,7 +30,7 @@
         @if ($preview)
             <div class="preview">PREVIEW — NOT ATTESTED</div>
         @endif
-        <div class="identity"><strong>{{ $snapshot['employee']['name'] ?? '' }}</strong><br>Employee no.: {{ $snapshot['employee']['number'] ?? '' }} · {{ $snapshot['employee']['position'] ?? '' }}<br>{{ $snapshot['workgroup']['name'] ?? '' }}</div>
+        <div class="identity"><strong>{{ $snapshot['employee']['name'] ?? '' }}</strong><br>Employee no.: {{ $snapshot['employee']['number'] ?? '' }} · {{ $snapshot['employee']['position'] ?? '' }}<br>{{ $snapshot['workgroup']['name'] ?? '' }}@if (! empty($snapshot['filters']))<br>Detail filter: {{ collect($snapshot['filters'])->pluck('label')->join(', ') }}. Totals remain for the complete selected range.@endif</div>
         <table class="attendance">
             <thead><tr><th class="date">Date</th><th class="status">Status</th><th>Worked</th><th>Credited</th><th>Tardy</th><th>Undertime</th><th>Excess</th><th>Night</th></tr></thead>
             <tbody>

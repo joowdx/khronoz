@@ -6,6 +6,7 @@ use App\Attendance\LedgerPolicyResolver;
 use App\Attendance\LedgerSnapshot;
 use App\Enums\Period;
 use App\Enums\RenditionStatus;
+use App\Enums\ReportDay;
 use App\Enums\Work;
 use App\Http\Requests\DownloadLedgerRequest;
 use App\Models\Employee;
@@ -22,7 +23,8 @@ class LedgerPdfController extends Controller
         if ($request->filled('starts') && $request->input('starts') !== $ledger->starts->toDateString()
             || $request->filled('ends') && $request->input('ends') !== $ledger->ends->toDateString()
             || $request->filled('period') && $request->input('period') !== Period::Full->value
-            || $request->filled('work') && $request->input('work') !== $ledger->scope->value) {
+            || $request->filled('work') && $request->input('work') !== $ledger->scope->value
+            || $request->filled('days')) {
             throw ValidationException::withMessages(['form' => 'Use a current employee download to change the range or work filter.']);
         }
         $rendition = $ledger->renditions()->whereNull('superseded_at')->latest('requested_at')->first();
@@ -56,6 +58,10 @@ class LedgerPdfController extends Controller
             }
         }
         $captured = $snapshots->capture($ledger);
+        $captured['calculation'] = $snapshots->filter(
+            $captured['calculation'],
+            array_map(ReportDay::from(...), $request->validated('days', [])),
+        );
         $policy = $policies->resolve($employee, $ledger->ends);
         $snapshot = [
             'version' => 1,

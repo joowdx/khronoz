@@ -61,6 +61,24 @@ class LedgerPdfViewTest extends TestCase
         $this->assertStringNotContainsString('should-not-appear', $html);
     }
 
+    public function test_transient_filters_are_disclosed_without_changing_the_totals_scope(): void
+    {
+        $snapshot = [
+            'ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-30'],
+            'filters' => [['value' => 'night', 'label' => 'Night work']],
+        ];
+
+        $html = view('pdf.ledgers.form48', [
+            'snapshot' => $snapshot,
+            'preview' => true,
+            'verificationUrl' => null,
+            'qrSvg' => null,
+        ])->render();
+
+        $this->assertStringContainsString('Detail filter: Night work', $html);
+        $this->assertStringContainsString('Totals remain for the complete selected range.', $html);
+    }
+
     public function test_plain_form_paginates_without_losing_the_last_day(): void
     {
         $snapshot = ['ledger' => ['starts' => '2026-09-01', 'ends' => '2026-09-26'], 'workdays' => []];

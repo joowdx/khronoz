@@ -5,6 +5,7 @@ namespace Tests\Feature\Http\Controllers;
 use App\Actions\AttestLedger;
 use App\Actions\LockLedger;
 use App\Enums\Permission;
+use App\Enums\Premium;
 use App\Enums\RenditionStatus;
 use App\Enums\Work;
 use App\Jobs\GenerateLedgerDocument;
@@ -14,6 +15,7 @@ use App\Models\Employee;
 use App\Models\Ledger;
 use App\Models\Location;
 use App\Models\Policy;
+use App\Models\Workday;
 use App\Support\LedgerPdf;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -48,6 +50,50 @@ class LedgerPdfControllerTest extends TestCase
             ->assertSessionHasErrors(['ends' => 'Choose no more than 31 days.']);
     }
 
+    public function test_current_download_can_filter_detail_rows_without_storing_a_report(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+        Workday::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-08-12',
+            'night' => 120,
+        ]);
+        Workday::factory()->create([
+            'agency_id' => $agency->id,
+            'employee_id' => $employee->id,
+            'date' => '2026-08-13',
+            'premium' => Premium::Rest,
+        ]);
+        $this->mock(LedgerPdf::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('render')->once()->withArgs(fn (array $snapshot): bool => count($snapshot['workdays']) === 1
+                && $snapshot['workdays'][0]['date'] === '2026-08-12'
+                && $snapshot['filters'] === [['value' => 'night', 'label' => 'Night work']]
+            )->andReturn('%PDF-filtered');
+        });
+
+        $this->get(route('employees.ledger.download', [$employee,
+            'starts' => '2026-08-01', 'ends' => '2026-08-31', 'days' => ['night'],
+        ]))->assertContent('%PDF-filtered');
+
+        $this->assertDatabaseCount('ledgers', 0);
+        $this->assertDatabaseCount('renditions', 0);
+        $this->assertDatabaseCount('documents', 0);
+    }
+
+    public function test_current_download_rejects_unknown_detail_filters(): void
+    {
+        $agency = Agency::factory()->create();
+        $employee = Employee::factory()->create(['agency_id' => $agency->id]);
+        $this->actingAsAgency($agency, Permission::ViewLedgers);
+
+        $this->get(route('employees.ledger.download', [$employee,
+            'starts' => '2026-08-01', 'ends' => '2026-08-31', 'days' => ['payroll'],
+        ]))->assertSessionHasErrors('days.0');
+    }
+
     public function test_current_download_refuses_foreign_employees(): void
     {
         $employee = Employee::factory()->create();
@@ -76,6 +122,7 @@ class LedgerPdfControllerTest extends TestCase
     {
         [$ledger] = $this->attested();
         $this->get(route('ledgers.download', [$ledger, 'work' => 'regular']))->assertSessionHasErrors('form');
+        $this->get(route('ledgers.download', [$ledger, 'days' => ['night']]))->assertSessionHasErrors('form');
     }
 
     public function test_historical_download_returns_exact_stored_bytes_without_location_metadata(): void

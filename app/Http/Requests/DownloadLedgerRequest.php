@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\Period;
+use App\Enums\ReportDay;
 use App\Enums\Work;
 use App\Models\Ledger;
 use Carbon\CarbonImmutable;
@@ -29,6 +30,8 @@ class DownloadLedgerRequest extends FormRequest
             'ends' => [Rule::requiredIf($this->route('ledger') === null), 'date_format:Y-m-d', 'after_or_equal:starts'],
             'period' => ['sometimes', Rule::enum(Period::class)],
             'work' => ['sometimes', Rule::enum(Work::class)],
+            'days' => ['sometimes', 'array', 'list', 'max:3'],
+            'days.*' => ['required', Rule::enum(ReportDay::class), 'distinct'],
         ];
     }
 
