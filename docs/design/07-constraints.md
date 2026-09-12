@@ -201,41 +201,35 @@ update — no constraint here would refuse a stale rewrite.
 
 ```sql
 -- trigger deployments_frozen_month, BEFORE INSERT OR UPDATE OR DELETE FOR EACH ROW
---   (decisions 55 and 58): raise P0001 if any ledger of this employee with locked_at IS NOT
---   NULL has a month covered by OLD's range and not NEW's, or by NEW's and not OLD's.
---   INSERT reads OLD coverage as false; DELETE reads NEW coverage as false.
+--   raise P0001 if a write changes the deployment days covered by any active ledger range.
+--   INSERT reads OLD coverage as empty; DELETE reads NEW coverage as empty.
 ```
 
-`deployments_frozen_month` is decision 55, owed by decision 35 and unbuildable until `ledgers`
-existed. It refuses a write that **changes which locked months the range covers**,
-because decision 30's visibility predicate reads these ranges by overlap with a month, so
-altering that coverage retroactively changes who could see, attest or correct a month that may
-already be signed. Delete-as-correction (decision 35) is the write that needs it most, and until
-this milestone deletion was unconditionally safe because nothing read a range.
+The function retains its historical name but now reads concrete ledger `starts` and `ends`. It
+refuses a write that changes which days of an active locked range the deployment covers, because
+the frozen employee/workgroup identity and access decision were resolved from that coverage.
+Delete-as-correction is the write that needs it most.
 
-The `UPDATE` limb compares each range's **intersection with the month** and not whether it overlaps (decision 85): decision 58 says coverage, and a boolean overlap is a coarser question. An open placement re-dated from 1 January to 15 September still overlaps a locked September, so the symmetric difference of two trues was false and the write erased the first fortnight of a signed month. Two ranges covering the same days canonicalise to the same `daterange` and two disjoint ones both to `empty`, so decision 58's load-bearing permit — closing an open placement that still covers the month — is unaffected.
+The `UPDATE` limb compares each deployment's intersection with each active ledger range and not
+only whether it overlaps. Two ranges covering the same locked days canonicalise to the same
+`daterange`, so closing an open placement after the ledger ends remains allowed. Moving its start
+inside the locked range changes that intersection and is refused.
 
-**Coverage, and deliberately not overlap** (decision 58). An open substantive placement has an
-unbounded upper bound and therefore overlaps every month the employee will ever have. A rule
-phrased on overlap would refuse `TransferEmployee` and `RemoveEmployee` — both of which merely
-set `ends` — from the moment any one month was locked, permanently, since a lock never lifts.
-Closing an open placement today changes no past month's coverage: `[2020-01-01, ∞)` and
-`[2020-01-01, 2026-10-15]` both cover September 2026. So the predicate is the symmetric
-difference over that employee's locked months, which refuses exactly the three writes that were
-the hazard — deleting a range off a signed month, re-dating one off it, and back-dating a new
-movement onto it — and permits every write that leaves a signed month's visibility unchanged.
+**Coverage, and deliberately not a blanket overlap refusal.** An open substantive placement has
+an unbounded upper bound. Closing it after an active ledger's `ends` changes no frozen day and is
+permitted. Deleting it, moving its start into the range, or back-dating a movement onto the range
+changes frozen coverage and is refused. Once a ledger records its one-way unlock and no other
+active range covers those days, the guard no longer blocks a legitimate correction.
 
 Three things about its shape are not incidental. It **cannot be a foreign key**, for two
 independent reasons this file has already fixed permanently: the relationship is an overlap rather
 than a reference, and `attestations` hang off `ledgers`, which carry no `deployment_id` by
 decision 30 and must not acquire one — the self-FK above stays the only incoming one. It reads
 **`OLD`'s range as well as `NEW`'s** on `UPDATE` and `DELETE`, because a re-date moves the range
-and both the vacated and the occupied span must be free; `NEW` alone would let a row be dragged
-out of a frozen month and change that month's visibility set anyway. And testing `locked_at IS NOT
-NULL` alone covers "locked **or** attested", which looks like a gap and is not: `attestations_locked`
-refuses an attestation on an unlocked ledger and `ledgers_unlock_clean` refuses unlocking an
-attested one, so attested is a strict subset of locked and a second clause would have no reachable
-violation. Note the `NEW`/`OLD` split is also why the function branches on `TG_OP` — `NEW` is
+and both the vacated and the occupied span are compared; `NEW` alone would let a row be dragged
+out of a frozen range. Active means `locked_at IS NOT NULL AND unlocked_at IS NULL`. An attested
+ledger is necessarily active until its attestations are withdrawn in reverse order and the unlock
+is recorded. Note the `NEW`/`OLD` split is also why the function branches on `TG_OP` — `NEW` is
 unassigned in an `AFTER`/`BEFORE DELETE` trigger and touching it raises rather than yielding null.
 
 ### users
@@ -528,17 +522,14 @@ approved_at timestamp(0) NOT NULL                                  -- v1 sets it
 -- no exclusion over (employee_id, the range), deliberately: a morning pass and an afternoon CTO are one
 -- ordinary day. Milestone 6 stamps one workdays.exemption_id per day and picks by precedence.
 -- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
--- trigger exemptions_frozen_month, BEFORE INSERT/UPDATE/DELETE: raise if the range changes which locked months it covers
+-- trigger exemptions_frozen_month, BEFORE INSERT/UPDATE/DELETE: raise if the range overlaps an active locked ledger range
 ```
 
-`exemptions_frozen_month` and `overtimes_frozen_month` are decision 81, and they are
-`deployments_frozen_month` applied to the other two tables a locked month is read from.
-The three are the same function three times: symmetric difference of the OLD and NEW
-overlap so a row cannot be moved *out* of a locked month either, `locked_at IS NOT NULL`
-alone for "locked or attested", and silence on an inverted range so the ordering CHECK
-keeps its own refusal. An authority is frozen on **both** ends of its range and not on the
-`date` column alone: `date` is `starts::date`, so a 31 August 22:00 to 1 September 02:00
-order is dated August and still authorises minutes September's DTR reports.
+`exemptions_frozen_month` and `overtimes_frozen_month` retain their historical names and
+now compare against every active ledger's concrete inclusive range. They read OLD as well as NEW
+so a row cannot be moved out of a frozen range. An authority is frozen on both ends rather than
+its generated `date`: a 31 August 22:00 to 1 September 02:00 order overlaps a ledger containing
+1 September even though the authority's date is August.
 
 ### overtimes
 
@@ -552,7 +543,7 @@ CHECK (ends > starts)                                              -- strict: ts
 CHECK (mode IN ('pay', 'cto'))
 EXCLUDE USING gist (employee_id WITH =, tsrange(starts, ends) WITH &&)
 -- trigger actor_of_agency, BEFORE INSERT OR UPDATE OF user_id, agency_id (README decision 39)
--- trigger overtimes_frozen_month, BEFORE INSERT/UPDATE/DELETE: raise if the range changes which locked months it covers
+-- trigger overtimes_frozen_month, BEFORE INSERT/UPDATE/DELETE: raise if the range overlaps an active locked ledger range
 ```
 
 `ends` is `NOT NULL` here and nullable on every other range in the schema: an order names the hours
@@ -575,44 +566,130 @@ own text would reveal a regression to `virtualAs()`.
 
 ```sql
 FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
-UNIQUE (employee_id, month)
-UNIQUE (id, employee_id, month)                                   -- target for the workday FK
-CHECK (month = make_date(extract(year from month)::int, extract(month from month)::int, 1))
--- trigger ledgers_lock_complete, BEFORE INSERT OR UPDATE OF locked_at, when NEW.locked_at IS NOT NULL:
--- trigger ledgers_lock_complete also refuses re-dating a lock: OLD.locked_at IS NOT NULL and changing (decision 84)
---   raise if EXISTS (punch of a workday of this ledger with expected_at > NEW.locked_at)
---   a month whose last shift ends past midnight cannot be locked before that out is due
---   INSERT is covered as well as UPDATE: the app role may insert here, and a row created
---   already locked would never fire an UPDATE and so would never be checked at all
--- trigger ledgers_unlock_clean, BEFORE UPDATE OF locked_at, when NEW.locked_at IS NULL:
---   raise if EXISTS (attestation of this ledger); remove the attestations first, on purpose
+FOREIGN KEY (cadence_id, agency_id) REFERENCES cadences (id, agency_id)
+UNIQUE (employee_id, starts, ends, scope, revision)
+CREATE UNIQUE INDEX ledgers_one_active ON ledgers (employee_id, starts, ends, scope)
+    WHERE unlocked_at IS NULL
+CHECK (ends >= starts AND ends - starts <= 30)
+CHECK (scope IN ('regular', 'overtime', 'all'))
+CHECK (revision > 0)
+CHECK ((unlocked_at IS NULL) = (unlocked_by IS NULL))
+CHECK (unlocked_at IS NULL OR unlocked_at >= locked_at)
+CHECK (calculation IS NOT NULL AND identity IS NOT NULL AND policy IS NOT NULL AND signers IS NOT NULL)
+-- trigger ledgers_lock_complete, BEFORE INSERT OR UPDATE:
+--   serialize on the employee; refuse a range whose final Manila date has not arrived;
+--   refuse while an expected out inside the range is still pending
+-- trigger ledgers_immutable, BEFORE UPDATE OR DELETE:
+--   permit only the first one-way unlock attribution; never rewrite or delete a frozen revision
+-- trigger ledgers_unlock_clean, BEFORE UPDATE OF unlocked_at:
+--   raise while any active attestation remains; withdrawals happen first, in reverse order
 ```
 
-`ledgers_lock_complete` covers `INSERT` as well as `UPDATE OF locked_at`, which an earlier
-version of this file did not. The app role holds `INSERT` on this table, so a row written with
-`locked_at` already set never fires an `UPDATE` and would never be checked — and a month locked
-at creation then accumulates workdays whose outs are still pending, which is exactly the state
-the trigger exists to forbid. On a genuine `firstOrCreate` the added check is free: the ledger
-has no workdays yet, so the `EXISTS` is empty. `ledgers_unlock_clean` needs no `INSERT` limb for
-the mirror reason — a ledger cannot be created with an attestation, since `attestations`
-references it and `attestations_locked` refuses an unlocked parent.
+A ledger row is created by locking, not by computing the first workday. It is an immutable
+official range and work scope. Weekly, fortnightly, semimonthly, and monthly boundaries are
+resolved by the application from the retained cadence, then stored as concrete inclusive dates.
+An unlock never clears the lock: it records `unlocked_at` and `unlocked_by`; a later lock inserts
+the next revision. Different ranges and work scopes may overlap, and every active overlapping
+range contributes to the database freeze. Only an exact employee/range/scope has one active
+revision.
+
+### cadences
+
+```sql
+FOREIGN KEY (agency_id) REFERENCES agencies (id)
+UNIQUE (agency_id, name)
+CHECK (kind IN ('weekly', 'fortnightly', 'semimonthly', 'monthly'))
+CHECK (jsonb_typeof(rules) = 'object')
+CHECK ((kind IN ('weekly', 'fortnightly')) = (anchor IS NOT NULL))
+CHECK (monthly starts are one integer 1..28; semimonthly starts are two ordered distinct integers 1..28)
+CREATE UNIQUE INDEX cadences_one_preferred ON cadences (agency_id) WHERE preferred
+```
+
+An employee may reference one same-agency cadence. Referenced cadences are retired, not deleted.
+The preferred cadence is an agency fallback; with neither an assignment nor a preferred row,
+the code default is a monthly cadence beginning on day 1.
+
+### policies
+
+```sql
+FOREIGN KEY (workgroup_id, agency_id) REFERENCES workgroups (id, agency_id)
+FOREIGN KEY (employee_id, agency_id) REFERENCES employees (id, agency_id)
+CHECK (employee_id IS NULL OR workgroup_id IS NULL)
+CHECK (template IS NULL OR template IN ('form48', 'plain'))
+CHECK (supervisor IS NULL OR supervisor IN ('operative', 'substantive'))
+CHECK (roles is null or a nonempty ordered array of distinct employee/supervisor/head/timekeeper roles)
+CREATE UNIQUE INDEX policies_agency_scope ... WHERE employee_id IS NULL AND workgroup_id IS NULL
+CREATE UNIQUE INDEX policies_workgroup_scope ... WHERE workgroup_id IS NOT NULL
+CREATE UNIQUE INDEX policies_employee_scope ... WHERE employee_id IS NOT NULL
+```
+
+Null fields inherit independently. The resolver applies employee, deepest operative workgroup,
+its ancestors, agency, then code defaults, and freezes the effective result and eligible signer
+identities into the ledger.
 
 ### attestations
 
 ```sql
 FOREIGN KEY (ledger_id, agency_id) REFERENCES ledgers (id, agency_id)
 FOREIGN KEY (user_id, agency_id)   REFERENCES users (id, agency_id)   -- a signer belongs to the same agency
-UNIQUE (ledger_id, role)                                               -- one signature per role
-CHECK (role ~ '^[a-z_]{1,32}$')                                        -- the allowed set is the agency's setting, checked by the app
--- trigger attestations_locked, BEFORE INSERT: raise unless the ledger's locked_at IS NOT NULL
-REVOKE UPDATE ON attestations FROM chronoz                          -- a signature is added or removed, never edited
+FOREIGN KEY (withdrawn_by) REFERENCES users (id)                    -- platform administrator may withdraw while entered
+CREATE UNIQUE INDEX attestations_active_sequence ON attestations (ledger_id, sequence) WHERE withdrawn_at IS NULL
+CREATE UNIQUE INDEX attestations_active_role ON attestations (ledger_id, role) WHERE withdrawn_at IS NULL
+CHECK (role IN ('employee', 'supervisor', 'head', 'timekeeper'))
+CHECK (sequence > 0 AND length(name) > 0)
+CHECK ((withdrawn_at IS NULL) = (withdrawn_by IS NULL))
+-- trigger attestations_locked, BEFORE INSERT: require an active locked ledger
+-- trigger attestations_immutable, BEFORE UPDATE OR DELETE: only latest-active one-way withdrawal is mutable
+REVOKE UPDATE, DELETE ON attestations FROM chronoz
+GRANT UPDATE (withdrawn_by, withdrawn_at) ON attestations TO chronoz
 ```
+
+The application serializes on the ledger and checks the next frozen role and eligible user.
+Withdrawn rows remain evidence. Reattestation creates another row at the same sequence and, once
+the chain completes again, another immutable rendition.
+
+### renditions
+
+```sql
+FOREIGN KEY (ledger_id, agency_id) REFERENCES ledgers (id, agency_id)
+FOREIGN KEY (document_id, agency_id) REFERENCES documents (id, agency_id)
+UNIQUE (ledger_id, revision)
+CREATE UNIQUE INDEX renditions_one_current ON renditions (ledger_id) WHERE superseded_at IS NULL
+CHECK (template IN ('form48', 'plain'))
+CHECK (status IN ('unstored', 'pending', 'ready', 'failed'))
+CHECK ((status = 'ready') = (document_id IS NOT NULL))
+CHECK (status = 'unstored' OR requested_at IS NOT NULL)
+-- trigger renditions_immutable: frozen snapshot/token never change; supersession is one way;
+--   ready documents cannot be replaced; only pending→ready/failed and failed→pending transitions
+```
+
+Final application attestation always inserts a rendition and random public token. `unstored` is
+the normal default-off archival outcome, not a failure. It preserves the frozen ledger view used
+by public QR verification and by on-demand PDF generation without creating document bytes.
+
+### documents and locations
+
+```sql
+-- documents: agency_id, name, mime, bytes, algorithm, digest; no workflow or provider columns
+CHECK (bytes >= 0)
+CHECK (algorithm <> 'sha256' OR digest ~ '^[a-f0-9]{64}$')
+REVOKE UPDATE, DELETE ON documents FROM chronoz
+
+-- locations: document_id, agency_id, store, key, verified_at, primary, retired_at
+FOREIGN KEY (document_id, agency_id) REFERENCES documents (id, agency_id)
+UNIQUE (store, key)
+CHECK (NOT primary OR (verified_at IS NOT NULL AND retired_at IS NULL))
+CREATE UNIQUE INDEX locations_one_primary ON locations (document_id) WHERE primary AND retired_at IS NULL
+```
+
+`documents` identifies immutable content; `locations` identifies verified physical copies through
+a logical Laravel store name. Provider, bucket, endpoint and vendor names belong only in runtime
+filesystem configuration. Copying to a new provider inserts and verifies a new location before
+switching the primary marker; document identity and digest do not change.
 
 ### workdays
 
 ```sql
-month date GENERATED ALWAYS AS (make_date(extract(year from date)::int, extract(month from date)::int, 1)) STORED
-FOREIGN KEY (ledger_id, employee_id, month) REFERENCES ledgers (id, employee_id, month)   -- right employee, right month
 FOREIGN KEY (shift_id, agency_id)           REFERENCES shifts (id, agency_id)
 FOREIGN KEY (exemption_id, employee_id)     REFERENCES exemptions (id, employee_id)       -- the exemption is this person's
 UNIQUE (employee_id, date)
@@ -623,25 +700,12 @@ CHECK (worked >= 0 AND credited >= 0 AND tardy >= 0 AND undertime >= 0
        AND excess >= 0 AND night >= 0 AND night_excess >= 0)           -- workdays_minutes_not_negative
 CHECK (credited = 0 OR premium IS NOT NULL)                            -- workdays_credited_needs_premium
 CHECK (shift IS NULL OR jsonb_typeof(shift) = 'object')
--- trigger workdays_ledger_open, BEFORE INSERT OR UPDATE OR DELETE: raise if the ledger has locked_at set
+-- trigger workdays_ledger_open, BEFORE INSERT OR UPDATE OR DELETE: raise if employee/date overlaps any active ledger range
 ```
 
-`workdays_ledger_open` is decision 70, and it is the tier this document previously
-assigned to the application: `06-attendance.md` Ledger rule 3 named the recompute job's
-`if` as the enforcement of the strongest invariant in the system. Four database guards
-already stand around the lock — `ledgers_lock_complete`, `ledgers_unlock_clean`,
-`attestations_locked`, `deployments_frozen_month` — and the one thing none of them covered
-was the rows the lock exists to protect. An `if` in a job holds only for the paths that
-remember it, and most of those paths are unwritten. The job's check stays as the courteous
-early exit that produces a readable message.
-
-It fires on `DELETE` as well, and on `UPDATE` it checks `OLD.ledger_id` too: `ledgers` is
-`UNIQUE (employee_id, month)`, so moving a workday between ledgers is a re-dating, and
-re-dating 30 September to 1 October carries the row out of a locked September into an
-unlocked October where only the `OLD` check can see it. Punches need no guard of their own —
-`punches.workday_id` cascades from a workday that can no longer be deleted.
-
-`STORED` is spelled out because Postgres 18 defaults generated columns to `VIRTUAL`, and virtual columns cannot be indexed or referenced by a foreign key.
+Workdays are employee/date facts and have no ledger or month ownership. The guard tests both OLD
+and NEW employee/date values against the union of active ledger ranges. Punches carry their own
+mirror guard because editing a child does not fire the workday trigger.
 
 `premium` and `credited` are decision 51's answer to holiday and rest-day work, and
 `night_excess` is decision 53's split of the night total. `workdays_credited_needs_premium`
@@ -664,7 +728,7 @@ CHECK (expected_at IS NOT NULL OR actual_at IS NOT NULL)                        
 CHECK (kind IN ('in', 'out'))
 CHECK (slot > 0)
 -- trigger punches_timelog_live, BEFORE INSERT: raise if the timelog has voided_at set
--- trigger punches_ledger_open, BEFORE INSERT/UPDATE/DELETE: raise if the workday's ledger is locked
+-- trigger punches_ledger_open, BEFORE INSERT/UPDATE/DELETE: raise if the workday overlaps an active ledger range
 ```
 
 The composite FK to timelogs does more than it looks: an unresolved timelog has `employee_id` null, so it can never match a punch's non-null `employee_id`. A punch can only ever use a resolved timelog.
@@ -679,24 +743,26 @@ The composite FK to timelogs does more than it looks: an unresolved timelog has 
 | On that date? | the database sets it: `timelogs_resolve` picks the enrollment covering `time::date`, `enrollments_reresolve` redoes it when enrollments change |
 | Can a UID be two people at once, or a person hold two UIDs on one device at once? | two exclusion constraints on enrollments |
 | Does this punch use a timelog of the same employee, resolved, unused elsewhere, not voided? | composite FK, composite FK, partial unique index, trigger |
-| Is this workday in the right ledger? | generated `month` plus the three-column FK |
+| Can one workday fact feed several official or transient ranges without ownership ambiguity? | workdays are unique employee/date facts; ledgers select by employee and inclusive range |
 | Is this exemption the right person's? | composite FK on `(exemption_id, employee_id)` |
 | Can anything point across agencies? | `agency_id` on every table, every FK paired with it |
 | Can an agency roster a platform default without copying it? | no, the paired FK fails on the agency mismatch |
 | Can two deployments, rosters or overtime windows overlap? | exclusion constraints with btree_gist |
 | Can a schedule be half-built? | deferred constraint trigger `turns_complete` |
 | Can a workgroup be its own ancestor? | trigger `workgroups_acyclic` |
-| Can a month be locked while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
-| Can a workday of a locked month be written, re-dated or deleted? | trigger `workdays_ledger_open`, reading `OLD.ledger_id` as well as `NEW`'s (decision 70) |
-| Can a deployment be created, re-dated or deleted under a month already locked or signed? | trigger `deployments_frozen_month`, reading `OLD` as well as `NEW` |
+| Can a range be locked before its final Manila date or while a cross-midnight out is still due? | trigger `ledgers_lock_complete` |
+| Can a workday covered by any active locked range be written, re-dated or deleted? | trigger `workdays_ledger_open`, reading both OLD and NEW employee/date values |
+| Can a deployment be created, re-dated or deleted where it overlaps an active locked range? | trigger `deployments_frozen_month`, reading OLD as well as NEW |
 | Can someone certify moving numbers, or move certified numbers? | trigger `attestations_locked`, trigger `ledgers_unlock_clean` |
-| Can a signer be from another agency, or sign a role twice? | paired FK on `(user_id, agency_id)`, `UNIQUE (ledger_id, role)` |
+| Can a signer be from another agency, or sign an active role/sequence twice? | paired FK plus partial unique indexes on active role and sequence |
+| Can an unarchived completed ledger still be publicly verified? | every completed chain has an immutable rendition/token; documents are optional |
+| Can a storage-provider change rewrite document identity? | provider-neutral locations point to immutable digest-addressed document metadata |
 | Can anyone alter or delete a timelog the device recorded, or claim it for another person? | the app role has no `DELETE`, `UPDATE` only on `voided_at`, `reason` and `voided_by`; resolution columns and `user_id` are outside the grant |
 | Can a void be untraceable, or quietly rewritten? | `timelogs_void_pairs_actor` requires an actor; `timelogs_void_is_final` refuses every update of an already-voided row |
 
 ## Cost
 
-One extra `agency_id` column and one `UNIQUE (id, agency_id)` index per table, one gist index per exclusion constraint, eleven triggers. Writes on `timelogs` gain one indexed lookup against enrollments per row for resolution and one FK check. Nothing here is measurable next to the upsert itself.
+The tenant-safe composite keys add one `agency_id` column and one `UNIQUE (id, agency_id)` index per table, while range exclusions and freeze guards add targeted GiST indexes and triggers. Writes on `timelogs` gain one indexed lookup against enrollments per row for resolution and one FK check. Attendance writes covered by an active ledger also pay the indexed overlap check that makes the frozen range enforceable outside Laravel.
 
 ## Laravel notes
 

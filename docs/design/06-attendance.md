@@ -7,17 +7,18 @@ erDiagram
     EXEMPTIONS |o--o{ WORKDAYS : "excuses"
     WORKDAYS   ||--o{ PUNCHES  : "one per slot side"
     TIMELOGS   |o--o| PUNCHES  : "matched, null = missed"
-    EMPLOYEES  ||--o{ LEDGERS  : "per month"
-    LEDGERS    ||--o{ WORKDAYS : "collects, one month"
+    CADENCES   |o--o{ EMPLOYEES : "assigned reporting boundary"
+    EMPLOYEES  ||--o{ LEDGERS  : "official ranges"
     LEDGERS    ||--o{ ATTESTATIONS : "signed off by role"
+    LEDGERS    ||--o{ RENDITIONS : "completed chains"
+    RENDITIONS |o--o| DOCUMENTS : "optional archived bytes"
+    DOCUMENTS  ||--o{ LOCATIONS : "provider-neutral copies"
     USERS      ||--o{ ATTESTATIONS : "by"
 
     WORKDAYS {
         ulid id PK
-        ulid ledger_id FK
         ulid employee_id FK
         date date
-        date month "generated from date, part of the ledger FK"
         ulid shift_id FK "nullable"
         json shift "snapshot of resolved shift"
         ulid exemption_id FK "nullable, one per day, chosen by precedence"
@@ -46,15 +47,52 @@ erDiagram
     LEDGERS {
         ulid id PK
         ulid employee_id FK
-        date month
-        timestamp locked_at "nullable"
+        ulid cadence_id FK "nullable code-default monthly"
+        date starts
+        date ends
+        enum scope "regular, overtime, all"
+        int revision
+        timestamp locked_at
+        timestamp unlocked_at "nullable, one way"
+        json calculation "frozen"
+        json identity "frozen"
+        json policy "frozen"
+        json signers "frozen"
     }
     ATTESTATIONS {
         ulid id PK
         ulid ledger_id FK
         string role "employee, supervisor, head, timekeeper... from agency settings"
+        smallint sequence
         ulid user_id FK
+        string name "snapshot"
         timestamp at
+        timestamp withdrawn_at "nullable, one way"
+    }
+    RENDITIONS {
+        ulid id PK
+        ulid ledger_id FK
+        int revision
+        enum status "unstored, pending, ready, failed"
+        string token "random public verification token"
+        json snapshot "completed attested ledger"
+        ulid document_id FK "nullable, archive opt-in"
+    }
+    DOCUMENTS {
+        ulid id PK
+        string name
+        string mime
+        bigint bytes
+        string algorithm
+        string digest
+    }
+    LOCATIONS {
+        ulid id PK
+        ulid document_id FK
+        string store "logical name"
+        string key "opaque"
+        boolean primary
+        timestamp verified_at
     }
     USERS {
         ulid id PK "see 02-access"
@@ -82,7 +120,10 @@ erDiagram
 | Timelog | a raw fact: uid 42 touched device 3 at 07:58:12, state 0, mode 1 | what the device saw |
 | Punch | one expected slot side of one workday, and the timelog that filled it, or null | which fact counted for which slot |
 | Workday | employee E on date D: the shift snapshot plus the derived minutes and status | the DTR line |
-| Ledger | employee E in month M: the DTR page with its lock and signatures | the DTR form |
+| Ledger | employee E over an explicit date range and work scope, at one lock revision | what was frozen for attestation |
+| Rendition | one completed application-attestation chain over that ledger | what a QR verifies |
+| Document | immutable bytes optionally archived for an opted-in agency | what exact file was retained |
+| Location | one verified physical copy of a document through a logical store | where those bytes can be resolved |
 
 Employee E, Standard shift, 8 Sep 2026. Terminal holds five timelogs for uid 42 that day: 07:58, 07:58 (double tap), 12:03, 17:05, 19:31.
 
@@ -113,11 +154,11 @@ Night shift 22:00–30:00 on 30 September, out recorded 1 October 06:00:
 Rules:
 
 1. A timelog at time T can only belong to a workday dated T::date − 3 to T::date, the 72:00 slot cap. Recompute for that employee runs over those dates in order, so the earlier workday claims first. The unique index on `punches.timelog_id` makes a second claim impossible.
-2. The ledger month is the workday's date, never the timelog's. The September ledger is complete only after the 1 October 06:00 timelog has arrived; recompute must not skip a workday because the timelog's month differs.
-3. Locking waits for the outs. `locked_at` cannot be set while any punch of the ledger has `expected_at` later than the lock time; trigger `ledgers_lock_complete` in 07-constraints.md. Say if not.
+2. A report owns a workday by its duty date. An official range ending 30 September is complete only after the 1 October 06:00 out for the 30 September duty has arrived; recompute must not skip a workday because the timelog's calendar month differs.
+3. Locking waits for the outs. A ledger cannot be inserted while any required out in its range is still pending, and the range cannot lock before its final Manila calendar day; trigger `ledgers_lock_complete` in 07-constraints.md.
 4. **Status follows the day the duty started, and is never split** (decision 54). `status` and `premium` are one value each per row, so a 22:00 Sunday shift running into a Monday that is a regular holiday records Sunday's classification and nothing else. That is the paper form's own convention — the 48-hour example below puts forty October hours in September's totals for the same reason. Calendar-day attribution of *rates*, where payroll needs the 360 minutes that fell on Monday, is derived from `punches.actual_at` against dated holiday rows and never stored; the holidays consulted at compute time are frozen into the snapshot. The legal premise is a **default, not an invariant** — a contract, policy or CBA may attribute a whole night shift to the evening it began — so the other reading becomes a setting selecting between two stated policies when a real agency needs it, which costs nothing because the full timestamps survive.
 
-## CS Form 48
+## CSC Form 48
 
 The form is one renderer of the ledger view, not the storage. Its fixed columns are AM arrival, AM departure, PM arrival, PM departure, undertime hours and minutes.
 
@@ -163,7 +204,7 @@ Until 2 October 08:00 the row prints `08:00 … ` and September cannot be locked
 
 ## Workday
 
-1. Unique on `employee_id, date`. One row per employee per calendar day in their employment range, computed, never hand-edited. **The range is the union of the employee's deployments** and the orchestrator asks it per date (decision 82): `05-calendar.md` rule 3 already settles that "any deployment covering the date" is the same set as "employed on the date", and a date outside it gets no workday and opens no ledger. "No roster" and "not employed" are different outcomes — the first is an `off` day (decision 63), the second is no row. `ledger_id` points at the month; `employee_id` stays for the daily lookup even though the ledger also has it.
+1. Unique on `employee_id, date`. One row per employee per calendar day in their employment range, computed, never hand-edited. **The range is the union of the employee's deployments** and the orchestrator asks it per date (decision 82): `05-calendar.md` rule 3 already settles that "any deployment covering the date" is the same set as "employed on the date", and a date outside it gets no workday and creates no ledger. "No roster" and "not employed" are different outcomes — the first is an `off` day (decision 63), the second is no row. A workday has no ledger foreign key or stored month; any number of official or transient ranges may select the same employee/date fact.
 2. Computation: resolve the shift, apply holiday, suspension and exemption, match timelogs to slots, derive minutes and status. Store the resolved shift as json so later edits to shifts do not move history.
 3. Recompute when: a timelog at time T arrives for the employee, covering dates T::date − 3 to T::date in order; **a timelog at time T is voided**, covering the same span (decision 57 — `punches_timelog_live` guards insert only, so a punch that already claimed the record survives the void and the day goes on counting minutes the office has disowned); **an enrollment changes**, covering the punches it moves — `enrollments_reresolve` re-attributes existing timelogs whenever an enrollment appears or moves, so correcting a mistyped device user id hands a history of punches from one person to another and *both* sides recompute, the losing side read before the write because after it they are already gone from the table (decision 86); a roster or schedule changes, covering its own range from `starts` forward with no end, because closing the standing roster hands the days after `ends` to no roster at all; a holiday, suspension or exemption touches the date; **a deployment changes**, covering the union of its old and new ranges (decision 82 made the employment range the answer to which days exist, and a workgroup is what a suspension is declared against); for compressed-week rosters, the whole ISO week of a holiday on an Off turn — which is why a holiday recomputes its week and not its date, nothing at the point of declaring one knowing whose roster is compressed; **and when a regular holiday follows the date across nothing but days work was not expected on, the span extends forward to include it** (decisions 66 and 77 — an unworked regular holiday's credit is conditional on the preceding work day, so a late timelog for the 24th changes the 25th, and every other event in this list reaches only backward). The reach walks the same days the conditional's look-back walks, and for the same reason: it steps over rest days, non-working holidays and whole-day suspensions and stops at the first day work was expected on, because that day is then the holiday's preceding work day and this span cannot move it. One day forward reached the 25th only from the 24th, and a Monday regular holiday after a weekend never at all. **An overtime authority is not on this list**, and the mention of one was true for the decision that wrote it and not the next: decision 79 moved authorisation to view time, so no stored column depends on an authority and `Ledger::view()` reads the table live. **And the calendar events refresh the days that were computed; they create none** (decision 86). Only a timelog brings a day into existence — which is what the first event in this list has always meant — so a calendar change is fanned out over the employees who have a workday inside its span, clamped to the first and last day each of them has there. A proclamation for Christmas filed in September otherwise writes a workday dated 25 December for every employee in the country, three months of absences ahead of the fact. The other side of the same rule is that a recompute must be able to *remove* what it would no longer write: a narrowed deployment leaves workdays on days nobody was employed on, and the pass discards them out of any month that is not locked.
 
@@ -206,7 +247,7 @@ The computation, from csc-rules.md sections C and E. Minutes everywhere; days co
 
 10. **Premium days.** A day is a premium day when its expectation is empty *after the calendar has been applied*: an `Off` turn, which is a rest day, or a holiday that `HolidayType::expectsWork()` says expects none — which includes a regular holiday landing on an ordinary working turn, its slots having been removed by rule 1 of 05-calendar.md. Such a day carries `premium`: `rest` for the Off turn, `regular` or `special` for the holiday, `local` classifying as `special` (decision 49). Coincident causes take the stronger: `regular` over `special` over `rest`. The first **480** minutes of actual attendance on such a day become `credited`, the rest stays `excess` — that attendance being the transits of the Punch section above, which is the only place it can come from on a day with no slots (decision 78); 480 is tier 1a of 00-principles.md, the universal ordinary day, and deliberately not the shift's prescribed length, because a day with no expectation has none to read. Under Labor Code Arts. 93–94 those first eight hours are regular hours at a premium — 130% on a rest or special day, 200% on a regular holiday — and only the hours past them are overtime; the multipliers are payroll's, and khronoz stores the minutes and the class, never a peso. **`credited` alone is gated on `settings.premium_hours`, default false; `premium` is always classified.** A civil-service agency has no premium-regular-hours concept — its holiday work is `excess` against an `Overtime` authority — so `credited` stays 0 there and every CSC number is what it was before this rule existed. The class is still recorded, because it costs one varchar and it is the fact that cannot be reconstructed later: holiday rows and roster turns both move, and a day's premium standing has to be answerable from the row after they do. `premium` is frozen at compute time for the reason the shift snapshot is.
 
-11. **The weekly ceiling.** Where `settings.overtime_after_weekly` is set — 48 hours under a compliant compressed week, DA 02-04 — the week's overtime is `max(Σ daily excess, week total − ceiling)` over the ISO week, where the week total is `Σ (worked + credited)`. It is a maximum and not a sum: the advisory makes work beyond twelve hours a day *or* forty-eight a week overtime, so adding both charges a thirteen-hour Tuesday twice. Derived at read time by `App\Attendance\Week`, never stored, and loaded by ISO-week bounds rather than from a ledger, because a week straddles a month end (decision 52). A straddling week is **reported by the month containing its last day** and by that month alone (decision 75) — otherwise both months add the same minutes, and crediting it to the month it began in would let October's timelogs move a September total that is already locked. Null ceiling means the rule does not bind and `Σ daily excess` stands, which is the civil-service case.
+11. **The weekly ceiling.** Where `settings.overtime_after_weekly` is set — 48 hours under a compliant compressed week, DA 02-04 — the week's overtime is `max(Σ daily excess, week total − ceiling)` over the ISO Monday–Sunday week, where the week total is `Σ (worked + credited)`. It is a maximum and not a sum: the advisory makes work beyond twelve hours a day *or* forty-eight a week overtime, so adding both charges a thirteen-hour Tuesday twice. Derived by `App\Attendance\Week`, never stored as a separate total, and loaded by ISO-week bounds rather than cadence boundaries. Weekly-only overtime belongs to the ledger range containing that week's Sunday, including when an agency cadence begins on another weekday. Locking freezes the derived result and settings in the ledger snapshot. Null ceiling means the rule does not bind and `Σ daily excess` stands, which is the civil-service case.
 
 ### Settled before Milestone 6
 
@@ -223,7 +264,7 @@ eighth was found in the settling.
 | No ISO-week accumulator, while `settings.overtime_after_weekly` already existed | `App\Attendance\Week`, derived at read time, `max` and not a sum | decision 52, daily rule 11 |
 | `workdays.night` was one scalar and could not separate regular from overtime night minutes | `night` and `night_excess`, partitioned by the expected slots | decision 53, daily rule 5 |
 | Cross-midnight attribution of day *status* was unstated | Credit follows the day the duty started; the calendar-day split is derived from `actual_at`. A default, not an invariant | decision 54, "Across midnight and month end" |
-| A locked or attested ledger month did not freeze the deployment ranges it was computed from (owed by decision 35) | Trigger `deployments_frozen_month`, checking `OLD` as well as `NEW` | decision 55, 07-constraints.md |
+| A locked or attested ledger range did not freeze the deployment ranges it was computed from (owed by decision 35) | Range-overlap trigger on deployments, checking `OLD` as well as `NEW` | superseded by M7 range ledgers, 07-constraints.md |
 | Two exemptions on one day had no stated winner | Precedence: `excused()`, then more covered minutes, then earlier `approved_at`, then lower `id`. **Reverses this file's own tentative "narrower window"** | decision 50, daily rule 7 |
 | `local` holidays had no stated effect | `HolidayType::expectsWork()` is the one place that decides; `local` behaves as `special` | decision 49, 05-calendar.md rule 1 |
 | **Found while settling the rest:** voiding a timelog did not recompute, so a struck-out record kept being counted | Rule 3 below gains a sixth event | decision 57 |
@@ -237,34 +278,43 @@ rather than an invented rule.
 2. **The hours-worked doctrine** for required pre- and post-shift activity, waiting time, on-call and non-voluntary training (Book III Rule I §§3–6). On-call counts only where mobility is restricted, §5(b), and never under RA 7305 §15, which pays 50% instead — a per-agency rule about premises-binding, not a regime switch.
 3. **Mandatory overtime rest breaks.** JC 2 s. 2015 §10.2 is cited for a one-hour break every three continuous overtime hours and §8.2.1 for overtime being exclusive of lunch and rest, so multi-hour overtime with no intermediate punches may owe an automatic deduction. The citation is a `☆` claim in `../reference/csc-rules.md` and unverified in primary text.
 4. **`supervisor` under a detail** — the receiving workgroup's head observed the attendance, the mother's holds the plantilla item. Left open by decision 31 on purpose.
-5. **A week straddling a locked month.** `App\Attendance\Week` reads whatever workdays exist and reports them; whether a half-frozen week may be reported at all needs a real month end (decision 52).
+5. **A week straddling an official range.** Weekly-only overtime is owned by the range containing Sunday. The lock snapshot reads the complete ISO week, and an operator must not lock a range whose Sunday-owned weekly total still depends on a future date.
 
 ## Ledger
 
-1. One row per employee per month, created by the first workday computed in that month (`firstOrCreate` on `employee_id, month`). Stores `locked_at` only. Totals and the monthly occurrence counts are computed from its workdays.
-2. Views take two orthogonal parameters, never stored:
+1. A ledger is an explicit employee date range and revision: inclusive `starts` and `ends`, work `scope`, optional `cadence_id`, and a monotonic `revision`. Workdays belong to the employee and duty date; rendering selects the days in that range. A calendar month is a print grouping, not the ledger's identity. Regular work, overtime, and all-work scopes are explicit; a `Period` enum is not the public range contract.
+2. Agency `cadences` define weekly, fortnightly, semimonthly, or monthly reporting intervals. Weekly and fortnightly cadences use an anchor start. Semi-monthly cadences carry two ordered monthly start days (default `[1, 16]`), and monthly cadences carry one (default `1`); start days are limited to 1–28 so every month contains the boundary. Each employee references a cadence, while managers may select a retained agency cadence for a retroactive range. The resulting ledger retains concrete dates so changing a cadence cannot move an existing record.
+3. Agency `policies` select the document template, ordered attestation roles, supervisor basis, and head kind. More specific employee or workgroup policies override agency defaults. Locking freezes the resolved policy, signer identities, employee and organizational identity, and all calculation settings affecting derived figures. Later organizational or setting changes do not alter that revision.
+4. Locking is one-way for a revision. `locked_at` and `locked_by` record the original act; they are never cleared or re-dated. A controlled unlock records `unlocked_at` and `unlocked_by`, withdraws the revision, and permits a new revision rather than reusing the old lock. Earlier attestations, renditions, and retained documents remain an audit trail; withdrawal does not delete them or overwrite their bytes.
+5. Active locked ranges protect their workdays, punches, and relevant scheduling or authority inputs against recomputation and mutation at the database boundary. Range guards consider employee, agency, and overlap, including both old and new values on updates. The application also rejects unfinished punch windows before locking. Withdrawal removes that revision's active protection without weakening another overlapping locked range.
 
-| Parameter | Enum | Values |
-|---|---|---|
-| `period` | `Period` | `first` 1 to 15, `second` 16 to end, `full` |
-| `work` | `Work` | `regular`, `overtime`, null for both |
+## PDF renditions
 
-```php
-$ledger->view(Period::First, Work::Overtime);
-$ledger->view(Period::Full);
-```
-
-3. Locking freezes the month against recomputation, and the **database** enforces it: `workdays_ledger_open` refuses any insert, update or delete of a workday whose ledger has `locked_at` set, raising `P0001` (decision 70). The recompute job still checks `workday.ledger.locked_at` first, but as the courteous early exit that gives a good message — not as the thing that makes the rule true, which is what an `if` in one job would have been for the paths nobody has written yet. **Punches carry the same trigger** (decision 80): `punches_ledger_open` refuses insert, update and delete of a punch whose workday's ledger is locked. Decision 70 argued they needed none, because `punches.workday_id` cascades from a workday that can no longer be deleted — which answers deleting the parent and says nothing about writing the child, and the app role holds all three privileges on the table, so a signed month's chain was rewritable a row at a time with every guard around it intact. A cascading delete from `workdays` still reaches the new trigger and is still allowed: the parent's own guard has already refused the locked case, so the only cascades arriving are from open months. **And the two tables the month's figures are still read from live** are frozen against it too (decision 81): `exemptions_frozen_month` and `overtimes_frozen_month` mirror `deployments_frozen_month`, so an authority filed or an excuse edited after the fact cannot change a figure somebody has signed. What is *not* frozen is `settings.occurrences` and `settings.overtime_after_weekly`, deliberately unfrozen by decision 69 so a policy change shows in the next report — which means a locked month's derived figures can still move when the policy does, and that residual is recorded under decision 81 rather than closed here. Unlocking clears `locked_at` and recomputation then proceeds, which is the paper trail `ledgers_unlock_clean` exists to force. The lock itself waits for pending outs (above), and **a locked month cannot be locked again** (decision 84): a second lock is a re-dating of the first, and an attestation seals the ledger as it was at a moment, so moving `locked_at` past that moment leaves a signature certifying a lock that had not yet happened. Unlock first, which `ledgers_unlock_clean` makes a decision somebody has to take.
+1. **Milestone 7 produces downloadable PDFs and does not apply cryptographic digital signatures.** The renderer is Spatie Laravel PDF through a Gotenberg service, which keeps headless Chromium and its browser dependencies outside the application process. The resolved policy selects CSC Form 48 or the plain private-sector form.
+2. An unlocked or partly attested ledger is a preview. Its PDF is rendered for the request, downloaded, and discarded; it is not an official stored record and must not accumulate in object storage. Preview PDFs are visibly marked and carry no verification QR.
+3. Completing the configured attestation chain always freezes an immutable rendition and creates its public verification token. The QR points to the attested ledger's HTML verification page, never to object storage, and works independently of PDF archiving. The page renders the frozen ledger view itself, its ordered attestations, identifiers, covered dates and scope, and current or superseded status. It does **not** embed or stream the PDF. When an archived document exists it may also show byte count and SHA-256 metadata, while the authenticated historical-download route remains separate. The token route has no listing or search, is rate-limited, returns `noindex`, `nofollow`, and `noarchive`, and exposes no storage location or unrelated employee data.
+4. Agency PDF archiving is opt-in and defaults **off**. With archiving off, completed downloads are generated from the frozen rendition and the PDF bytes are discarded after delivery. With archiving on, the generated PDF is retained through generic `documents` and `locations` records. A document describes bytes by name, media type, length, digest algorithm, and digest; only its locations carry a logical store and opaque object key. The initial logical store is `archive`, mapped through configuration to the existing private RustFS-backed S3 disk; no additional bucket or storage volume is required. Object keys use identifiers, never employee names or numbers. Retained downloads return the stored bytes. Reopening or finalizing another revision never overwrites an earlier rendition or object.
+5. Locking snapshots every agency setting that can change the ledger's derived figures, template, or attestation chain. Unlocked views continue to read current settings. Locked views and the canonical PDF read the snapshot, closing decision 81's residual without making ordinary setting changes retroactive.
+6. A frozen rendition and any retained canonical PDF belong to the same attendance-record series as their ledger and attestations. Their lifecycle is governed by M8's effective-dated retention policy and holds, not by a separate `pdf_retention_years` value or an object-store rule acting alone. Transient PDF bytes are temporary data and are removed immediately.
+7. RustFS is the only M7 object store and is not its own backup. No additional volume, replica, bucket, NAS, or external backup is added in this milestone, so losing the current RustFS volume can lose every retained PDF location. An independently credentialed copy in another failure domain and tested restoration are prerequisites before cryptographic signing is enabled; any future backup remains inside the same retention and disposal scope as the primary object.
+8. CSC Form 48 and the plain form use 8 by 14 inch paper. Form 48 has one page per calendar month covered by the ledger range, visibly marks days outside that range, and includes its verification QR on every completed page. Assets are embedded locally; the renderer does not fetch remote fonts, images or styles. Gotenberg 8 has a `/health` probe and binds locally only at `127.0.0.1:43000`; applications sharing its private service network can use `http://gotenberg:3000` instead.
 
 ## Attestation
 
-CS Form 48 is certified by the employee and verified by the in-charge. Agencies add a department head or the timekeeper. Who signs, and in what order, is agency data, not schema.
+CSC Form 48 is certified by the employee and verified by the in-charge. Agencies add a department head or the timekeeper. Who signs, and in what order, is agency data, not schema.
 
-1. `attestations`: `ledger_id`, `role`, `user_id`, `at`. One row per role per ledger.
-2. The agency setting `attestations` lists the required roles in order. Default `[employee, supervisor]`. `[employee, supervisor, head]` or `[supervisor, head, timekeeper]` are settings, not code.
-3. Who may sign a role comes from the org tree. `employee`: the ledger's own employee through their user. `supervisor`: `Workgroup.head_id` of the employee's deployment in that month. `head`: the head of the nearest ancestor workgroup of the kind the setting names, department for instance — walked up from the employee's **substantive** placement, so under a detail the mother department signs last, not the receiving one (01-organization.md rule 7, decision 31). `timekeeper`: any user of the agency holding `ledgers.attest`. The row records who actually signed.
+1. An attestation records its ledger revision, ordered role, authenticated user, and timestamp. There is one act per required role in that revision; prior acts are not overwritten or deleted to restart a chain.
+2. The locked policy supplies the required roles in order, for example `[employee, supervisor]` or `[employee, supervisor, head]`. Each next role follows the preceding act. A later policy change applies only to a new revision.
+3. Signer eligibility is resolved and frozen when locking. The employee signs their own record; the supervisor follows the policy's organizational basis; the head follows the configured ancestor kind; a timekeeper requires the relevant agency permission. The application checks the frozen signer choice together with current authentication and tenant access when recording the act.
+4. A ledger is complete when every required role has attested in order. Completion atomically creates the immutable rendition and verification token, even if PDF storage is disabled or unavailable.
+5. Attestations require an active locked revision. Only the latest active act may be withdrawn, by its signer or a user with `ledgers.manage`, and withdrawals proceed in reverse order. The original lock and acts remain. Withdrawal after completion supersedes the existing rendition; reattesting the same locked ledger creates a new rendition revision and token. Unlocking is allowed only after every active act is withdrawn, and a later relock creates a new ledger revision.
+6. In M7, attestations are application audit records containing role, order, authenticated user, signer-name snapshot, and timestamps. No signature images, certificates, private keys, or cryptographic PDF signatures are created.
 
-   **Open item** (decision 31): under a detail, whether `supervisor` resolves from the receiving workgroup's head, who observed the attendance, or from the mother's, depends on the arrangement. Unsettled deliberately — it needs a real case rather than an invented rule, and until then the sentence above resolves it from whichever deployment covers the month, which is ambiguous while two do.
-4. A ledger is complete when every listed role has a row.
-5. Attestations are only possible on a locked ledger, and a ledger with attestations cannot be unlocked until they are removed. You certify frozen numbers, never moving ones. Triggers in 07-constraints.md.
-6. Timestamps and user ids only. No signature images, no certificates.
+## Future cryptographic PDF signatures — after M7
+
+1. A cryptographic PDF signature is a separate layer from an `Attestation`. The attestation records the authenticated user's role, intent, and time in the application; a future document signature binds that act to the exact bytes of one generic document revision associated with the frozen rendition. Existing M7 attestations are not retroactively presented as certificate-backed signatures. A future signing workflow must explicitly preserve those signed bytes; the default-off M7 archive setting alone does not provide that preservation.
+2. The target format is PAdES with long-term validation material. The signed PDF carries the certificate chain, revocation evidence, and a trusted timestamp needed to validate it after a signing certificate expires.
+3. Signing is append-only. The unsigned canonical PDF is the base document; each signer adds an incremental PDF revision and produces a new immutable document without invalidating the earlier signed byte ranges. An employee, supervisor, and head therefore produce **four documents**: unsigned base, employee-signed, employee-plus-supervisor-signed, and fully signed by all three. A future signature record links each revision to its parent document, signer, certificate, input/output digests, timestamp, and validation evidence. Logical stores and object keys remain exclusively on `locations`, never on `documents`. The final download returns the last signed document exactly as stored.
+4. Private signing keys never enter Postgres, RustFS, Laravel configuration, queue payloads, logs, or ordinary application backups. They remain non-exportable in an HSM/KMS or an approved remote signing service. Khronoz stores only the signed document and the public validation material needed to verify it.
+5. Signed revisions and their validation evidence are evidential attendance records. They receive the same independent backup, restoration testing, legal or audit holds, and eventual disposal treatment as the canonical PDF and the rest of the attendance series.
+6. Before implementation, settle the certificate authority or trust service, signer identity proofing, trusted timestamp service, revocation and renewal behavior, multi-signer order, validation interface, key recovery policy, and the agency instruction under which a signature may be voided or superseded. This work is explicitly outside M7.

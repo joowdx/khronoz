@@ -98,7 +98,7 @@ Three reasons a DTR falls outside the carve-out:
 
 **Practical effect: none of the exemptions help.** A biometric enrolment, a punch time, a tardiness occurrence and a night-differential minute count are all ordinary personal information of an ordinary data subject, whether the employer is a national agency or a private hospital. `settings.retention_years` differing by regime is a *floor* difference; the DPA ceiling is identical for both tenants.
 
-**The two reviewers split on this, and the split is worth keeping.** The adversarial reviewer agreed with the conclusion above outright: §4(a) "does not categorically exclude a DTR's biometric UID/template, raw arrival/departure timestamps, absences, leave/exemption information, disciplinary implications, or device logs." The legal pass proposed a softer *bifurcated* reading ★ — that the certified monthly CS Form 48, as an official record of hours worked discharged in public office, sits largely within §4(a)'s transparency policy, while the processing system, the biometric identifiers and the raw punch logs remain fully governed.
+**The two reviewers split on this, and the split is worth keeping.** The adversarial reviewer agreed with the conclusion above outright: §4(a) "does not categorically exclude a DTR's biometric UID/template, raw arrival/departure timestamps, absences, leave/exemption information, disciplinary implications, or device logs." The legal pass proposed a softer *bifurcated* reading ★ — that the certified monthly CSC Form 48, as an official record of hours worked discharged in public office, sits largely within §4(a)'s transparency policy, while the processing system, the biometric identifiers and the raw punch logs remain fully governed.
 
 Both readings converge on the only thing the design needs: **the raw timelogs, the enrolments and the derived workdays are covered.** They differ only about the certified monthly artefact, which is the one thing an agency publishes anyway. Nothing in the retention design turns on resolving it, so it stays open rather than being decided here.
 
@@ -221,9 +221,9 @@ A purge that ignores a hold is a worse failure than a purge that did not run.
 
 ### 3. Destroying workdays falsifies a signed attestation
 
-September 2022 is locked and attested by employee, supervisor and unit head. Deleting the workdays removes the very subject matter the signatures certify, and `attestations(ledger_id, agency_id) → ledgers` means the attestation cannot simply be kept behind. Detaching it leaves a signature that can no longer identify what it signed.
+September 2022 is locked and attested by employee, supervisor and unit head. The ledger's frozen calculation and each completed rendition preserve the subject matter those application attestations certify; the attestations, ledger, and rendition therefore form one evidential package. A future certificate-backed signature adds exact signed document bytes to that same package rather than replacing it.
 
-**An attestation is itself evidential personal data with its own retention purpose and its own clock**, which no duration on the attendance data expresses. `06-attendance.md` makes attestations require a locked ledger and unlocking require their removal; nothing yet says what happens when the ledger's retention expires underneath them.
+**An attestation, its frozen rendition, and any retained canonical PDF are themselves evidential personal data.** `06-attendance.md` makes attestations require a locked ledger. M7 always freezes the completed rendition and enables ledger verification independently of storage; agency PDF archiving is opt-in and defaults off. With archiving off, downloaded PDF bytes are transient and discarded. With archiving on, retained bytes and their generic document/location records belong to the attendance series. A future cryptographic signature adds append-only signed revisions and public validation material to that package. Those retained records cannot be destroyed underneath the subject matter they prove; all follow the attendance-record series and its holds.
 
 ### 4. The FK graph fixes the delete order, and it is not negotiable
 
@@ -231,12 +231,15 @@ For the attendance package, verified against `07-constraints.md`:
 
 | Order | Delete | Blocked otherwise by |
 | --- | --- | --- |
-| 1 | `attestations` | `attestations(ledger_id, agency_id) → ledgers` |
-| 2 | `workdays` (cascades to `punches`) | `punches(workday_id, employee_id) → workdays` |
-| 3 | `ledgers` | `workdays(ledger_id, employee_id, month) → ledgers` |
-| 4 | `timelogs` | `punches(timelog_id, employee_id) → timelogs` |
+| 1 | stored objects, then `locations` | a location is the inventory entry for one physical document copy |
+| 2 | `renditions` | `renditions(document_id, agency_id) → documents`; the app role cannot perform this disposal |
+| 3 | `documents` | `locations(document_id, agency_id) → documents` and the rendition reference must already be gone |
+| 4 | `attestations` | `attestations(ledger_id, agency_id) → ledgers` |
+| 5 | `ledgers` | both attestations and renditions restrict ledger deletion |
+| 6 | `workdays` (cascades to `punches`) | `punches(workday_id, employee_id) → workdays` |
+| 7 | `timelogs` | `punches(timelog_id, employee_id) → timelogs` |
 
-The paired `UNIQUE (id, agency_id)` / `(id, employee_id)` pattern adds no new ordering, but it forces every composite reference to be removed consistently — deliberately preventing a convenient cross-tenant or cross-employee detachment.
+The paired `UNIQUE (id, agency_id)` / `(id, employee_id)` pattern adds no new ordering, but it forces every composite reference to be removed consistently — deliberately preventing a convenient cross-tenant or cross-employee detachment. M8 must define a privileged, hold-aware disposal path because the ordinary application role deliberately cannot delete audit records.
 
 **Disposing of an expired DTR package is a different and far safer operation than deleting an employee.** Employee deletion is restricted by `users`, deployments, enrollments, rosters, exemptions, overtimes, ledgers and possibly `workgroups.head_id`; `timelogs` additionally restrict deletion of the enrollments, syncs, terminals and manual-entry users they reference. Employment history is not the DTR and has its own retention basis. The phrase "purge the employee's trail" should not appear in a design.
 
@@ -295,11 +298,11 @@ The enrolment *history* is not the credential. `03-terminals.md` rule 3 has time
 | --- | --- | --- |
 | 1 | **`03-terminals.md` rule 1's "Nothing is ever pruned" needs a terminus.** Unqualified, it is a DPA breach at the tail. The honest replacement keeps immutability and adds a lifecycle: *nothing is altered; expired record packages are disposed* | `03-terminals.md` rule 1 |
 | 2 | `REVOKE DELETE ON timelogs FROM chronoz` is right for the request path and insufficient overall — disposal needs a path the request path cannot reach, with `TRUNCATE` revoked and `SECURITY DEFINER` functions audited | `07-constraints.md` |
-| 3 | **The record series is all attendance records, one schedule, one clock per employee** (settled, section G). Timelogs, punches, workdays, ledgers and attestations are disposed of together; the clock runs from the series' last entry, so disposal keys on separation rather than a rolling sweep. Credentials are a different class with a shorter clock — delta 21 | M8 |
+| 3 | **The record series is all attendance records, one schedule, one clock per employee** (settled, section G). Timelogs, punches, workdays, ledgers, attestations, frozen renditions, any retained PDFs and document/location records, and future signed revisions and validation material are disposed of together; the clock runs from the series' last entry, so disposal keys on separation rather than a rolling sweep. Transient downloads are discarded immediately. Credentials are a different class with a shorter clock — delta 21 | M8 |
 | 4 | **A scalar `retention_years` cannot express the civil-service rule.** CSC/COA retention is event-based ("1 year after post-audit and settlement"), so the minimum honest shape is a schedule per record class: legal basis, trigger type, effective date, hold override, disposal state. This stays individual agency-configured settings — it does not reintroduce a gov/private mode flag (decision 32) | M8; supersedes decision 32's implied key shape |
 | 5 | **A legal and audit hold is first-class**, and §11's "establishment, exercise or defense of legal claims" is its statutory basis. Scope, basis, reference, custodian, asserted and released timestamps | M8 |
 | 6 | **The duty is an eligibility review, not a nightly `DELETE`.** A missed disposal is not automatically unlawful; a disposal that ignores a hold is worse than one that did not run | M8 |
-| 7 | **Attestations need their own retention rule** — destroying a ledger's workdays falsifies signatures that `attestations(ledger_id, agency_id)` will not let you keep | `06-attendance.md`, `07-constraints.md` |
+| 7 | **Attestations and canonical or signed PDFs must remain bound to what they certify** — destroying a ledger's workdays while retaining its evidential rendition or signature falsifies the package, while destroying the rendition leaves no exact signed bytes to verify | `06-attendance.md`, `07-constraints.md`; future digital signatures after M7 |
 | 8 | **Disposal must reach the device, or a resync undoes it.** `stamp` reset plus `ON CONFLICT DO NOTHING` reinserts destroyed timelogs. Device de-enrolment and template deletion must be tracked commands with acknowledgement and escalation | `03-terminals.md` rules 2 and 5; M8 |
 | 9 | **Erasure is answered per record class**: correct (§16(d), `voided_at` + `reason`) where accuracy is the ground, block where use or unlawful collection is the ground, refuse with a written cited basis where no ground is proven, dispose once eligible. Never a blanket answer either way | M8 |
 | 10 | **Blocking belongs in RLS or a database-backed policy, not an Eloquent global scope**, and must survive rehire | M8; `02-access.md`, principle 7 |
