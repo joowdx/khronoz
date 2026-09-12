@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Actions\BeginLogin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Support\SocialProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +17,7 @@ class AuthenticatedSessionController extends Controller
     public function create(): Response
     {
         return Inertia::render('auth/login', [
+            'providers' => SocialProvider::availability(),
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
         ]);

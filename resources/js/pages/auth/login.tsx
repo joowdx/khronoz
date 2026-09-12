@@ -1,5 +1,7 @@
 import { PasskeyButton } from '@/components/passkey-button';
 import { options, store as verify } from '@/routes/passkeys/login';
+import { redirect } from '@/routes/social';
+import type { SocialProviders } from '@/types';
 import { Form, Link } from '@inertiajs/react';
 import { store } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
 import { request } from '@/routes/password';
@@ -58,7 +60,15 @@ function FailureBanner({ message, resetHref }: { message: string; resetHref: str
     );
 }
 
-export default function Login({ status, canResetPassword }: { status?: string; canResetPassword: boolean }) {
+export default function Login({
+    status,
+    canResetPassword,
+    providers,
+}: {
+    status?: string;
+    canResetPassword: boolean;
+    providers: SocialProviders;
+}) {
     const resetHref = request().url;
 
     return (
@@ -151,37 +161,36 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                 }
             />
 
-            <div className="flex items-center gap-3 py-6">
-                <span className="bg-border h-px flex-1" />
-                <span className="text-muted-foreground text-[13px] leading-[18px]">or</span>
-                <span className="bg-border h-px flex-1" />
-            </div>
-
-            <div className="flex flex-col gap-2.5">
-                <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 w-full lg:h-9"
-                    aria-describedby="sso-note"
-                    disabled
-                >
-                    <GoogleMark />
-                    Continue with Google
-                </Button>
-                <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 w-full lg:h-9"
-                    aria-describedby="sso-note"
-                    disabled
-                >
-                    <AppleMark />
-                    Continue with Apple
-                </Button>
-                <p id="sso-note" className="text-muted-foreground text-xs leading-4">
-                    Single sign-on is not enabled yet.
-                </p>
-            </div>
+            {(providers.google || providers.apple) && (
+                <>
+                    <div className="flex items-center gap-3 py-6">
+                        <span className="bg-border h-px flex-1" />
+                        <span className="text-muted-foreground text-[13px] leading-[18px]">or</span>
+                        <span className="bg-border h-px flex-1" />
+                    </div>
+                    <div className="flex flex-col gap-2.5">
+                        {providers.google && (
+                            <Button asChild variant="outline" className="h-11 w-full lg:h-9">
+                                <a href={redirect.url('google')}>
+                                    <GoogleMark />
+                                    Continue with Google
+                                </a>
+                            </Button>
+                        )}
+                        {providers.apple && (
+                            <Button asChild variant="outline" className="h-11 w-full lg:h-9">
+                                <a href={redirect.url('apple')}>
+                                    <AppleMark />
+                                    Continue with Apple
+                                </a>
+                            </Button>
+                        )}
+                        <p className="text-muted-foreground text-xs leading-4">
+                            Use an account you previously connected in Account settings.
+                        </p>
+                    </div>
+                </>
+            )}
         </AuthLayout>
     );
 }

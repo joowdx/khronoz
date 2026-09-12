@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AppleRelayController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmationController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -9,12 +10,18 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasskeyConfirmationController;
 use App\Http\Controllers\Auth\PasskeyLoginController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
+use App\Http\Controllers\Auth\SocialController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\Settings\EmailVerificationController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('auth/google/callback', [SocialController::class, 'callback'])->middleware('throttle:20,1')->block(30)->name('social.google.callback');
+Route::get('auth/apple/complete/{relay}', [AppleRelayController::class, 'complete'])->where('relay', '[A-Za-z0-9]{64}')->middleware('throttle:20,1')->block(30)->name('social.apple.complete');
+Route::get('auth/social-error', [SocialController::class, 'failure'])->name('social.failure');
+
 Route::middleware('guest')->group(function () {
+    Route::get('auth/{provider}/redirect', [SocialController::class, 'redirect'])->whereIn('provider', ['google', 'apple'])->middleware('throttle:10,1')->block()->name('social.redirect');
     Route::get('passkeys/login/options', [PasskeyLoginController::class, 'create'])->middleware('throttle:10,1')->block()->name('passkeys.login.options');
     Route::post('passkeys/login', [PasskeyLoginController::class, 'store'])->middleware('throttle:10,1')->block()->name('passkeys.login.store');
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');

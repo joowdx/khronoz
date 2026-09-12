@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { PageHeader } from '@/components/page-header';
 import AppLayout from '@/layouts/app-layout';
 import { edit as profile } from '@/routes/settings/profile';
+import { index as connections } from '@/routes/settings/connections';
 import { edit as security } from '@/routes/settings/security';
 
 export default function AccountLayout({ children, title }: { children: ReactNode; title: string }) {
@@ -10,6 +11,7 @@ export default function AccountLayout({ children, title }: { children: ReactNode
     const links = [
         { label: 'Profile', href: profile().url },
         { label: 'Security', href: security().url },
+        { label: 'Connected accounts', href: connections().url },
     ];
     return (
         <AppLayout>

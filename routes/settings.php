@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\ConnectionController;
 use App\Http\Controllers\Settings\EmailController;
 use App\Http\Controllers\Settings\EmailNotificationController;
 use App\Http\Controllers\Settings\PasskeyController;
@@ -15,7 +16,11 @@ Route::prefix('settings')->name('settings.')->group(function () {
     Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
 
+    Route::get('connections', [ConnectionController::class, 'index'])->name('connections.index');
+
     Route::middleware('confirmed')->group(function () {
+        Route::post('connections/{provider}', [ConnectionController::class, 'store'])->whereIn('provider', ['google', 'apple'])->middleware('throttle:10,1')->block()->name('connections.store');
+        Route::delete('connections/{connection}', [ConnectionController::class, 'destroy'])->block()->name('connections.destroy');
         Route::get('passkeys/options', [PasskeyController::class, 'create'])->middleware('throttle:10,1')->block()->name('passkeys.options');
         Route::post('passkeys', [PasskeyController::class, 'store'])->middleware('throttle:10,1')->block()->name('passkeys.store');
         Route::patch('passkeys/{credential}', [PasskeyController::class, 'update'])->name('passkeys.update');

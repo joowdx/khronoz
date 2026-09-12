@@ -438,3 +438,15 @@ export interface Passkey {
     created_at: string;
     last_used_at: string | null;
 }
+
+export interface SocialProviders {
+    google: boolean;
+    apple: boolean;
+}
+export interface Identity {
+    id: string;
+    provider: 'google' | 'apple';
+    email: string | null;
+    created_at: string;
+    last_used_at: string | null;
+}

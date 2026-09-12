@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AppleRelayController;
 use App\Http\Middleware\EnsureAgency;
 use App\Http\Middleware\EnsureLegalAcceptance;
 use App\Http\Middleware\EnsurePlatform;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        then: fn () => Route::post('auth/apple/callback', [AppleRelayController::class, 'store'])->middleware('throttle:30,1')->name('social.apple.callback'),
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
@@ -49,7 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'message' => 'Passkey verification failed. Please try again.',
             'errors' => ['credential' => ['Passkey verification failed. Please try again.']],
         ], 422));
-        $exceptions->dontFlash(['password', 'password_confirmation', 'current_password', 'code', 'recovery_code', 'credential', 'token']);
+        $exceptions->dontFlash(['password', 'password_confirmation', 'current_password', 'code', 'recovery_code', 'credential', 'token', 'state', 'id_token', 'access_token', 'refresh_token']);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

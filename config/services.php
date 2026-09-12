@@ -18,6 +18,7 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'guzzle' => ['timeout' => 10, 'connect_timeout' => 5],
     ],
 
     // Apple's client secret is a short-lived signed JWT; regenerate it before expiry.
@@ -25,6 +26,7 @@ return [
         'client_id' => env('APPLE_CLIENT_ID'),
         'client_secret' => env('APPLE_CLIENT_SECRET'),
         'redirect' => env('APPLE_REDIRECT_URI'),
+        'guzzle' => ['timeout' => 10, 'connect_timeout' => 5],
     ],
 
     'postmark' => [
