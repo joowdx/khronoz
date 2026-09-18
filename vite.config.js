@@ -7,7 +7,14 @@ import react from '@vitejs/plugin-react';
 import { bunny } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
+    // Without noExternal, Vite externalises react, react-dom/server,
+    // @inertiajs/react and every Radix package out of the SSR bundle as bare
+    // imports. The build still succeeds; the container dies at runtime with
+    // ERR_MODULE_NOT_FOUND while /up stays green. With it, the only bare
+    // specifiers left are Node builtins, which is what lets the production image
+    // ship the node binary with no node_modules beside it.
+    ssr: isSsrBuild ? { noExternal: true } : undefined,
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./resources/js', import.meta.url)),
@@ -40,4 +47,4 @@ export default defineConfig({
             ignored: ['**/storage/framework/views/**'],
         },
     },
-});
+}));

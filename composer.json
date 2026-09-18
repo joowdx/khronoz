@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.3",
         "endroid/qr-code": "^6.1",
+        "fakerphp/faker": "^1.24",
         "inertiajs/inertia-laravel": "^3.3",
         "laravel/fortify": "^1.39",
         "laravel/framework": "^13.17",
@@ -25,7 +26,6 @@
         "spatie/laravel-pdf": "^2.0"
     },
     "require-dev": {
-        "fakerphp/faker": "^1.23",
         "laravel/boost": "^2.7",
         "laravel/envoy": "^2.12",
         "laravel/pail": "^1.2.5",

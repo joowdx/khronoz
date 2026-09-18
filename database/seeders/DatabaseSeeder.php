@@ -19,7 +19,7 @@ class DatabaseSeeder extends Seeder
         $this->call(DefaultsSeeder::class);
 
         // Guard the development superuser against repeated seeding.
-        if (app()->environment('local') && User::where('email', 'superuser@khronoz.test')->doesntExist()) {
+        if (app()->environment('local', 'development', 'staging') && User::where('email', 'superuser@khronoz.test')->doesntExist()) {
             User::factory()->platform()->create([
                 'name' => 'Superuser',
                 'email' => 'superuser@khronoz.test',
@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
         }
 
         // The sample organization sets agency IDs explicitly because no tenant is active.
-        if (app()->environment('local') && Agency::where('code', 'demo')->doesntExist()) {
+        if (app()->environment('local', 'development', 'staging') && Agency::where('code', 'demo')->doesntExist()) {
             $agency = Agency::factory()->create(['code' => 'demo', 'name' => 'Demo Agency']);
 
             $department = Workgroup::factory()->create([

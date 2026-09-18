@@ -14,6 +14,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/** | .ai/rules/js.md |
 | resources/views/pdf/ledgers/form48.blade.php | .ai/rules/ledgers.md |
 | app/Http/Middleware/**, bootstrap/app.php | .ai/rules/middleware.md |
+| Dockerfile, .dockerignore, docker/**, compose.yaml, vite.config.js, .env.example, config/octane.php, config/inertia.php | .ai/rules/deployment.md |
 | database/migrations/** | .ai/rules/migrations.md |
 | app/Models/** | .ai/rules/models.md |
 | resources/js/pages/** | .ai/rules/pages.md |

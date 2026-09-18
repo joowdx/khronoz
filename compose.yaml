@@ -1,7 +1,22 @@
-# Dependencies only. The application itself runs on the host, so `php artisan`
-# talks to these over the forwarded ports and there is no bind-mount uid to
-# fight with. Nothing here mounts anything out of vendor/, so `docker compose
-# up` works on a fresh clone before `composer install` has run.
+# Four profiles.
+#
+#   (none)   Postgres, Valkey, RustFS and Gotenberg. The backing services the
+#            application needs whichever way it is being run, so they carry no
+#            profile and `docker compose up` starts exactly them. Development
+#            runs the app on the host -- `php artisan dev`, not a container --
+#            talking to these over the forwarded ports, with no bind-mount uid
+#            to fight with and nothing mounted out of vendor/, so a fresh clone
+#            works before `composer install` has run.
+#   dev      Mailpit. A mail catcher is a development convenience and nothing
+#            else, so it is the one backing service that has to be asked for.
+#   prod     The three serving roles of the production image -- web, horizon,
+#            schedule -- against the services above on the same box.
+#   migrate  The one-shot migration role. Run it, it exits:
+#            `docker compose --profile migrate run --rm migrate`
+#
+# The `prod` profile publishes on SERVER_PORT, which is also what `php artisan
+# dev` binds on the host. They are mutually exclusive on one machine,
+# deliberately.
 services:
     pgsql:
         image: 'postgres:18-alpine'
@@ -59,7 +74,9 @@ services:
             RUSTFS_ADDRESS: '0.0.0.0:9000'
             RUSTFS_CONSOLE_ADDRESS: '0.0.0.0:9001'
             RUSTFS_CONSOLE_ENABLE: 'true'
-            RUSTFS_EXTERNAL_ADDRESS: ':9000'
+            # Signed into presigned URLs alongside the endpoint, so a staging
+            # box reached by name needs its public host here, not :9000.
+            RUSTFS_EXTERNAL_ADDRESS: '${RUSTFS_EXTERNAL_ADDRESS:-:9000}'
             RUSTFS_CORS_ALLOWED_ORIGINS: '*'
             RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS: '*'
             RUSTFS_ACCESS_KEY: '${AWS_ACCESS_KEY_ID:-sail}'
@@ -106,9 +123,157 @@ services:
     mailpit:
         image: 'axllent/mailpit:latest'
         container_name: khronoz-mailpit
+        profiles:
+            - dev
         ports:
             - '${FORWARD_MAILPIT_PORT:-43025}:1025'
             - '${FORWARD_MAILPIT_DASHBOARD_PORT:-43825}:8025'
+        networks:
+            - khronoz
+    # The role is the command, never a flag -- docker/entrypoint.sh dispatches on
+    # $1. One image serves every role, so they share an `image:` tag; each also
+    # carries `build:` so that a bare `--profile prod up` cannot fail trying to
+    # pull a tag that only exists locally. The later builds are pure cache hits.
+    #
+    # There is deliberately no `queue` role. Horizon is itself a `queue:work`
+    # supervisor; a second named pool on the same Redis connection would be
+    # invisible to Horizon's metrics.
+    web:
+        build:
+            context: .
+        image: 'khronoz:${IMAGE_TAG:-latest}'
+        container_name: khronoz-web
+        profiles:
+            - prod
+        restart: unless-stopped
+        command:
+            - web
+        env_file: .env
+        environment: &khronoz-app-env
+            # The roles state their own environment: env_file above is a
+            # developer's .env, where APP_ENV=local, and local is the one value
+            # that registers Telescope -- a dev dependency this image does not
+            # carry. `staging` rather than `production` keeps unpublished legal
+            # documents viewable and leaves destructive artisan commands
+            # available; set it to production for a real production box.
+            APP_ENV: staging
+            APP_DEBUG: 'false'
+            # .env names host-facing addresses, because development runs the
+            # application on the host. Inside the network they are service names.
+            DB_HOST: khronoz-pgsql
+            DB_PORT: 5432
+            # Blanked on purpose, and not merely absent: .env arrives whole
+            # through env_file, and AppServiceProvider refuses to resolve the
+            # owner connection outside a console run. Only khronoz-migrate below
+            # carries these.
+            DB_OWNER_USERNAME: ''
+            DB_OWNER_PASSWORD: ''
+            REDIS_HOST: khronoz-valkey
+            REDIS_PORT: 6379
+            # Loopback inside the web container, so it owes nothing to the
+            # 43714 .env names for the host. Stated here as well as in the image
+            # because env_file wins over the image's own ENV.
+            INERTIA_SSR_PORT: 13714
+            INERTIA_SSR_URL: 'http://127.0.0.1:13714'
+            # Signed into every temporary URL, so it must name a host the client
+            # can reach. The internal name is right only while nothing outside
+            # this network downloads a stored ledger PDF.
+            AWS_ENDPOINT: 'http://khronoz-rustfs:9000'
+            GOTENBERG_URL: 'http://khronoz-gotenberg:3000'
+            TELESCOPE_ENABLED: 'false'
+        ports:
+            - '${SERVER_PORT:-43080}:8000'
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            valkey:
+                condition: service_healthy
+            rustfs:
+                condition: service_healthy
+            gotenberg:
+                condition: service_healthy
+        networks:
+            - khronoz
+    horizon:
+        build:
+            context: .
+        image: 'khronoz:${IMAGE_TAG:-latest}'
+        container_name: khronoz-horizon
+        profiles:
+            - prod
+        restart: unless-stopped
+        command:
+            - horizon
+        env_file: .env
+        environment: *khronoz-app-env
+        # The image's HEALTHCHECK probes the HTTP port. This role runs no
+        # listener, so inheriting it would park the container as unhealthy
+        # forever. Horizon supervises its own workers; runit is not involved.
+        healthcheck:
+            disable: true
+        # Rendering a ledger PDF is a queued job, so the worker needs Gotenberg
+        # and RustFS as much as the web role does.
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            valkey:
+                condition: service_healthy
+            rustfs:
+                condition: service_healthy
+            gotenberg:
+                condition: service_healthy
+        networks:
+            - khronoz
+    # Exactly one replica, always. routes/console.php schedules nothing yet, so
+    # this deploys inert -- but two replicas would double-fire every task the
+    # moment one is added.
+    schedule:
+        build:
+            context: .
+        image: 'khronoz:${IMAGE_TAG:-latest}'
+        container_name: khronoz-schedule
+        profiles:
+            - prod
+        restart: unless-stopped
+        command:
+            - schedule
+        env_file: .env
+        environment: *khronoz-app-env
+        # No listener here either -- see horizon.
+        healthcheck:
+            disable: true
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            valkey:
+                condition: service_healthy
+        networks:
+            - khronoz
+    # One shot, never on start: a migration racing N replicas during a rolling
+    # deploy is a footgun. This is also the only role that may hold owner
+    # credentials, which is why it restores the two the anchor blanks.
+    migrate:
+        build:
+            context: .
+        image: 'khronoz:${IMAGE_TAG:-latest}'
+        container_name: khronoz-migrate
+        profiles:
+            - migrate
+        restart: 'no'
+        command:
+            - migrate
+        env_file: .env
+        environment:
+            <<: *khronoz-app-env
+            DB_OWNER_USERNAME: '${DB_OWNER_USERNAME}'
+            DB_OWNER_PASSWORD: '${DB_OWNER_PASSWORD}'
+        healthcheck:
+            disable: true
+        depends_on:
+            pgsql:
+                condition: service_healthy
+            valkey:
+                condition: service_healthy
         networks:
             - khronoz
 networks:
