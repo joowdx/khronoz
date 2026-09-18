@@ -2,9 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Actions\ImportTimelogs;
 use App\Actions\LockLedger;
-use App\Attendance\Computer;
 use App\Enums\ExemptionType;
 use App\Enums\HolidayType;
 use App\Enums\OvertimeMode;
@@ -24,7 +22,6 @@ use App\Models\Terminal;
 use App\Models\Turn;
 use App\Models\User;
 use App\Models\Workgroup;
-use App\Support\Settings;
 use App\Tenancy\Tenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
@@ -32,6 +29,8 @@ use Illuminate\Support\Facades\DB;
 
 class AttendanceSeeder extends Seeder
 {
+    use SeedsAttendance;
+
     private const FROM = '2026-06-01';
 
     private const TO = '2026-08-31';
@@ -74,16 +73,6 @@ class AttendanceSeeder extends Seeder
             ['CHO', 'City Health Office', $sizes[0] ?? 20],
             ['CGS', 'City General Services Office', $sizes[1] ?? 120],
         ];
-    }
-
-    private function quieten(): void
-    {
-        /** @var class-string $telescope */
-        $telescope = 'Laravel\Telescope\Telescope';
-
-        if (class_exists($telescope)) {
-            $telescope::stopRecording();
-        }
     }
 
     private function national(): void
@@ -146,8 +135,11 @@ class AttendanceSeeder extends Seeder
             $people = $this->people($agency, $workgroups, $this->cycles($agency, $code), $terminal, $headcount);
 
             $this->calendar($agency, $clerk, $workgroups, $people, $code);
-            $this->attendance($agency, $terminal, $people);
-            $this->compute($agency, $people);
+            $from = CarbonImmutable::parse(self::FROM);
+            $to = CarbonImmutable::parse(self::TO);
+
+            $this->attendance($agency, $people, $from, $to);
+            $this->compute($agency, $people, $from, $to);
             $this->close($agency, $code);
         } finally {
             app(Tenant::class)->forget();
@@ -304,7 +296,7 @@ class AttendanceSeeder extends Seeder
     /**
      * @param  list<Workgroup>  $workgroups
      * @param  list<array{schedule: Schedule, shifts: list<Shift>, share: int}>  $cycles
-     * @return list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>
+     * @return list<Person>
      */
     private function people(Agency $agency, array $workgroups, array $cycles, Terminal $terminal, int $headcount): array
     {
@@ -364,8 +356,10 @@ class AttendanceSeeder extends Seeder
                 'uid' => $uid,
                 'habit' => $habit,
                 'shifts' => $cycle['shifts'],
+                'anchor' => $anchor,
                 'from' => $from,
                 'to' => $to,
+                'terminal' => $terminal,
             ];
         }
 
@@ -373,23 +367,8 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * @param  array<array-key, array{share: int}>  $weighted
-     * @return list<int>
-     */
-    private function wheel(array $weighted): array
-    {
-        $wheel = [];
-
-        foreach (array_values($weighted) as $index => $entry) {
-            $wheel = [...$wheel, ...array_fill(0, $entry['share'], $index)];
-        }
-
-        return $wheel;
-    }
-
-    /**
      * @param  list<Workgroup>  $workgroups
-     * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
+     * @param  list<Person>  $people
      */
     private function calendar(Agency $agency, User $clerk, array $workgroups, array $people, string $code): void
     {
@@ -457,8 +436,8 @@ class AttendanceSeeder extends Seeder
     }
 
     /**
-     * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
-     * @return list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>
+     * @param  list<Person>  $people
+     * @return list<Person>
      */
     private function every(array $people, int $nth): array
     {
@@ -467,146 +446,6 @@ class AttendanceSeeder extends Seeder
             fn (int $index): bool => $index % $nth === 0,
             ARRAY_FILTER_USE_KEY,
         ));
-    }
-
-    /**
-     * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
-     */
-    private function attendance(Agency $agency, Terminal $terminal, array $people): void
-    {
-        $path = tempnam(sys_get_temp_dir(), 'khronoz-attlog-');
-        $handle = fopen($path, 'w');
-        $anchor = CarbonImmutable::parse(self::ANCHOR);
-        $from = CarbonImmutable::parse(self::FROM);
-        $to = CarbonImmutable::parse(self::TO);
-        $lines = 0;
-
-        try {
-            foreach ($people as $person) {
-                for ($date = $from; $date->lte($to); $date = $date->addDay()) {
-                    if ($date->lt($person['from']) || ($person['to'] !== null && $date->gt($person['to']))) {
-                        continue;
-                    }
-
-                    foreach ($this->punches($person, $anchor, $date) as [$time, $state]) {
-                        fwrite($handle, "{$person['uid']}\t{$time}\t{$state}\t1\n");
-                        $lines++;
-                    }
-                }
-            }
-
-            fclose($handle);
-
-            $this->command?->getOutput()->writeln("  <info>{$agency->code}</info>: importing {$lines} timelogs…");
-
-            app(ImportTimelogs::class)->handle($terminal, $path, "attlog-{$agency->code}.dat");
-        } finally {
-            @unlink($path);
-        }
-    }
-
-    /**
-     * @param  array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}  $person
-     * @return list<array{0: string, 1: int}>
-     */
-    private function punches(array $person, CarbonImmutable $anchor, CarbonImmutable $date): array
-    {
-        $shifts = $person['shifts'];
-        $shift = $shifts[$anchor->diffInDays($date) % count($shifts)];
-        $slots = $shift->slots;
-
-        // This fixture exercises the premium-day excess path.
-        if ($slots === []) {
-            if ($person['habit'] !== 'overtime' || ! fake()->boolean(8)) {
-                return [];
-            }
-
-            $in = $this->at($date, '08:00')->addMinutes(fake()->numberBetween(-10, 20));
-
-            return [
-                [$in->toDateTimeString(), 0],
-                [$in->addMinutes(fake()->numberBetween(240, 540))->toDateTimeString(), 1],
-            ];
-        }
-
-        if ($person['habit'] === 'absentee' && fake()->boolean(12)) {
-            return [];
-        }
-
-        // Everybody misses the occasional day; the exemptions above excuse
-        // some of them and the rest are the absences a DTR is meant to show.
-        if (fake()->boolean(3)) {
-            return [];
-        }
-
-        $punches = [];
-        $last = count($slots) - 1;
-
-        foreach ($slots as $index => $slot) {
-            $in = $this->at($date, $slot['in'])->addMinutes($this->arrival($person['habit']));
-            $out = $this->at($date, $slot['out'])->addMinutes($this->departure($person['habit'], $index === $last));
-
-            $punches[] = [$in->toDateTimeString(), 0];
-            $punches[] = [$out->toDateTimeString(), 1];
-        }
-
-        // A missed side, which is what settings.missing_side exists to
-        // answer (daily rule 4) and what nothing in a tidy fixture produces.
-        if ($person['habit'] === 'forgetful' && fake()->boolean(10)) {
-            array_splice($punches, fake()->numberBetween(0, count($punches) - 1), 1);
-        }
-
-        return $punches;
-    }
-
-    private function at(CarbonImmutable $date, string $clock): CarbonImmutable
-    {
-        [$hours, $minutes] = array_map('intval', explode(':', $clock));
-
-        return $date->startOfDay()->addMinutes($hours * 60 + $minutes);
-    }
-
-    private function arrival(string $habit): int
-    {
-        return match ($habit) {
-            'late' => fake()->boolean(60) ? fake()->numberBetween(8, 45) : fake()->numberBetween(-10, 0),
-            'undertime' => fake()->numberBetween(-10, 0),
-            default => fake()->numberBetween(-15, -1),
-        };
-    }
-
-    private function departure(string $habit, bool $last): int
-    {
-        return match (true) {
-            $habit === 'overtime' && $last => fake()->numberBetween(60, 180),
-            $habit === 'undertime' && $last => -fake()->numberBetween(20, 60),
-            default => fake()->numberBetween(0, 10),
-        };
-    }
-
-    /**
-     * @param  list<array{employee_id: string, uid: string, habit: string, shifts: list<Shift>, from: CarbonImmutable, to: ?CarbonImmutable}>  $people
-     */
-    private function compute(Agency $agency, array $people): void
-    {
-        $settings = new Settings($agency);
-        $from = CarbonImmutable::parse(self::FROM);
-        $to = CarbonImmutable::parse(self::TO);
-        $output = $this->command?->getOutput();
-
-        $output?->writeln("  <info>{$agency->code}</info>: computing ".count($people).' employees…');
-        $output?->progressStart(count($people));
-
-        foreach ($people as $person) {
-            $employee = Employee::findOrFail($person['employee_id']);
-
-            (new Computer($employee, $settings))->over($from, $to);
-
-            unset($employee);
-            $output?->progressAdvance();
-        }
-
-        $output?->progressFinish();
     }
 
     private function close(Agency $agency, string $code): void
